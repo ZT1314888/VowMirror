@@ -1,9 +1,9 @@
 services:
-  costume-tryon:
+  vowmirror:
     build:
       context: .
       dockerfile: manifest/docker/Dockerfile
-    container_name: costume-tryon-backend
+    container_name: vowmirror-backend
     restart: unless-stopped
     ports:
       - "8000:8000"

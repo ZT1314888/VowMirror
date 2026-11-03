@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
-<meta name="description" content="拍片哥女装 (COSTUME-DB-01) — AI 服装参考图集，收录 1407 套高品质服装图片（2:3），支持一键 AI 试穿换装与中英文双向检索。">
-<title>拍片哥女装 · AI 服装参考图集</title>
+<meta name="description" content="VowMirror — AI 服装参考图集，收录 1407 套高品质服装图片（2:3），支持一键 AI 试穿换装与中英文双向检索。">
+<title>VowMirror · AI 服装参考图集</title>
 <script>
 try{
-  document.documentElement.dataset.theme = localStorage.getItem('nvzhuang_theme') === 'dark' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = localStorage.getItem('vowmirror_theme') === 'dark' ? 'dark' : 'light';
 }catch(_){ document.documentElement.dataset.theme = 'light'; }
 </script>
 <style>
@@ -392,7 +392,7 @@ footer a:hover{color:var(--tx);text-decoration:underline}
 <body>
 <header class="hero">
   <div class="hero-top">
-    <div class="eyebrow" data-i18n="eyebrow">COSTUME-DB-01 · 图像参照用服装集</div>
+    <div class="eyebrow" data-i18n="eyebrow">VowMirror · AI 服装参考图集</div>
     <div class="hero-controls">
       <a class="github-link" href="https://x.com/giaaibusi" target="_blank" rel="noopener noreferrer" aria-label="原作者/灵感来源 @giaaibusi">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
@@ -442,7 +442,7 @@ footer a:hover{color:var(--tx);text-decoration:underline}
       </nav>
     </div>
   </div>
-  <h1><span data-i18n="titleWord">拍片哥女装</span> <span data-i18n="titleDb">图库</span></h1>
+  <h1><span data-i18n="titleWord">VowMirror</span> <span data-i18n="titleDb">图库</span></h1>
   <p class="sub" data-i18n="subtitle">人物不入镜的纯服装图像（2:3）。可按春・夏・秋・冬・内衣・派对・泳装・性感分类浏览。</p>
 </header>
 
@@ -458,7 +458,7 @@ footer a:hover{color:var(--tx);text-decoration:underline}
 <main><div class="grid" id="grid"></div><button type="button" class="btn2 morebtn" id="more" hidden>加载更多</button></main>
 
 <footer id="foot">
-  <div data-i18n="footerNote">拍片哥女装 COSTUME-DB-01 · 基于 MIT 协议开源 · 完全可商用与作品创作</div>
+  <div data-i18n="footerNote">VowMirror · 基于 MIT 协议开源 · 完全可商用与作品创作</div>
   <div class="foot-source">
     <span data-i18n="footerCredit">灵感来源与原作者 X 推文：</span><a href="https://x.com/giaaibusi" target="_blank" rel="noopener noreferrer">@giaaibusi</a>
     <span class="sep"> · </span>
@@ -750,8 +750,8 @@ footer a:hover{color:var(--tx);text-decoration:underline}
 // ===== 双语字典 =====
 const I18N = {
   zh: {
-    eyebrow: 'COSTUME-DB-01 · 拍片哥女装参考图集',
-    titleWord: '拍片哥女装',
+    eyebrow: 'VowMirror · AI 服装参考图集',
+    titleWord: 'VowMirror',
     titleDb: '图库',
     subtitle: '人物不入镜的纯服装图像（2:3）。可按春・夏・秋・冬・内衣・派对・泳装・性感分类浏览。',
     tipsTab: '使用提示', noticeTab: '注意事项',
@@ -780,7 +780,7 @@ const I18N = {
     prevNext: '前后服装',
     close: '关闭',
     keywordsLabel: '关键词',
-    footerNote: '拍片哥女装 COSTUME-DB-01 · 基于 MIT 协议开源 · 完全可商用与作品创作',
+    footerNote: 'VowMirror · 基于 MIT 协议开源 · 完全可商用与作品创作',
     // 分类名（中文）
     catSpring: '春', catSummer: '夏', catAutumn: '秋', catWinter: '冬',
     catLingerie: '内衣', catParty: '派对', catSwimwear: '泳装', catSexy: '性感',
@@ -874,9 +874,9 @@ const I18N = {
     historyLoadFailed: '无法读取本机生成记录，请检查浏览器存储权限。', historyGarment: '服装',
   },
   en: {
-    eyebrow: 'COSTUME-DB-01 · PaipianGe Costume Reference Gallery',
-    titleWord: 'PaipianGe',
-    titleDb: 'Costumes',
+    eyebrow: 'VowMirror · AI Costume Reference Gallery',
+    titleWord: 'VowMirror',
+    titleDb: 'Gallery',
     subtitle: 'Person-free costume images (2:3). Browse by Spring, Summer, Autumn, Winter, Lingerie, Party, Swimwear, and Sexy categories.',
     tipsTab: 'Usage Tips', noticeTab: 'Notes',
     tipsTitle: 'Usage Tips', noticeTitle: 'Notes',
@@ -904,7 +904,7 @@ const I18N = {
     prevNext: 'prev/next',
     close: 'Close',
     keywordsLabel: 'Keywords',
-    footerNote: 'PaipianGe Costumes COSTUME-DB-01 · Open Source under MIT License · Free for Commercial Use',
+    footerNote: 'VowMirror · Open Source under MIT License · Free for Commercial Use',
     catSpring: 'Spring', catSummer: 'Summer', catAutumn: 'Autumn', catWinter: 'Winter',
     catLingerie: 'Lingerie', catParty: 'Party', catSwimwear: 'Swimwear', catSexy: 'Sexy',
     // AI try-on
@@ -1047,7 +1047,7 @@ const ZH_ALIAS = {
 
 // ===== 全局状态 =====
 let LANG = 'zh';
-const THEME_STORAGE_KEY = 'nvzhuang_theme';
+const THEME_STORAGE_KEY = 'vowmirror_theme';
 let THEME = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -2105,7 +2105,7 @@ $('#mimg').addEventListener('touchend',e=>{if(tx===null)return;const dx=e.change
   const photoWrap = document.getElementById('fitPhotoWrap');
   const photoPreview = document.getElementById('fitPhotoPreview');
   const fitCompressEl = document.getElementById('fitCompress');
-  const COMPRESS_STORAGE_KEY = 'nvzhuang_compress_image';
+  const COMPRESS_STORAGE_KEY = 'vowmirror_compress_image';
   if(fitCompressEl){
     const savedCompress = localStorage.getItem(COMPRESS_STORAGE_KEY);
     if(savedCompress !== null){

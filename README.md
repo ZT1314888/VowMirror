@@ -1,9 +1,9 @@
-# 拍片哥女装 · AI 服装参考图集 (COSTUME-DB-01)
+# VowMirror · AI 服装参考图集
 
 一个深色主题的纯净服装参考图集网站，收录 **1407 张** 人物不入镜的 AI 生成服装图像（2:3 比例），支持中英文双语浏览、多维检索，并配备可选的 AI 一键换装试穿。
 
 > 👗 **【Linux.do 3级常任理事专属彩蛋】**  
-> 听说在 [LINUX DO](https://linux.do/) 社区只要升到 **3 级（常任理事）** 就可以解锁“看女装大佬”的保留节目？身为一名尊贵的 Linux.do 3 级老兵，逛了一圈发现坛里的女装资源还不够看，干脆亲手搓了这个 **「拍片哥女装」** 项目！  
+> 听说在 [LINUX DO](https://linux.do/) 社区只要升到 **3 级（常任理事）** 就可以解锁“看女装大佬”的保留节目？身为一名尊贵的 Linux.do 3 级老兵，逛了一圈发现坛里的女装资源还不够看，干脆亲手搓了这个 **「VowMirror」** 项目！\
 > 不仅收录了 1407 套纯净高质量服装图，还顺手接了 AI 虚拟换装后端——这下各位佬友哪怕现实中没有小裙子，直接传张自拍照就能一键无痛变身“女装大佬”出道了 😂！
 
 > 🔗 **在线预览**：https://paipiange.github.io/nvzhuang/  
@@ -48,7 +48,7 @@
 | **锁定身体动作、视角与画面构图**<br><sub>（从 1439 张多角度姿势库中挑选骨架素体）</sub> | **提供面容、发型与服装特征**<br><sub>（结合本项目精选服装或上传的模特穿搭）</sub> | **AI 融合生成结果（图 1 + 图 2 ➔ 图 3）**<br><sub>（动作精准还原，完美呈现人物与穿搭细节）</sub> |
 
 > **上图即实际工作流：图 1 + 图 2 → 图 3。** 人物头像与服装均为可选输入；只选择姿势，也可以让模型自动完成人物与穿搭设计。  
-> 💡 **联动工作流**：在 [拍片哥女装](https://github.com/paipiange/nvzhuang) 挑选高质量服装设计，在 [拍片哥姿势库](https://github.com/paipiange/ai-pose-gallery-zh) 挑选合适的人体动作构图，两者结合即可生成兼具神韵动作与精美穿搭的专业级 AI 模特大片！
+> 💡 **联动工作流**：在 [VowMirror](https://github.com/paipiange/nvzhuang) 挑选高质量服装设计，在 [拍片哥姿势库](https://github.com/paipiange/ai-pose-gallery-zh) 挑选合适的人体动作构图，两者结合即可生成兼具神韵动作与精美穿搭的专业级 AI 模特大片！
 
 ## ✨ 功能特性
 
@@ -163,14 +163,14 @@ docker compose up -d
 cd backend
 
 # 构建镜像
-docker build -f manifest/docker/Dockerfile -t costume-tryon .
+docker build -f manifest/docker/Dockerfile -t vowmirror .
 
 # 运行容器（按需注入模型 Key，例如豆包或 OpenAI）
-docker run -d --name costume-tryon \
+docker run -d --name vowmirror \
   -p 8000:8000 \
   -e ARK_API_KEY="你的豆包ArkKey" \
   -e OPENAI_API_KEY="sk-你的OpenAIKey" \
-  costume-tryon
+  vowmirror
 ```
 
 #### 方式三：无 Docker 本地运行
@@ -228,7 +228,7 @@ npx serve -l 3000 .
 ## 📁 目录结构
 
 ```
-nvzhuang/
+VowMirror/
 ├── index.html          # 页面结构 + 样式 + 交互逻辑（含双语字典、AI 试穿搭配台）
 ├── data.js             # 1407 条服装数据（id / 分类 / 关键词 / 图片路径）
 ├── docker-compose.yml  # 一键启动后端 Docker 容器编排

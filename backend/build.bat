@@ -38,7 +38,7 @@ echo.
 
 REM ---- 3. 启动 ----
 echo [3/4] 启动服务（监听 8000 端口）...
-start "AI-Tryon-Backend" cmd /k "main.exe"
+start "VowMirror-Backend" cmd /k "main.exe"
 echo.
 
 REM ---- 4. 提示 ----

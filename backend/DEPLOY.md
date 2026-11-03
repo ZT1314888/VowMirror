@@ -1,4 +1,4 @@
-# AI 换装后端部署指南
+# VowMirror · AI 换装后端部署指南
 
 本文档说明如何把 `backend/`（GoFrame v2 后端）部署到**你自己的服务器**。
 
@@ -40,16 +40,16 @@ docker compose logs -f
 ```bash
 # 1. 在 backend 目录构建镜像
 cd backend
-docker build -f manifest/docker/Dockerfile -t costume-tryon .
+docker build -f manifest/docker/Dockerfile -t vowmirror .
 
 # 2. 运行容器，通过环境变量注入 Key（按需填写，豆包用 ARK_API_KEY）
-docker run -d --name costume-tryon \
+docker run -d --name vowmirror \
   -p 8000:8000 \
   --restart unless-stopped \
   -e OPENAI_API_KEY="sk-你的key" \
   -e ARK_API_KEY="你的豆包ArkKey" \
   -e GEMINI_API_KEY="AIza你的key" \
-  costume-tryon
+  vowmirror
 ```
 
 ### 方式 C：直接编译运行（无 Docker）
