@@ -15,8 +15,6 @@ type Service struct {
 	ConcurrencyManager *ConcurrencyManager
 }
 
-var defaultService *Service
-
 func InitService(ctx context.Context) (*Service, error) {
 	cfg, err := LoadSecurityConfig(ctx)
 	if err != nil {
@@ -39,21 +37,5 @@ func InitService(ctx context.Context) (*Service, error) {
 		DailyQuotaTracker:  NewDailyQuotaTracker(cfg.RateLimit.DailyRequestsPerPrincipal),
 		ConcurrencyManager: NewConcurrencyManager(cfg.Concurrency.Global, cfg.Concurrency.PerPrincipal),
 	}
-	defaultService = s
 	return s, nil
-}
-
-func GetService() *Service {
-	if defaultService == nil {
-		cfg := DefaultSecurityConfig()
-		store, _ := NewTokenStore(false, "")
-		defaultService = &Service{
-			Config:             cfg,
-			TokenStore:         store,
-			RateLimiter:        NewRateLimiter(cfg.RateLimit.RequestsPerMinute, cfg.RateLimit.Burst, cfg.RateLimit.LimiterIdleMinutes),
-			DailyQuotaTracker:  NewDailyQuotaTracker(cfg.RateLimit.DailyRequestsPerPrincipal),
-			ConcurrencyManager: NewConcurrencyManager(cfg.Concurrency.Global, cfg.Concurrency.PerPrincipal),
-		}
-	}
-	return defaultService
 }

@@ -1,2 +1,5 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
+*.sh text eol=lf
+*.mjs text eol=lf
+*.go text eol=lf

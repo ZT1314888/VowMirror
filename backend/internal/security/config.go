@@ -2,6 +2,7 @@ package security
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gogf/gf/v2/frame/g"
 )
@@ -52,8 +53,11 @@ func DefaultSecurityConfig() *SecurityConfig {
 func LoadSecurityConfig(ctx context.Context) (*SecurityConfig, error) {
 	cfg := DefaultSecurityConfig()
 	val, err := g.Cfg().Get(ctx, "security")
-	if err != nil || val.IsEmpty() {
-		return cfg, nil
+	if err != nil {
+		return nil, err
+	}
+	if val.IsEmpty() {
+		return nil, fmt.Errorf("配置模板缺少 security 配置")
 	}
 
 	if err := val.Scan(cfg); err != nil {

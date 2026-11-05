@@ -22,10 +22,6 @@ func (m *RateLimitMiddleware) Handler(r *ghttp.Request) {
 		r.Middleware.Next()
 		return
 	}
-	if r.URL.Path != "/tryon" {
-		r.Middleware.Next()
-		return
-	}
 
 	principalID := r.GetCtxVar(CtxPrincipalID).String()
 	if principalID == "" {

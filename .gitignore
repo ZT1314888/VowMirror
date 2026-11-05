@@ -22,3 +22,12 @@ id_rsa*
 config.yaml
 **/config/config.yaml
 *.log
+
+# Local development data and tools; never enter Docker build contexts.
+.local/
+.playwright-mcp/
+node_modules/
+backend/main
+backend/main.exe
+backend/bin/
+backend/output/

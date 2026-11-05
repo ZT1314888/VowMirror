@@ -20,7 +20,7 @@ func NewBodyLimitMiddleware(maxBytes int64) *BodyLimitMiddleware {
 }
 
 func (m *BodyLimitMiddleware) Handler(r *ghttp.Request) {
-	if r.URL.Path != "/tryon" || r.Method != http.MethodPost {
+	if r.Method != http.MethodPost {
 		r.Middleware.Next()
 		return
 	}

@@ -18,7 +18,7 @@ func TestCORSOriginValidation(t *testing.T) {
 	cfg := &security.SecurityConfig{
 		TrustedOrigins: []string{
 			"http://localhost:3000",
-			"https://vowmirror.example.com",
+			"https://allowed.example",
 		},
 		AllowPrivateNetwork: true,
 	}
@@ -115,7 +115,7 @@ func TestAuthMiddleware(t *testing.T) {
 	s := g.Server("test-auth-mw")
 	s.Group("/", func(group *ghttp.RouterGroup) {
 		group.Middleware(RequestID, authMw.Handler)
-		group.POST("/tryon", func(r *ghttp.Request) {
+		group.POST("/protected", func(r *ghttp.Request) {
 			r.Response.Write("success")
 		})
 	})
@@ -127,7 +127,7 @@ func TestAuthMiddleware(t *testing.T) {
 	port := strings.Split(s.GetListenedAddress(), ":")[1]
 
 	// 1. 缺少 Token
-	reqNoAuth, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/tryon", nil)
+	reqNoAuth, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/protected", nil)
 	respNoAuth, err := client.Do(reqNoAuth)
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +148,7 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 
 	// 2. 错误 Token
-	reqBadAuth, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/tryon", nil)
+	reqBadAuth, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/protected", nil)
 	reqBadAuth.Header.Set("Authorization", "Bearer invalid-token-with-at-least-32-chars-long-000")
 	respBadAuth, err := client.Do(reqBadAuth)
 	if err != nil {
@@ -170,7 +170,7 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 
 	// 3. 正确 Token
-	reqValid, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/tryon", nil)
+	reqValid, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/protected", nil)
 	reqValid.Header.Set("Authorization", "Bearer "+validToken)
 	respValid, err := client.Do(reqValid)
 	if err != nil {
@@ -188,7 +188,7 @@ func TestBodyLimitMiddleware(t *testing.T) {
 	s := g.Server("test-body-limit")
 	s.Group("/", func(group *ghttp.RouterGroup) {
 		group.Middleware(RequestID, limitMw.Handler)
-		group.POST("/tryon", func(r *ghttp.Request) {
+		group.POST("/protected", func(r *ghttp.Request) {
 			r.Response.Write("body received")
 		})
 	})
@@ -201,7 +201,7 @@ func TestBodyLimitMiddleware(t *testing.T) {
 
 	// 超限请求体 (Content-Length > 100)
 	largePayload := strings.Repeat("A", 200)
-	req, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/tryon", strings.NewReader(largePayload))
+	req, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/protected", strings.NewReader(largePayload))
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -230,7 +230,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 	s := g.Server("test-rate-limit-mw")
 	s.Group("/", func(group *ghttp.RouterGroup) {
 		group.Middleware(RequestID, rlMw.Handler)
-		group.POST("/tryon", func(r *ghttp.Request) {
+		group.POST("/protected", func(r *ghttp.Request) {
 			r.Response.Write("ok")
 		})
 	})
@@ -242,7 +242,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 	port := strings.Split(s.GetListenedAddress(), ":")[1]
 
 	// 第一次：成功
-	req1, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/tryon", nil)
+	req1, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/protected", nil)
 	resp1, err := client.Do(req1)
 	if err != nil {
 		t.Fatal(err)
@@ -253,7 +253,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 	}
 
 	// 第二次：被限流 (429)
-	req2, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/tryon", nil)
+	req2, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+port+"/protected", nil)
 	resp2, err := client.Do(req2)
 	if err != nil {
 		t.Fatal(err)
