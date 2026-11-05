@@ -22,7 +22,7 @@ func TestGeminiSendsKeyInHeaderNotURL(t *testing.T) {
 	defer server.Close()
 
 	gen := NewGemini(&ModelConfig{
-		Name:    "browser-custom",
+		Name:    "test-gemini",
 		APIKey:  apiKey,
 		BaseURL: server.URL,
 		Model:   "test-model",

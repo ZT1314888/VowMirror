@@ -1,13 +1,16 @@
 package main
 
 import (
-	_ "backend/internal/packed"
-
-	"github.com/gogf/gf/v2/os/gctx"
+	"context"
+	"log"
 
 	"backend/internal/cmd"
 )
 
 func main() {
-	cmd.Main.Run(gctx.GetInitCtx())
+	server, err := cmd.NewServer(context.Background(), "vowmirror")
+	if err != nil {
+		log.Fatal(err)
+	}
+	server.Run()
 }

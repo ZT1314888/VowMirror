@@ -26,7 +26,7 @@ func NewGemini(cfg *ModelConfig) *Gemini {
 		baseURL: strings.TrimRight(cfg.BaseURL, "/"),
 		model:   cfg.Model,
 		name:    cfg.Name,
-		client:  newModelHTTPClient(cfg.ClientProvided),
+		client:  newModelHTTPClient(),
 	}
 }
 

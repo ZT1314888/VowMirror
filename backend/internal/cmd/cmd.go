@@ -2,88 +2,49 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/os/gcmd"
 	"github.com/gogf/gf/v2/os/gcfg"
-	"github.com/gogf/gf/v2/os/gfile"
 
-	"backend/internal/controller/hello"
-	"backend/internal/controller/tryon"
-	"backend/internal/imagevalidate"
 	"backend/internal/middleware"
 	"backend/internal/security"
 )
 
-// InitConfigFallback 检查并保障配置文件就绪：
-// 若当前没有可用的 config.yaml，自动尝试回退加载 config.example.yaml。
-func InitConfigFallback(ctx context.Context) {
-	if !g.Cfg().Available(ctx) {
-		candidates := []string{
-			"manifest/config/config.example.yaml",
-			"config/config.example.yaml",
-			"config.example.yaml",
-		}
-		for _, path := range candidates {
-			if gfile.Exists(path) {
-				if adapter, ok := g.Cfg().GetAdapter().(*gcfg.AdapterFile); ok {
-					adapter.SetFileName(path)
-					g.Log().Infof(ctx, "未找到 config.yaml，已自动加载模板配置: %s", path)
-				}
-				break
-			}
-		}
+const ConfigTemplate = "manifest/config/config.example.yaml"
+const ServerAddress = ":8000"
+
+func LoadConfig(ctx context.Context) error {
+	adapter, err := gcfg.NewAdapterFile(ConfigTemplate)
+	if err != nil {
+		return fmt.Errorf("加载配置模板失败: %w", err)
 	}
+	if !adapter.Available(ctx) {
+		return fmt.Errorf("缺少配置模板 %s", ConfigTemplate)
+	}
+	g.Cfg().SetAdapter(adapter)
+	return nil
 }
 
-// EnsureServerPort 确保 Server 具备显式监听端口，避免未配置时随机分配高位端口 (:0)
-func EnsureServerPort(ctx context.Context, s *ghttp.Server) {
-	addr, err := g.Cfg().Get(ctx, "server.address")
-	if err != nil || addr.IsEmpty() {
-		s.SetPort(8000)
-		g.Log().Info(ctx, "未指定 server.address 配置，已显式绑定默认端口 :8000")
+func NewServer(ctx context.Context, name string) (*ghttp.Server, error) {
+	if err := LoadConfig(ctx); err != nil {
+		return nil, err
 	}
+	// Missing access tokens fail startup; health itself remains public.
+	// Future business routes will receive this service explicitly.
+	if _, err := security.InitService(ctx); err != nil {
+		return nil, err
+	}
+	s := g.Server(name)
+	s.SetAddr(ServerAddress)
+	s.SetDumpRouterMap(false)
+	s.Group("/", func(group *ghttp.RouterGroup) {
+		group.Middleware(middleware.RequestID)
+		group.GET("/health", func(r *ghttp.Request) {
+			r.Response.Header().Set("Cache-Control", "no-store")
+			r.Response.WriteJson(g.Map{"code": 0, "message": "", "data": g.Map{"status": "ok"}})
+		})
+	})
+	return s, nil
 }
-
-var (
-	Main = gcmd.Command{
-		Name:  "main",
-		Usage: "main",
-		Brief: "start http server",
-		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
-			InitConfigFallback(ctx)
-
-			secService, err := security.InitService(ctx)
-			if err != nil {
-				return err
-			}
-
-			imgLimits := imagevalidate.LoadImageLimits(ctx)
-			corsMw := middleware.NewCORSMiddleware(secService.Config)
-			bodyLimitMw := middleware.NewBodyLimitMiddleware(imgLimits.MaxRequestBodyBytes)
-			authMw := middleware.NewAuthMiddleware(secService.TokenStore)
-			rateLimitMw := middleware.NewRateLimitMiddleware(secService.RateLimiter)
-
-			s := g.Server()
-			EnsureServerPort(ctx, s)
-
-			s.Group("/", func(group *ghttp.RouterGroup) {
-				group.Middleware(
-					middleware.RequestID,
-					ghttp.MiddlewareHandlerResponse,
-					corsMw.Handler,
-					bodyLimitMw.Handler,
-					authMw.Handler,
-					rateLimitMw.Handler,
-				)
-				group.Bind(
-					hello.NewV1(),
-					tryon.NewV1(),
-				)
-			})
-			s.Run()
-			return nil
-		},
-	}
-)

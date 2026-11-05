@@ -63,17 +63,27 @@ func TestValidateImageValid(t *testing.T) {
 		t.Fatalf("unexpected MIME: %s", vImg2.MIME)
 	}
 
-	// WebP
-	webpData, err := os.ReadFile("../../../assets/img/SPR-0001.webp")
-	if err == nil {
-		webpB64 := base64.StdEncoding.EncodeToString(webpData)
-		vImg3, err := ValidateImage(webpB64, limits)
-		if err != nil {
-			t.Fatalf("expected valid webp to pass: %v", err)
-		}
-		if vImg3.MIME != "image/webp" {
-			t.Fatalf("unexpected MIME for webp: %s", vImg3.MIME)
-		}
+}
+
+func TestOriginalImageFixtures(t *testing.T) {
+	for _, fixture := range []struct{ file, mime string }{
+		{"checker.png", "image/png"},
+		{"checker.jpg", "image/jpeg"},
+		{"checker.webp", "image/webp"},
+	} {
+		t.Run(fixture.file, func(t *testing.T) {
+			data, err := os.ReadFile("testdata/" + fixture.file)
+			if err != nil {
+				t.Fatalf("required original fixture missing: %v", err)
+			}
+			img, err := ValidateImage(base64.StdEncoding.EncodeToString(data), DefaultImageLimits())
+			if err != nil {
+				t.Fatalf("fixture rejected: %v", err)
+			}
+			if img.MIME != fixture.mime || img.Width != 256 || img.Height != 256 {
+				t.Fatalf("unexpected fixture metadata: %+v", img)
+			}
+		})
 	}
 }
 

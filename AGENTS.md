@@ -1,68 +1,42 @@
-# AGENTS.md · 协作智能体开发与提交规范
+# AGENTS.md · VowMirror 协作规范
 
-本文档面向所有参与本项目维护的 AI Agent（如 OpenCode、GitHub Copilot、Cursor、Claude Code 等）及协作开发者。任何代理或贡献者在修改、生成代码和提交 Git 记录时，必须严格执行本文档所规定的安全红线与工程规范。
+默认用中文沟通。明确实施指令直接完成授权范围；讨论性问题先核查、说明和给出判断，不自动修改。阶段通过必须有本轮证据，记录阻塞不得当作验收通过。
 
----
+## 范围与隐私
 
-## 1. 核心安全红线（零泄露原则）
+- 当前项目为内部单实例婚礼工具，Phase 1 仅开发入口和健康检查。没有旧单人兼容入口、图库、浏览器模型配置、历史、ComfyUI 或素材后台。
+- 未经单独指令，不实施后续 Phase、不付费调用模型、不提交／推送 Git、不公开部署。
+- 真实 Key、Token、密码、私钥绝不进入 Git 或暂存区。唯一环境模板为根 `.env.example`，凭据字段必须为空；真实 `.env`、`config.yaml`、私有照片和本地备份必须被 Git 与 Docker 构建上下文忽略。
+- 镜像只复制 `backend/manifest/config/config.example.yaml`。启动显式读取这一个模板，固定监听 `:8000`；不再搜索或回退到真实本地配置。模型 Key 只从 Docker 运行时环境注入，浏览器未来仅配置后端访问 Token。
+- 不将真实姓名、私人邮箱、电话、私人 IP、个人绝对路径写入代码、文档、提交或 PR。保留 LICENSE 原有版权声明。
+- 人物照片和生成结果不得在应用服务器持久化或写日志。未来仅当次预览下载，刷新不恢复照片／结果。
+- 外部输入必须在边界校验。客户端不能指定模型出口或素材路径；远程模型使用 HTTPS，敏感请求拒绝重定向，素材必须来自固定清单。未闭合的保留协议不得接入业务路由。
 
-### 1.1 严禁提交任何真实密钥与凭据
-- **绝对禁止**将任何真实的 API Key（包括但不限于 OpenAI `sk-...`、火山方舟 `ARK...`、Google Gemini `AIza...`、通义千问 `sk-...` 等）、私有 Token、密码、证书密钥提交到 Git 仓库或暂存区。
-- 仓库内仅允许保留配置文件模板（如 `backend/.env.example`、`backend/manifest/config/config.example.yaml`），且模板内的密钥字段**必须为空或通用占位符**（如 `""`、`"sk-你的key"`、`"你的豆包ArkKey"`）。
-- 本地真实配置文件（`backend/manifest/config/config.yaml`、`backend/.env`、根目录 `.env` 等）必须在 `.gitignore` 中被严格忽略。
+## 实现与验证
 
-### 1.2 严禁提交个人隐私与敏感信息
-- **绝对禁止**在代码、注释、提交信息（Commit Message）、PR 描述或生成文档中包含个人真实姓名、个人私人邮箱、手机号码、私人局域网 IP、私人服务器公网 IP、个人绝对开发路径（如包含开发者个人用户名的路径）。
-- Git 提交者信息应保持项目已有的一致风格，禁止在无授权情况下将私人联系方式作为作者写入共有历史。
+先定位根因与不变量，结构性问题收敛到唯一实现，删除过期逻辑／兼容分支；不叠加绕过、静默回退、假成功或吞错。依赖通过参数／接口注入，业务不依赖隐式全局服务。保持小函数、浅嵌套、明确错误，禁止无消费者的占位目录。
 
-### 1.3 外部输入与 URL 参数严格校验
-- 任何接受外部 URL、查询参数（如 `?tryon=`）或请求体的逻辑，必须执行严格的来源白名单与安全校验（仅允许同源 Same-Origin 或本机回环 `127.0.0.1`/`localhost`）。
-- 绝不允许构造链接时静默接管请求并向未受信任的第三方域外发包含用户私有 API Key（如 `client_config.api_key`）、认证 Token 或用户照片的敏感载荷。
-- 非本机外部远程地址一律强制使用 `HTTPS`，杜绝明文 HTTP 传输凭据。
+所有 Go 依赖、格式化、测试、vet、构建均在 Docker 执行，不安装宿主机 Go 或 GoFrame CLI。根 `compose.yaml` 是运行、检查和 CI 的唯一入口，工具 profile 不随应用启动。
 
----
+```sh
+docker compose build tools-go tools-node tools-browser web backend
+docker compose run --rm -T tools-go
+docker compose run --rm -T tools-node
+docker compose up -d web backend
+docker compose run --rm -T tools-browser node tests/smoke.mjs --stage foundation
+git diff --check
+```
 
-## 2. 架构与防御性编码规范
+后端测试整条命令必须设置不超过 60 秒的外层硬期限，不能只使用按包的 Go `-timeout`。统一脚本使用 `timeout -s TERM -k 2s 58s go test -count=1 -timeout=55s ./...`；依赖和编译准备放在测试计时前。
 
-1. **多层兜底保障（Fail-Safe Defaults）**：
-   - 后端服务（GoFrame）在启动时，若检测到宿主机未显式创建 `config.yaml`，必须具备代码层自动回退加载 `config.example.yaml` 的能力。
-   - 服务端口在未配置时，必须硬兜底显式绑定 `:8000`，绝对禁止因未配置 address 而进入系统 `:0` 随机高位临时端口（如 `:37093`）。
-   - Dockerfile 构建阶段与 Compose 编排阶段，必须确保模板配置文件就绪，实现开箱即用。
+验证顺序：定向行为测试 → 格式／lint／vet → 受影响构建 → 最小真实浏览器烟测。自有非人物 PNG/JPEG/WebP 夹具缺失必须失败；模拟不证明真实模型效果、速度或费用。Chrome MCP 验证必须实际调用浏览器工具，启动服务不算证据。
 
-2. **最小权限与数据隐私**：
-   - 前端用户的「个人模型配置」与历史生成记录仅保存在用户浏览器本地（`localStorage` / `IndexedDB`），后端在内存中使用，不得向磁盘持久化、不得写入服务端日志。
+非平凡任务先列根因、文件、局部或结构性判断、方案和验证；独立只读调查可并行，代码编辑由主代理统一处理。删除前解析绝对目标并确认位于仓库内，保护既有修改与草稿。
 
----
+## 提交前审查
 
-## 3. Git 提交自我审查 Checklist（提交前必查）
+只有获得提交指令才执行 commit。提交前检查 `git status` 和逐行 `git diff --cached`：无临时文件、日志、产物、真实配置、凭据或私人信息；扫描修改文件中的高危模式 `(sk-[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9]{20,})`；全量 Docker Go 测试与 vet 必须通过。
 
-在任何 `git commit` 执行之前，Agent 必须在后台严格执行以下核验步骤：
+最终 diff 检查症状补丁、重复逻辑、隐式回退、吞错、第二数据源、死代码、未说明行为、无效测试及安全回归。已有草稿先备份并记录整合去向，不丢弃用户内容。
 
-- [ ] **步骤 1：排查 Untracked 与暂存文件**
-  运行 `git status`，确保没有临时文件、日志文件（`*.log`）、编译产物（`main`、`*.exe`）、真实配置文件（`config.yaml`）进入暂存区。
-- [ ] **步骤 2：逐行审查 Git Diff**
-  运行 `git diff --cached`，逐行检查每一处新增和修改的字符，确认：
-  - 无真实 Key、Token、密码；
-  - 无个人姓名、电话、私有私人邮箱、个人电脑私有路径；
-  - 无调试时遗留的临时硬编码凭证。
-- [ ] **步骤 3：敏感字符串安全扫描**
-  对修改文件执行正则扫描，确保无符合正则 `(sk-[a-zA-Z0-9]{20,}|AIza[a-zA-Z0-9]{20,})` 的高危私钥。
-- [ ] **步骤 4：自动化测试与构建校验**
-  运行后端单元测试 `go test ./...` 与 `go vet ./...`，确保代码编译通过、测试全绿。
-
----
-
-## 4. Commit Message 提交规范
-
-遵循 **Conventional Commits** 规范，提交信息简洁、清晰、明确表达变更动机与影响：
-
-- `fix: ...`：修复缺陷、修复漏洞或修复配置异常
-- `feat: ...`：新增功能或用户可见特性
-- `docs: ...`：仅文档调整（README、DEPLOY、规范文档等）
-- `test: ...`：新增或重构测试用例
-- `refactor: ...`：既不修复错误也不添加新功能的代码重构
-- `chore: ...`：构建流程、依赖维护或辅助工具变动
-
-示例：
-- `fix: 修复无配置文件时服务监听随机端口与 tryon 参数跨源安全隐患 (close #2, close #3)`
-- `docs: 完善部署说明并新增 AGENTS.md 协作规范`
+提交使用 Conventional Commits：`fix:`、`feat:`、`docs:`、`test:`、`refactor:`、`chore:`。主分支为 `main`；开发分支从 main 建立，格式 `<type>/<kebab-case-topic>`。

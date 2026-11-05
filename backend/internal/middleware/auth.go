@@ -23,10 +23,6 @@ func (m *AuthMiddleware) Handler(r *ghttp.Request) {
 		r.Middleware.Next()
 		return
 	}
-	if r.URL.Path != "/tryon" {
-		r.Middleware.Next()
-		return
-	}
 
 	authHeader := r.Header.Get("Authorization")
 	var token string
