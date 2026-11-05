@@ -1,0 +1,29 @@
+# Application and tool images load this template explicitly.
+# Secrets are injected only through Docker runtime environment variables.
+server:
+  address: ":8000"
+  openapiPath: ""
+  swaggerPath: ""
+  logPath: ""
+  accessLogEnabled: false
+  errorLogEnabled: true
+  errorStack: false
+logger:
+  path: ""
+  level: "INFO"
+  stdout: true
+security:
+  authRequired: true
+  apiKeysEnv: "TRYON_API_KEYS"
+  trustedOrigins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+  allowPrivateNetwork: false
+  rateLimit:
+    requestsPerMinute: 10
+    burst: 3
+    limiterIdleMinutes: 30
+    dailyRequestsPerPrincipal: 100
+  concurrency:
+    global: 2
+    perPrincipal: 1

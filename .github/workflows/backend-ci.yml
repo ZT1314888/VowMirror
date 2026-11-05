@@ -1,0 +1,38 @@
+name: Docker foundation CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build application and tooling
+        run: docker compose build tools-go tools-node tools-browser web backend
+      - name: Backend tests, formatting, vet and build
+        run: docker compose run --rm -T tools-go
+      - name: Frontend modules and project checks
+        run: docker compose run --rm -T tools-node
+      - name: Create ephemeral access token
+        shell: bash
+        run: |
+          token=$(openssl rand -hex 32)
+          echo "::add-mask::$token"
+          echo "TRYON_API_KEYS=$token" >> "$GITHUB_ENV"
+      - name: Start application
+        run: docker compose up -d --wait web backend
+      - name: Foundation browser smoke
+        run: docker compose run --rm -T tools-browser node tests/smoke.mjs --stage foundation
+      - name: Stop application
+        if: always()
+        run: docker compose down
