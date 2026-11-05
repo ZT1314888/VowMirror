@@ -40,6 +40,8 @@ docker compose run --rm -T tools-browser node tests/smoke.mjs --stage foundation
 
 Go 脚本先准备依赖和编译，再执行外层硬期限测试、gofmt 检查、vet、`/tmp/vowmirror` 构建。全量测试终止上限 60 秒，源码挂载只读；依赖和编译缓存分别在 `vowmirror-foundation-go-mod`、`vowmirror-foundation-go-build` 命名卷，工具退出后不丢缓存。
 
+`tools-go` 镜像只将只读源码挂载根 `/workspace` 声明为 Git 可信目录，保留 Go 的 VCS 信息采集。这样 Linux 宿主机与容器的 UID 不同时仍可读取仓库状态；其他目录继续使用 Git 默认的所有权校验。修改源码挂载位置时，应同步调整这个唯一可信路径。
+
 定向测试也必须保留外层期限：
 
 ```sh
