@@ -1,6 +1,6 @@
 # VowMirror 当前架构
 
-更新日期：2026-11-05，开发分支 `refactor/wedding-foundation`。本文描述 Phase 1 基础，未来双人生成仅列为计划。实施前完整草稿已备份，本轮证据见 [长期计划](plan/2026-11-05-wedding-project-roadmap.md)。
+更新日期：2026-11-14，开发分支 `feat/wedding-phase-2-assets`。本文描述开发基础与 Phase 2 素材目录，未来双人生成仅列为计划。实施前完整草稿已备份，本轮证据见 [长期计划](plan/2026-11-05-wedding-project-roadmap.md)。
 
 ## 运行与边界
 
@@ -10,6 +10,7 @@ flowchart LR
   Web --> Static["中文开发入口 / ES 模块"]
   Web -->|"/api/ → /"| Backend["GoFrame :8000"]
   Backend --> Health["GET /health · 存活"]
+  Backend --> Catalog["GET /catalog/outfits · 鉴权后仅返回清单元数据"]
   Compose["根 Compose"] --> Web
   Compose --> Backend
   Tools["tools profile · Go / Node / Chromium"] --> Source["只读源码挂载"]
@@ -20,7 +21,7 @@ flowchart LR
 
 [main.go](../backend/main.go) 调用 [cmd.NewServer](../backend/internal/cmd/cmd.go)：显式加载唯一配置模板、验证 Token、固定 `:8000`、注册健康路由。缺失／非法 Token 或模板返回明确错误，进程退出；不自动关闭鉴权或搜索旧配置。
 
-当前唯一业务外观是 `GET /api/health`，返回 `{code:0,message:"",data:{status:"ok"}}`，带请求标识和 no-store。健康无需 Token、没有模型或配额调用。旧路由、Hello、婚礼目录与生成均 404。
+`GET /api/health` 返回 `{code:0,message:"",data:{status:"ok"}}`，带请求标识和 no-store。健康无需 Token、没有模型调用。`GET /api/catalog/outfits` 需要 Token，只返回唯一清单的套装／姿势元数据；旧路由、Hello 和生成路由均 404。
 
 ## 模块与状态
 
@@ -30,7 +31,7 @@ flowchart LR
 | [web/response-core.mjs](../web/response-core.mjs) | JSON 响应解析和受控错误映射；格式错误直接失败，不显示原始上游正文 |
 | [web/app.mjs](../web/app.mjs) | 同源健康检查、5 秒超时、可见失败和手动重新检查；无上传或生成 |
 | [imagevalidate](../backend/internal/imagevalidate/validate.go) | Base64/Data URL、类型、图片头、256–8192 边长、2000 万像素、单图 8 MiB 等核心校验 |
-| [security](../backend/internal/security/service.go) | Token 摘要恒定时间比对、进程内限流／每日额度／并发组件；无隐式全局默认服务 |
+| [security](../backend/internal/security/service.go) | Token 摘要恒定时间比对、进程内限流／并发组件；继承额度组件未接入业务路由，后续生成不使用额度扣减；无隐式全局默认服务 |
 | [middleware](../backend/internal/middleware/auth.go) | 保留独立鉴权、CORS、请求体、限流、请求标识组件；由路由组接线，不再内部识别旧单人路径 |
 | [云端协议](../backend/internal/logic/tryon/generator.go) | OpenAI 兼容、豆包、Gemini 的继承代码；构造配置显式传入，没有任何生产路由调用 |
 | [compose.yaml](../compose.yaml) | 唯一运行与检查入口；工具不会随应用启动；源码只读、Go 缓存命名卷 |
@@ -41,9 +42,11 @@ flowchart LR
 
 保留适配器仍使用旧“两张 Base64 字符串”接口；不是婚礼 API。已经移除单人提示词、重复编排、额外视觉调用、浏览器模型配置、ComfyUI 与旧配置回退。模型 HTTP 客户端不跟随重定向，工厂要求远程 HTTPS。
 
-以下旧协议问题仍须在 Phase 3 闭合后才可接线：真实输入 MIME 当前尚未贯穿云端映射；OpenAI 兼容请求不代表官方编辑接口兼容；上游原始错误正文仍需统一转换；结果 URL 需明确来源／状态／下载字节上限；输出还需完整尺寸、格式与单张校验。当前没有路由可以触发这些协议，不能宣称已验证婚礼七图或安全生成能力。
+以下旧协议问题仍须在 Phase 3 闭合后才可接线：真实输入 MIME 当前尚未贯穿云端映射；OpenAI 兼容请求不代表官方编辑接口兼容；上游原始错误正文仍需统一转换；结果 URL 需明确来源／状态／下载字节上限；输出还需完整尺寸、格式与单张校验。当前没有路由可以触发这些协议，不能宣称已验证婚礼四／五图或安全生成能力。
 
-每日额度和并发是进程内状态，重启会重置，不支持多实例共享。后续生成在完成输入、模型配置和并发准入后才扣一次尝试，失败、取消、超时和供应商计费需明确区分。60 秒提交到查看的生成硬期限属于后续需求，当前仅健康检查 5 秒前端超时。
+并发和限流是进程内状态，不支持多实例共享。后续生成统一校验输入、模型配置和并发准入，不接入费用、汇率、额度统计或预算拦截；本轮只调整文档，未改动继承安全组件。60 秒提交到查看的生成硬期限属于后续需求，当前仅健康检查 5 秒前端超时。
+
+两张合照及九张场地图只存放在 Git 与 Docker 构建上下文均忽略的 `assets/wedding/private/`，其中 `intake.json` 是唯一私有接收清单。工具容器显式只读核验；应用镜像、接口和场馆目录不读取这些文件。四张必填模型参考为合照、婚纱、男装和男鞋特写，可选场地图后最多五张，不实现左右肖像。
 
 ## 验证与文档归属
 

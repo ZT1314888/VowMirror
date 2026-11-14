@@ -5,7 +5,7 @@
 ## 范围与隐私
 
 - 当前项目为内部单实例婚礼工具，Phase 1 仅开发入口和健康检查。没有旧单人兼容入口、图库、浏览器模型配置、历史、ComfyUI 或素材后台。
-- 未经单独指令，不实施后续 Phase、不付费调用模型、不提交／推送 Git、不公开部署。
+- 未经单独指令，不实施后续 Phase、不付费调用模型、不提交／推送 Git、不公开部署。每个 Phase 获得明确交付指令后，必须先完成该阶段验收，再按阶段独立分支提交与推送。
 - 真实 Key、Token、密码、私钥绝不进入 Git 或暂存区。唯一环境模板为根 `.env.example`，凭据字段必须为空；真实 `.env`、`config.yaml`、私有照片和本地备份必须被 Git 与 Docker 构建上下文忽略。
 - 镜像只复制 `backend/manifest/config/config.example.yaml`。启动显式读取这一个模板，固定监听 `:8000`；不再搜索或回退到真实本地配置。模型 Key 只从 Docker 运行时环境注入，浏览器未来仅配置后端访问 Token。
 - 不将真实姓名、私人邮箱、电话、私人 IP、个人绝对路径写入代码、文档、提交或 PR。保留 LICENSE 原有版权声明。
@@ -39,4 +39,18 @@ git diff --check
 
 最终 diff 检查症状补丁、重复逻辑、隐式回退、吞错、第二数据源、死代码、未说明行为、无效测试及安全回归。已有草稿先备份并记录整合去向，不丢弃用户内容。
 
-提交使用 Conventional Commits：`fix:`、`feat:`、`docs:`、`test:`、`refactor:`、`chore:`。主分支为 `main`；开发分支从 main 建立，格式 `<type>/<kebab-case-topic>`。
+提交使用 Conventional Commits：`fix:`、`feat:`、`docs:`、`test:`、`refactor:`、`chore:`。主分支为 `main`；首个阶段开发分支从 `main` 建立，后续阶段沿前一阶段分支建立，格式 `<type>/<kebab-case-topic>`。
+
+## 阶段分支交付
+
+阶段交付按以下顺序执行：
+
+1. 阶段验收证据全部通过；
+2. 从前一阶段分支建立当前阶段独立分支；
+3. 检查 `git status`，逐行检查暂存 diff，并扫描敏感信息、私有文件和构建产物；
+4. 运行该阶段要求的 Docker 测试、构建和浏览器烟测；
+5. 创建一个 Conventional Commit；
+6. 使用 `git push -u origin <phase-branch>` 推送阶段分支；
+7. 记录提交 SHA、远端分支、验证结果和未完成项。
+
+各阶段新增改动必须单独交付，不得将多个 Phase 的新增改动混在同一分支或提交中；保留前序阶段继承历史，不重写或拆分。禁止 force push，禁止提交私有素材、凭据、`.env`、备份、日志和构建产物。阶段分支推送不自动合并 `main`；合并仍是独立操作。

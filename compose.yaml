@@ -51,7 +51,7 @@ services:
     working_dir: /workspace
     volumes:
       - .:/workspace:ro
-    command: ["/tools/check-node.sh"]
+    command: ["sh", "/workspace/docker/check-node.sh"]
 
   tools-browser:
     profiles: [tools]
@@ -63,6 +63,7 @@ services:
       - .:/workspace:ro
     environment:
       SMOKE_BASE_URL: http://web:8080
+      TRYON_API_KEYS: ${TRYON_API_KEYS:-}
     networks:
       - app
     shm_size: 256mb

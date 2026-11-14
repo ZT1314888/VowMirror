@@ -1,0 +1,397 @@
+{
+  "version": 1,
+  "outfits": [
+    {
+      "id": "W001",
+      "name": "示例套装 W001",
+      "dress": "W001/dress.png",
+      "menswear": "W001/menswear.png",
+      "shoes_detail": "W001/shoes_detail.png"
+    },
+    {
+      "id": "W002",
+      "name": "示例套装 W002",
+      "dress": "W002/dress.png",
+      "menswear": "W002/menswear.png",
+      "shoes_detail": "W002/shoes_detail.png"
+    },
+    {
+      "id": "W003",
+      "name": "示例套装 W003",
+      "dress": "W003/dress.png",
+      "menswear": "W003/menswear.png",
+      "shoes_detail": "W003/shoes_detail.png"
+    },
+    {
+      "id": "W004",
+      "name": "示例套装 W004",
+      "dress": "W004/dress.png",
+      "menswear": "W004/menswear.png",
+      "shoes_detail": "W004/shoes_detail.png"
+    },
+    {
+      "id": "W005",
+      "name": "示例套装 W005",
+      "dress": "W005/dress.png",
+      "menswear": "W005/menswear.png",
+      "shoes_detail": "W005/shoes_detail.png"
+    },
+    {
+      "id": "W006",
+      "name": "示例套装 W006",
+      "dress": "W006/dress.png",
+      "menswear": "W006/menswear.png",
+      "shoes_detail": "W006/shoes_detail.png"
+    },
+    {
+      "id": "W007",
+      "name": "示例套装 W007",
+      "dress": "W007/dress.png",
+      "menswear": "W007/menswear.png",
+      "shoes_detail": "W007/shoes_detail.png"
+    },
+    {
+      "id": "W008",
+      "name": "示例套装 W008",
+      "dress": "W008/dress.png",
+      "menswear": "W008/menswear.png",
+      "shoes_detail": "W008/shoes_detail.png"
+    },
+    {
+      "id": "W009",
+      "name": "示例套装 W009",
+      "dress": "W009/dress.png",
+      "menswear": "W009/menswear.png",
+      "shoes_detail": "W009/shoes_detail.png"
+    },
+    {
+      "id": "W010",
+      "name": "示例套装 W010",
+      "dress": "W010/dress.png",
+      "menswear": "W010/menswear.png",
+      "shoes_detail": "W010/shoes_detail.png"
+    },
+    {
+      "id": "W011",
+      "name": "示例套装 W011",
+      "dress": "W011/dress.png",
+      "menswear": "W011/menswear.png",
+      "shoes_detail": "W011/shoes_detail.png"
+    },
+    {
+      "id": "W012",
+      "name": "示例套装 W012",
+      "dress": "W012/dress.png",
+      "menswear": "W012/menswear.png",
+      "shoes_detail": "W012/shoes_detail.png"
+    },
+    {
+      "id": "W013",
+      "name": "示例套装 W013",
+      "dress": "W013/dress.png",
+      "menswear": "W013/menswear.png",
+      "shoes_detail": "W013/shoes_detail.png"
+    },
+    {
+      "id": "W014",
+      "name": "示例套装 W014",
+      "dress": "W014/dress.png",
+      "menswear": "W014/menswear.png",
+      "shoes_detail": "W014/shoes_detail.png"
+    },
+    {
+      "id": "W015",
+      "name": "示例套装 W015",
+      "dress": "W015/dress.png",
+      "menswear": "W015/menswear.png",
+      "shoes_detail": "W015/shoes_detail.png"
+    },
+    {
+      "id": "W016",
+      "name": "示例套装 W016",
+      "dress": "W016/dress.png",
+      "menswear": "W016/menswear.png",
+      "shoes_detail": "W016/shoes_detail.png"
+    },
+    {
+      "id": "W017",
+      "name": "示例套装 W017",
+      "dress": "W017/dress.png",
+      "menswear": "W017/menswear.png",
+      "shoes_detail": "W017/shoes_detail.png"
+    },
+    {
+      "id": "W018",
+      "name": "示例套装 W018",
+      "dress": "W018/dress.png",
+      "menswear": "W018/menswear.png",
+      "shoes_detail": "W018/shoes_detail.png"
+    },
+    {
+      "id": "W019",
+      "name": "示例套装 W019",
+      "dress": "W019/dress.png",
+      "menswear": "W019/menswear.png",
+      "shoes_detail": "W019/shoes_detail.png"
+    },
+    {
+      "id": "W020",
+      "name": "示例套装 W020",
+      "dress": "W020/dress.png",
+      "menswear": "W020/menswear.png",
+      "shoes_detail": "W020/shoes_detail.png"
+    },
+    {
+      "id": "W021",
+      "name": "示例套装 W021",
+      "dress": "W021/dress.png",
+      "menswear": "W021/menswear.png",
+      "shoes_detail": "W021/shoes_detail.png"
+    },
+    {
+      "id": "W022",
+      "name": "示例套装 W022",
+      "dress": "W022/dress.png",
+      "menswear": "W022/menswear.png",
+      "shoes_detail": "W022/shoes_detail.png"
+    },
+    {
+      "id": "W023",
+      "name": "示例套装 W023",
+      "dress": "W023/dress.png",
+      "menswear": "W023/menswear.png",
+      "shoes_detail": "W023/shoes_detail.png"
+    },
+    {
+      "id": "W024",
+      "name": "示例套装 W024",
+      "dress": "W024/dress.png",
+      "menswear": "W024/menswear.png",
+      "shoes_detail": "W024/shoes_detail.png"
+    },
+    {
+      "id": "W025",
+      "name": "示例套装 W025",
+      "dress": "W025/dress.png",
+      "menswear": "W025/menswear.png",
+      "shoes_detail": "W025/shoes_detail.png"
+    },
+    {
+      "id": "W026",
+      "name": "示例套装 W026",
+      "dress": "W026/dress.png",
+      "menswear": "W026/menswear.png",
+      "shoes_detail": "W026/shoes_detail.png"
+    },
+    {
+      "id": "W027",
+      "name": "示例套装 W027",
+      "dress": "W027/dress.png",
+      "menswear": "W027/menswear.png",
+      "shoes_detail": "W027/shoes_detail.png"
+    },
+    {
+      "id": "W028",
+      "name": "示例套装 W028",
+      "dress": "W028/dress.png",
+      "menswear": "W028/menswear.png",
+      "shoes_detail": "W028/shoes_detail.png"
+    },
+    {
+      "id": "W029",
+      "name": "示例套装 W029",
+      "dress": "W029/dress.png",
+      "menswear": "W029/menswear.png",
+      "shoes_detail": "W029/shoes_detail.png"
+    },
+    {
+      "id": "W030",
+      "name": "示例套装 W030",
+      "dress": "W030/dress.png",
+      "menswear": "W030/menswear.png",
+      "shoes_detail": "W030/shoes_detail.png"
+    }
+  ],
+  "poses": [
+    {
+      "id": "P001",
+      "name": "pose P001",
+      "path": "poses/P001.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P002",
+      "name": "pose P002",
+      "path": "poses/P002.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P003",
+      "name": "pose P003",
+      "path": "poses/P003.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P004",
+      "name": "pose P004",
+      "path": "poses/P004.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P005",
+      "name": "pose P005",
+      "path": "poses/P005.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P006",
+      "name": "pose P006",
+      "path": "poses/P006.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P007",
+      "name": "pose P007",
+      "path": "poses/P007.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P008",
+      "name": "pose P008",
+      "path": "poses/P008.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P009",
+      "name": "pose P009",
+      "path": "poses/P009.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P010",
+      "name": "pose P010",
+      "path": "poses/P010.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P011",
+      "name": "pose P011",
+      "path": "poses/P011.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P012",
+      "name": "pose P012",
+      "path": "poses/P012.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P013",
+      "name": "pose P013",
+      "path": "poses/P013.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P014",
+      "name": "pose P014",
+      "path": "poses/P014.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P015",
+      "name": "pose P015",
+      "path": "poses/P015.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P016",
+      "name": "pose P016",
+      "path": "poses/P016.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P017",
+      "name": "pose P017",
+      "path": "poses/P017.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P018",
+      "name": "pose P018",
+      "path": "poses/P018.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P019",
+      "name": "pose P019",
+      "path": "poses/P019.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P020",
+      "name": "pose P020",
+      "path": "poses/P020.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P021",
+      "name": "pose P021",
+      "path": "poses/P021.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P022",
+      "name": "pose P022",
+      "path": "poses/P022.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P023",
+      "name": "pose P023",
+      "path": "poses/P023.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P024",
+      "name": "pose P024",
+      "path": "poses/P024.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P025",
+      "name": "pose P025",
+      "path": "poses/P025.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P026",
+      "name": "pose P026",
+      "path": "poses/P026.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P027",
+      "name": "pose P027",
+      "path": "poses/P027.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P028",
+      "name": "pose P028",
+      "path": "poses/P028.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P029",
+      "name": "pose P029",
+      "path": "poses/P029.png",
+      "status": "unverified"
+    },
+    {
+      "id": "P030",
+      "name": "pose P030",
+      "path": "poses/P030.png",
+      "status": "unverified"
+    }
+  ]
+}

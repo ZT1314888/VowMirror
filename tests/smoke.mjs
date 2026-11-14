@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { validateManifest } from '../scripts/verify-wedding-assets.mjs';
 
 const require = createRequire('/opt/browser/package.json');
 const { chromium } = require('playwright');
@@ -7,6 +8,8 @@ const stageIndex = process.argv.indexOf('--stage');
 const stage = stageIndex >= 0 ? process.argv[stageIndex + 1] : '';
 assert.equal(stage, 'foundation', 'only the implemented foundation stage can be verified');
 const base = process.env.SMOKE_BASE_URL ?? 'http://web:8080';
+const accessToken = process.env.TRYON_API_KEYS?.split(',').map(token => token.trim()).find(Boolean);
+assert.ok(accessToken, 'catalog smoke requires TRYON_API_KEYS in the browser tool container');
 const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage();
@@ -39,7 +42,32 @@ try {
   for (const path of ['/api/tryon', '/api/tryon/couple']) {
     assert.equal((await page.request.post(base + path, { data: {} })).status(), 404, `POST ${path} must be removed`);
   }
-  for (const path of ['/api/comfyui/health', '/api/hello', '/api/catalog/outfits', '/.env', '/backend/manifest/config/config.example.yaml', '/docs/Project_Architecture_Blueprint.md', '/README.md', '/data.js']) {
+  for (const token of ['', 'invalid-catalog-smoke-token']) {
+    const response = await page.request.get(base + '/api/catalog/outfits', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    assert.equal(response.status(), 401, 'catalog requires a valid access token');
+    assert.ok(response.headers()['x-request-id']);
+  }
+  let catalogResponse;
+  try {
+    catalogResponse = await page.request.get(base + '/api/catalog/outfits', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+  } catch (error) {
+    // Playwright transport errors can include request headers in their call log.
+    throw new Error(String(error).replaceAll(accessToken, '[redacted]'));
+  }
+  assert.equal(catalogResponse.status(), 200, 'catalog must load the packaged manifest');
+  assert.equal(catalogResponse.headers()['cache-control'], 'no-store');
+  assert.ok(catalogResponse.headers()['x-request-id']);
+  const catalog = await catalogResponse.json();
+  assert.deepEqual(Object.keys(catalog).sort(), ['code', 'data', 'message']);
+  assert.equal(catalog.code, 0);
+  assert.equal(catalog.message, '');
+  assert.deepEqual(Object.keys(catalog.data).sort(), ['outfits', 'poses', 'version'], 'catalog must not create built-in venue options without venue photos');
+  assert.deepEqual(validateManifest(catalog.data), [], 'catalog must contain only valid metadata');
+  for (const path of ['/api/comfyui/health', '/api/hello', '/.env', '/backend/manifest/config/config.example.yaml', '/docs/Project_Architecture_Blueprint.md', '/README.md', '/data.js', '/assets/wedding/manifest.json', '/assets/wedding/' + catalog.data.outfits[0].dress, '/assets/wedding/' + catalog.data.poses[0].path]) {
     assert.equal((await page.request.get(base + path)).status(), 404, `${path} must not be exposed`);
   }
   assert.deepEqual(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length })), { local: 0, session: 0 });
@@ -54,7 +82,7 @@ try {
   await page.unroute('**/api/health');
   await page.getByRole('button', { name: '重新检查连接' }).click();
   await page.getByText('后端连接正常', { exact: true }).waitFor();
-  console.log(JSON.stringify({ stage, widths: [375, 768, 1024, 1440], health: 'passed', obsoleteRoutes: '404', privateFiles: '404', keyboard: 'passed', transportFailure: 'passed', pageErrors }));
+  console.log(JSON.stringify({ stage, widths: [375, 768, 1024, 1440], health: 'passed', catalog: { auth: '401/401/200', outfits: catalog.data.outfits.length, poses: catalog.data.poses.length, status: 'unverified' }, obsoleteRoutes: '404', privateFiles: '404', keyboard: 'passed', transportFailure: 'passed', pageErrors }));
 } finally {
   await browser.close();
 }

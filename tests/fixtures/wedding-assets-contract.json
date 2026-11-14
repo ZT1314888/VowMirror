@@ -1,0 +1,564 @@
+[
+  {
+    "name": "complete catalog",
+    "valid": true
+  },
+  {
+    "name": "reordered arrays",
+    "valid": true,
+    "reverse": [
+      "outfits",
+      "poses"
+    ]
+  },
+  {
+    "name": "version wrong type",
+    "valid": false,
+    "changes": [
+      {
+        "path": "version",
+        "value": "1"
+      }
+    ]
+  },
+  {
+    "name": "version unsupported",
+    "valid": false,
+    "changes": [
+      {
+        "path": "version",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "name": "unknown top field",
+    "valid": false,
+    "changes": [
+      {
+        "path": "extra",
+        "value": true
+      }
+    ]
+  },
+  {
+    "name": "case variant top field",
+    "valid": false,
+    "changes": [
+      {
+        "path": "Version",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "name": "null outfits",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits",
+        "value": null
+      }
+    ]
+  },
+  {
+    "name": "outfits not array",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits",
+        "value": {}
+      }
+    ]
+  },
+  {
+    "name": "empty outfits",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits",
+        "value": []
+      }
+    ]
+  },
+  {
+    "name": "null outfit",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0",
+        "value": null
+      }
+    ]
+  },
+  {
+    "name": "unknown outfit field",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/extra",
+        "value": true
+      }
+    ]
+  },
+  {
+    "name": "case variant outfit field",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/Name",
+        "value": "example"
+      }
+    ]
+  },
+  {
+    "name": "duplicate outfit ID",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/1/id",
+        "value": "W001"
+      }
+    ]
+  },
+  {
+    "name": "out of range outfit ID",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/id",
+        "value": "W031"
+      }
+    ]
+  },
+  {
+    "name": "malformed outfit ID",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/id",
+        "value": "w001"
+      }
+    ]
+  },
+  {
+    "name": "blank outfit name",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/name",
+        "value": " \t\n"
+      }
+    ]
+  },
+  {
+    "name": "null outfit name",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/name",
+        "value": null
+      }
+    ]
+  },
+  {
+    "name": "wrong path type",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "name": "cross outfit path",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "W002/dress.png"
+      }
+    ]
+  },
+  {
+    "name": "duplicate role path",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "W001/menswear.png"
+      }
+    ]
+  },
+  {
+    "name": "absolute path",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "/W001/dress.png"
+      }
+    ]
+  },
+  {
+    "name": "drive path",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "C:/W001/dress.png"
+      }
+    ]
+  },
+  {
+    "name": "URL path",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "https://example.invalid/dress.png"
+      }
+    ]
+  },
+  {
+    "name": "path escape",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "W001/../dress.png"
+      }
+    ]
+  },
+  {
+    "name": "dot segment",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "W001/./dress.png"
+      }
+    ]
+  },
+  {
+    "name": "empty segment",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "W001//dress.png"
+      }
+    ]
+  },
+  {
+    "name": "backslash path",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "W001\\dress.png"
+      }
+    ]
+  },
+  {
+    "name": "wrong extension",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "W001/dress.gif"
+      }
+    ]
+  },
+  {
+    "name": "JPEG extension",
+    "valid": true,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "W001/dress.jpeg"
+      }
+    ]
+  },
+  {
+    "name": "WebP extension",
+    "valid": true,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "W001/dress.webp"
+      }
+    ]
+  },
+  {
+    "name": "uppercase extension",
+    "valid": true,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "W001/dress.JPG"
+      }
+    ]
+  },
+  {
+    "name": "nested outfit path",
+    "valid": true,
+    "changes": [
+      {
+        "path": "outfits/0/dress",
+        "value": "W001/nested/dress.png"
+      }
+    ]
+  },
+  {
+    "name": "null poses",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses",
+        "value": null
+      }
+    ]
+  },
+  {
+    "name": "empty poses",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses",
+        "value": []
+      }
+    ]
+  },
+  {
+    "name": "poses not array",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses",
+        "value": {}
+      }
+    ]
+  },
+  {
+    "name": "null pose",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0",
+        "value": null
+      }
+    ]
+  },
+  {
+    "name": "duplicate pose ID",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/1/id",
+        "value": "P001"
+      }
+    ]
+  },
+  {
+    "name": "out of range pose ID",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/id",
+        "value": "P031"
+      }
+    ]
+  },
+  {
+    "name": "blank pose name",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/name",
+        "value": " \t"
+      }
+    ]
+  },
+  {
+    "name": "wrong pose path",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/path",
+        "value": "poses/P002.png"
+      }
+    ]
+  },
+  {
+    "name": "pose path escape",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/path",
+        "value": "poses/../P001.png"
+      }
+    ]
+  },
+  {
+    "name": "verified status forbidden",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/status",
+        "value": "verified"
+      }
+    ]
+  },
+  {
+    "name": "unknown pose field",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/extra",
+        "value": true
+      }
+    ]
+  },
+  {
+    "name": "case variant pose field",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/Status",
+        "value": "unverified"
+      }
+    ]
+  },
+  {
+    "name": "missing version",
+    "valid": false,
+    "changes": [
+      {
+        "path": "version",
+        "remove": true
+      }
+    ]
+  },
+  {
+    "name": "missing outfits",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits",
+        "remove": true
+      }
+    ]
+  },
+  {
+    "name": "missing pose catalog",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses",
+        "remove": true
+      }
+    ]
+  },
+  {
+    "name": "missing outfit",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0",
+        "remove": true
+      }
+    ]
+  },
+  {
+    "name": "missing pose",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0",
+        "remove": true
+      }
+    ]
+  },
+  {
+    "name": "missing role",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/shoes_detail",
+        "remove": true
+      }
+    ]
+  },
+  {
+    "name": "missing status",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/status",
+        "remove": true
+      }
+    ]
+  },
+  {
+    "name": "BOM blank name",
+    "valid": false,
+    "changes": [
+      {
+        "path": "outfits/0/name",
+        "value": "﻿"
+      }
+    ]
+  },
+  {
+    "name": "non ECMAScript whitespace name",
+    "valid": true,
+    "changes": [
+      {
+        "path": "outfits/0/name",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "name": "last duplicate version null",
+    "valid": false,
+    "textChanges": [
+      {
+        "from": "\"version\":1",
+        "to": "\"version\":1,\"version\":null"
+      }
+    ]
+  },
+  {
+    "name": "last duplicate version valid",
+    "valid": true,
+    "textChanges": [
+      {
+        "from": "\"version\":1",
+        "to": "\"version\":\"bad\",\"version\":1"
+      }
+    ]
+  },
+  {
+    "name": "last duplicate name null",
+    "valid": false,
+    "textChanges": [
+      {
+        "from": "\"name\":\"示例套装 W001\"",
+        "to": "\"name\":\"示例套装 W001\",\"name\":null"
+      }
+    ]
+  },
+  {
+    "name": "last duplicate name valid",
+    "valid": true,
+    "textChanges": [
+      {
+        "from": "\"name\":\"示例套装 W001\"",
+        "to": "\"name\":7,\"name\":\"示例套装 W001\""
+      }
+    ]
+  }
+]

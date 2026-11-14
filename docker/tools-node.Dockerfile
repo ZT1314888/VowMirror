@@ -1,4 +1,3 @@
 FROM node:22-bookworm-slim
-COPY docker/check-node.sh /tools/check-node.sh
-RUN chmod +x /tools/check-node.sh
+RUN npm install --prefix /opt/image-tools --no-audit --no-fund --save-exact sharp@0.34.5
 WORKDIR /workspace
