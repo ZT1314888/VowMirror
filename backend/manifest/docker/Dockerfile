@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=builder /out/vowmirror /app/vowmirror
 COPY backend/manifest/config/config.example.yaml manifest/config/config.example.yaml
+COPY assets/wedding/manifest.json /assets/wedding/manifest.json
 USER 65532:65532
 EXPOSE 8000
 ENTRYPOINT ["/app/vowmirror"]

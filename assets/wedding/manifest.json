@@ -1,0 +1,397 @@
+﻿{
+    "version":  1,
+    "outfits":  [
+                    {
+                        "id":  "W001",
+                        "name":  "经典黑领结",
+                        "dress":  "W001/dress.jpg",
+                        "menswear":  "W001/menswear.jpg",
+                        "shoes_detail":  "W001/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W002",
+                        "name":  "现代藏青",
+                        "dress":  "W002/dress.jpg",
+                        "menswear":  "W002/menswear.jpg",
+                        "shoes_detail":  "W002/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W003",
+                        "name":  "香槟皇冠",
+                        "dress":  "W003/dress.jpg",
+                        "menswear":  "W003/menswear.jpg",
+                        "shoes_detail":  "W003/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W004",
+                        "name":  "纯白皇室",
+                        "dress":  "W004/dress.jpg",
+                        "menswear":  "W004/menswear.jpg",
+                        "shoes_detail":  "W004/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W005",
+                        "name":  "中式秀禾",
+                        "dress":  "W005/dress.jpg",
+                        "menswear":  "W005/menswear.jpg",
+                        "shoes_detail":  "W005/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W006",
+                        "name":  "极简缎面",
+                        "dress":  "W006/dress.jpg",
+                        "menswear":  "W006/menswear.jpg",
+                        "shoes_detail":  "W006/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W007",
+                        "name":  "法式复古",
+                        "dress":  "W007/dress.jpg",
+                        "menswear":  "W007/menswear.jpg",
+                        "shoes_detail":  "W007/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W008",
+                        "name":  "红色敬酒",
+                        "dress":  "W008/dress.jpg",
+                        "menswear":  "W008/menswear.jpg",
+                        "shoes_detail":  "W008/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W009",
+                        "name":  "海岛轻纱",
+                        "dress":  "W009/dress.jpg",
+                        "menswear":  "W009/menswear.jpg",
+                        "shoes_detail":  "W009/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W010",
+                        "name":  "璀璨亮片",
+                        "dress":  "W010/dress.jpg",
+                        "menswear":  "W010/menswear.jpg",
+                        "shoes_detail":  "W010/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W011",
+                        "name":  "抹胸公主缎光",
+                        "dress":  "W011/dress.jpg",
+                        "menswear":  "W011/menswear.jpg",
+                        "shoes_detail":  "W011/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W012",
+                        "name":  "挂脖修身",
+                        "dress":  "W012/dress.jpg",
+                        "menswear":  "W012/menswear.jpg",
+                        "shoes_detail":  "W012/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W013",
+                        "name":  "V领拖尾",
+                        "dress":  "W013/dress.jpg",
+                        "menswear":  "W013/menswear.jpg",
+                        "shoes_detail":  "W013/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W014",
+                        "name":  "粉色梦幻",
+                        "dress":  "W014/dress.jpg",
+                        "menswear":  "W014/menswear.jpg",
+                        "shoes_detail":  "W014/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W015",
+                        "name":  "中式旗袍款",
+                        "dress":  "W015/dress.jpg",
+                        "menswear":  "W015/menswear.jpg",
+                        "shoes_detail":  "W015/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W016",
+                        "name":  "一字肩蓬裙",
+                        "dress":  "W016/dress.jpg",
+                        "menswear":  "W016/menswear.jpg",
+                        "shoes_detail":  "W016/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W017",
+                        "name":  "复古波点缎带",
+                        "dress":  "W017/dress.jpg",
+                        "menswear":  "W017/menswear.jpg",
+                        "shoes_detail":  "W017/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W018",
+                        "name":  "鱼尾蕾丝长拖",
+                        "dress":  "W018/dress.jpg",
+                        "menswear":  "W018/menswear.jpg",
+                        "shoes_detail":  "W018/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W019",
+                        "name":  "香槟敬酒缎面",
+                        "dress":  "W019/dress.jpg",
+                        "menswear":  "W019/menswear.jpg",
+                        "shoes_detail":  "W019/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W020",
+                        "name":  "冰蓝梦幻",
+                        "dress":  "W020/dress.jpg",
+                        "menswear":  "W020/menswear.jpg",
+                        "shoes_detail":  "W020/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W021",
+                        "name":  "宫廷刺绣",
+                        "dress":  "W021/dress.jpg",
+                        "menswear":  "W021/menswear.jpg",
+                        "shoes_detail":  "W021/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W022",
+                        "name":  "简约挂脖轻纱",
+                        "dress":  "W022/dress.jpg",
+                        "menswear":  "W022/menswear.jpg",
+                        "shoes_detail":  "W022/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W023",
+                        "name":  "长袖缎面修身",
+                        "dress":  "W023/dress.jpg",
+                        "menswear":  "W023/menswear.jpg",
+                        "shoes_detail":  "W023/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W024",
+                        "name":  "抹胸亮钻主纱",
+                        "dress":  "W024/dress.jpg",
+                        "menswear":  "W024/menswear.jpg",
+                        "shoes_detail":  "W024/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W025",
+                        "name":  "田园碎花",
+                        "dress":  "W025/dress.jpg",
+                        "menswear":  "W025/menswear.jpg",
+                        "shoes_detail":  "W025/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W026",
+                        "name":  "黑色哥特晚礼",
+                        "dress":  "W026/dress.jpg",
+                        "menswear":  "W026/menswear.jpg",
+                        "shoes_detail":  "W026/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W027",
+                        "name":  "紫色晚礼",
+                        "dress":  "W027/dress.jpg",
+                        "menswear":  "W027/menswear.jpg",
+                        "shoes_detail":  "W027/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W028",
+                        "name":  "龙凤褂",
+                        "dress":  "W028/dress.jpg",
+                        "menswear":  "W028/menswear.jpg",
+                        "shoes_detail":  "W028/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W029",
+                        "name":  "珍珠缎面主纱",
+                        "dress":  "W029/dress.jpg",
+                        "menswear":  "W029/menswear.jpg",
+                        "shoes_detail":  "W029/shoes_detail.jpg"
+                    },
+                    {
+                        "id":  "W030",
+                        "name":  "压轴宫廷大拖尾",
+                        "dress":  "W030/dress.jpg",
+                        "menswear":  "W030/menswear.jpg",
+                        "shoes_detail":  "W030/shoes_detail.jpg"
+                    }
+                ],
+    "poses":  [
+                  {
+                      "id":  "P001",
+                      "name":  "姿势 P001",
+                      "path":  "poses/P001.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P002",
+                      "name":  "姿势 P002",
+                      "path":  "poses/P002.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P003",
+                      "name":  "姿势 P003",
+                      "path":  "poses/P003.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P004",
+                      "name":  "姿势 P004",
+                      "path":  "poses/P004.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P005",
+                      "name":  "姿势 P005",
+                      "path":  "poses/P005.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P006",
+                      "name":  "姿势 P006",
+                      "path":  "poses/P006.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P007",
+                      "name":  "姿势 P007",
+                      "path":  "poses/P007.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P008",
+                      "name":  "姿势 P008",
+                      "path":  "poses/P008.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P009",
+                      "name":  "姿势 P009",
+                      "path":  "poses/P009.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P010",
+                      "name":  "姿势 P010",
+                      "path":  "poses/P010.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P011",
+                      "name":  "姿势 P011",
+                      "path":  "poses/P011.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P012",
+                      "name":  "姿势 P012",
+                      "path":  "poses/P012.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P013",
+                      "name":  "姿势 P013",
+                      "path":  "poses/P013.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P014",
+                      "name":  "姿势 P014",
+                      "path":  "poses/P014.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P015",
+                      "name":  "姿势 P015",
+                      "path":  "poses/P015.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P016",
+                      "name":  "姿势 P016",
+                      "path":  "poses/P016.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P017",
+                      "name":  "姿势 P017",
+                      "path":  "poses/P017.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P018",
+                      "name":  "姿势 P018",
+                      "path":  "poses/P018.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P019",
+                      "name":  "姿势 P019",
+                      "path":  "poses/P019.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P020",
+                      "name":  "姿势 P020",
+                      "path":  "poses/P020.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P021",
+                      "name":  "姿势 P021",
+                      "path":  "poses/P021.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P022",
+                      "name":  "姿势 P022",
+                      "path":  "poses/P022.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P023",
+                      "name":  "姿势 P023",
+                      "path":  "poses/P023.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P024",
+                      "name":  "姿势 P024",
+                      "path":  "poses/P024.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P025",
+                      "name":  "姿势 P025",
+                      "path":  "poses/P025.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P026",
+                      "name":  "姿势 P026",
+                      "path":  "poses/P026.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P027",
+                      "name":  "姿势 P027",
+                      "path":  "poses/P027.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P028",
+                      "name":  "姿势 P028",
+                      "path":  "poses/P028.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P029",
+                      "name":  "姿势 P029",
+                      "path":  "poses/P029.png",
+                      "status":  "unverified"
+                  },
+                  {
+                      "id":  "P030",
+                      "name":  "姿势 P030",
+                      "path":  "poses/P030.png",
+                      "status":  "unverified"
+                  }
+              ]
+}

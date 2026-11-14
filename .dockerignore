@@ -1,4 +1,9 @@
 **
+!assets/
+assets/**
+!assets/wedding/
+assets/wedding/**
+!assets/wedding/manifest.json
 !index.html
 !web/
 !web/**
@@ -17,6 +22,7 @@
 !backend/manifest/docker/Dockerfile
 
 # Last rules also apply to allowed source directories.
+
 **/.env
 **/.env.*
 **/config.yaml

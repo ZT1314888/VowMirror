@@ -31,3 +31,9 @@ backend/main
 backend/main.exe
 backend/bin/
 backend/output/
+
+# 婚礼私有素材（新人肖像、场地照片等）禁止提交；清单结构见 scripts/verify-wedding-assets.mjs
+assets/wedding/private/
+# 本地婚礼服装与姿势素材来自受控桌面目录，不进入 Git；manifest.json 保留为唯一结构清单。
+assets/wedding/W*/
+assets/wedding/poses/
