@@ -28,6 +28,39 @@ services:
       MODEL_NAME: ${MODEL_NAME:-}
       MODEL_BASE_URL: ${MODEL_BASE_URL:-}
       MODEL_API_KEY: ${MODEL_API_KEY:-}
+    # Fresh checkouts get empty directories; missing images explicitly fail generation.
+    # Only fixed outfits are mounted; private intake and poses remain invisible.
+    volumes:
+      - ./assets/wedding/W001:/assets/wedding/W001:ro
+      - ./assets/wedding/W002:/assets/wedding/W002:ro
+      - ./assets/wedding/W003:/assets/wedding/W003:ro
+      - ./assets/wedding/W004:/assets/wedding/W004:ro
+      - ./assets/wedding/W005:/assets/wedding/W005:ro
+      - ./assets/wedding/W006:/assets/wedding/W006:ro
+      - ./assets/wedding/W007:/assets/wedding/W007:ro
+      - ./assets/wedding/W008:/assets/wedding/W008:ro
+      - ./assets/wedding/W009:/assets/wedding/W009:ro
+      - ./assets/wedding/W010:/assets/wedding/W010:ro
+      - ./assets/wedding/W011:/assets/wedding/W011:ro
+      - ./assets/wedding/W012:/assets/wedding/W012:ro
+      - ./assets/wedding/W013:/assets/wedding/W013:ro
+      - ./assets/wedding/W014:/assets/wedding/W014:ro
+      - ./assets/wedding/W015:/assets/wedding/W015:ro
+      - ./assets/wedding/W016:/assets/wedding/W016:ro
+      - ./assets/wedding/W017:/assets/wedding/W017:ro
+      - ./assets/wedding/W018:/assets/wedding/W018:ro
+      - ./assets/wedding/W019:/assets/wedding/W019:ro
+      - ./assets/wedding/W020:/assets/wedding/W020:ro
+      - ./assets/wedding/W021:/assets/wedding/W021:ro
+      - ./assets/wedding/W022:/assets/wedding/W022:ro
+      - ./assets/wedding/W023:/assets/wedding/W023:ro
+      - ./assets/wedding/W024:/assets/wedding/W024:ro
+      - ./assets/wedding/W025:/assets/wedding/W025:ro
+      - ./assets/wedding/W026:/assets/wedding/W026:ro
+      - ./assets/wedding/W027:/assets/wedding/W027:ro
+      - ./assets/wedding/W028:/assets/wedding/W028:ro
+      - ./assets/wedding/W029:/assets/wedding/W029:ro
+      - ./assets/wedding/W030:/assets/wedding/W030:ro
     networks:
       - app
 

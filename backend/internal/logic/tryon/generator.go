@@ -1,59 +1,106 @@
 package tryon
 
 import (
+	"backend/internal/imagevalidate"
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 )
 
-// ImageGenerator is the inherited protocol interface, not bound to any route.
-// Phase 3 will replace the two strings with role-bearing references and MIME.
-type ImageGenerator interface {
-	Generate(ctx context.Context, personB64, garmentB64, prompt, size string) (string, error)
-	Name() string
-}
+const (
+	GeminiModel          = "gemini-3.1-flash-image"
+	RequestTimeout       = 55 * time.Second
+	MaxBodyBytes   int64 = 24 << 20
+	// Leave room for Base64 and JSON within Gemini's 20 MB inline request limit.
+	MaxReferenceBytes       int64 = 14 << 20
+	MaxProviderRequestBytes       = 20_000_000
+	MaxResponseBytes        int64 = 12 << 20
+)
 
-// ModelConfig must be supplied explicitly by the server.
+var (
+	ErrConfiguration = errors.New("模型配置不完整或无效")
+	ErrCapability    = errors.New("此协议或型号尚未闭合婚礼多图能力")
+	ErrUpstream      = errors.New("模型服务请求失败")
+	ErrResult        = errors.New("模型未返回一张有效横版图片")
+	ErrReferences    = errors.New("参考图角色、格式或总量无效")
+)
+
+type Role string
+
+const (
+	RoleCouple   Role = "couple"
+	RoleDress    Role = "dress"
+	RoleMenswear Role = "menswear"
+	RoleShoes    Role = "shoes_detail"
+	RoleScene    Role = "scene"
+)
+
+type Reference struct {
+	Role Role
+	Data []byte
+	MIME string
+}
+type GenerationRequest struct {
+	References []Reference
+	Prompt     string
+	Output     OutputSpec
+}
+type OutputSpec struct {
+	AspectRatio string `json:"aspectRatio"`
+	ImageSize   string `json:"imageSize"`
+}
+type ImageGenerator interface {
+	Generate(context.Context, GenerationRequest) (*imagevalidate.ValidatedImage, error)
+	Model() string
+}
 type ModelConfig struct {
-	Name     string
 	Provider string
 	APIKey   string
 	BaseURL  string
 	Model    string
 }
 
-func NewGenerator(cfg *ModelConfig) (ImageGenerator, error) {
-	if cfg == nil || strings.TrimSpace(cfg.APIKey) == "" || strings.TrimSpace(cfg.Model) == "" {
-		return nil, fmt.Errorf("模型配置必须包含 API Key 和模型名")
+func NewGenerator(cfg ModelConfig, transport http.RoundTripper) (ImageGenerator, error) {
+	if cfg.Provider == "openai" || cfg.Provider == "doubao" {
+		return nil, ErrCapability
+	}
+	if transport == nil || cfg.Provider != "gemini" || strings.TrimSpace(cfg.APIKey) == "" || cfg.APIKey != strings.TrimSpace(cfg.APIKey) || strings.ContainsAny(cfg.APIKey, "\r\n") {
+		return nil, ErrConfiguration
+	}
+	if cfg.Model != GeminiModel {
+		return nil, ErrCapability
 	}
 	u, err := url.Parse(cfg.BaseURL)
-	if err != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
-		return nil, fmt.Errorf("模型服务地址无效")
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.Opaque != "" {
+		return nil, ErrConfiguration
 	}
-	loopback := u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1"
-	if u.Scheme != "https" && !(u.Scheme == "http" && loopback) {
-		return nil, fmt.Errorf("远程模型服务必须使用 HTTPS")
-	}
-	switch cfg.Provider {
-	case "openai":
-		return NewOpenAIImages(cfg), nil
-	case "doubao":
-		return NewDoubao(cfg), nil
-	case "gemini":
-		return NewGemini(cfg), nil
-	default:
-		return nil, fmt.Errorf("不支持的模型协议；仅保留 openai、doubao、gemini")
-	}
+	return &Gemini{config: cfg, client: newModelHTTPClient(transport)}, nil
 }
 
-func newModelHTTPClient() *http.Client {
-	return &http.Client{
-		Timeout: 60 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+func newModelHTTPClient(transport http.RoundTripper) *http.Client {
+	return &http.Client{Transport: transport, Timeout: RequestTimeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+}
+
+func validateReferences(refs []Reference) error {
+	roles := []Role{RoleCouple, RoleDress, RoleMenswear, RoleShoes, RoleScene}
+	if len(refs) < 4 || len(refs) > len(roles) {
+		return ErrReferences
 	}
+	var total int64
+	for index, ref := range refs {
+		if ref.Role != roles[index] || ref.MIME == "" {
+			return ErrReferences
+		}
+		if _, err := imagevalidate.ValidateBytes(ref.Data, ref.MIME, imagevalidate.DefaultImageLimits()); err != nil {
+			return ErrReferences
+		}
+		total += int64(len(ref.Data))
+	}
+	if total > MaxReferenceBytes {
+		return ErrReferences
+	}
+	return nil
 }

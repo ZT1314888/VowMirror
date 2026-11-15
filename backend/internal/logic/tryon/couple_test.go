@@ -1,0 +1,292 @@
+package tryon
+
+import (
+	"backend/internal/catalog"
+	"backend/internal/imagevalidate"
+	"backend/internal/security"
+	"bytes"
+	"context"
+	"encoding/base64"
+	"errors"
+	"image"
+	"image/png"
+	"runtime"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+type testGenerator struct {
+	run func(context.Context, GenerationRequest) (*imagevalidate.ValidatedImage, error)
+}
+
+func (g testGenerator) Generate(ctx context.Context, r GenerationRequest) (*imagevalidate.ValidatedImage, error) {
+	return g.run(ctx, r)
+}
+func (g testGenerator) Model() string { return GeminiModel }
+
+type testOutfits struct {
+	run func(context.Context, string) (catalog.OutfitImages, error)
+}
+
+func (r testOutfits) ReadOutfit(ctx context.Context, id string) (catalog.OutfitImages, error) {
+	return r.run(ctx, id)
+}
+func outfitImages(t *testing.T) catalog.OutfitImages {
+	refs := references(t, false)
+	imgs := make([]*imagevalidate.ValidatedImage, 3)
+	for i, ref := range refs[1:] {
+		img, err := imagevalidate.ValidateBytes(ref.Data, ref.MIME, imagevalidate.DefaultImageLimits())
+		if err != nil {
+			t.Fatal(err)
+		}
+		imgs[i] = img
+	}
+	return catalog.OutfitImages{Dress: imgs[0], Menswear: imgs[1], Shoes: imgs[2]}
+}
+func coupleInput(t *testing.T) CoupleRequest {
+	return CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(fixture(t, "jpg")), OutfitID: "W001", DressSide: "left", Scene: Scene{Mode: "original"}}
+}
+func serviceFor(t *testing.T, generator ImageGenerator, reader OutfitReader, admission Admission) *CoupleService {
+	t.Helper()
+	service, err := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return service
+}
+func validResult(t *testing.T) *imagevalidate.ValidatedImage {
+	t.Helper()
+	result, err := ValidateResult(base64.StdEncoding.EncodeToString(landscape(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+func TestCoupleServiceContract(t *testing.T) {
+	for _, scene := range []bool{false, true} {
+		var calls atomic.Int32
+		reader := testOutfits{run: func(ctx context.Context, id string) (catalog.OutfitImages, error) {
+			if id != "W001" {
+				t.Error("wrong outfit")
+			}
+			return outfitImages(t), nil
+		}}
+		generator := testGenerator{run: func(ctx context.Context, r GenerationRequest) (*imagevalidate.ValidatedImage, error) {
+			calls.Add(1)
+			want := 4
+			if scene {
+				want = 5
+			}
+			if len(r.References) != want || r.References[0].MIME != "image/jpeg" || r.References[2].MIME != "image/webp" || r.Output != (OutputSpec{AspectRatio: "3:2", ImageSize: "1K"}) {
+				t.Error("invalid generation contract")
+			}
+			for _, phrase := range []string{"viewer's right", "identities", "head to toe", "Do not mix outfits", "shoes_detail"} {
+				if !strings.Contains(r.Prompt, phrase) {
+					t.Errorf("missing prompt rule %s", phrase)
+				}
+			}
+			if scene != strings.Contains(r.Prompt, "reference 5") {
+				t.Error("scene prompt mismatch")
+			}
+			if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > RequestTimeout {
+				t.Error("missing deadline")
+			}
+			return validResult(t), nil
+		}}
+		service := serviceFor(t, generator, reader, security.NewConcurrencyManager(1, 1))
+		input := coupleInput(t)
+		input.DressSide = "right"
+		if scene {
+			input.Scene = Scene{Mode: "upload", Image: base64.StdEncoding.EncodeToString(fixture(t, "png"))}
+		}
+		response, err := service.Generate(context.Background(), "principal", "request-id", input)
+		if err != nil || response.Model != GeminiModel || response.MIME != "image/png" || response.RequestID != "request-id" || response.Width != 384 || calls.Load() != 1 {
+			t.Fatalf("invalid result: %v / %d", err, calls.Load())
+		}
+	}
+}
+func TestCoupleInvalidInputsNeverInvokeGenerator(t *testing.T) {
+	var calls atomic.Int32
+	generator := testGenerator{run: func(context.Context, GenerationRequest) (*imagevalidate.ValidatedImage, error) {
+		calls.Add(1)
+		return validResult(t), nil
+	}}
+	reader := testOutfits{run: func(context.Context, string) (catalog.OutfitImages, error) { return outfitImages(t), nil }}
+	admission := security.NewConcurrencyManager(1, 1)
+	service := serviceFor(t, generator, reader, admission)
+	for _, modify := range []func(*CoupleRequest){
+		func(r *CoupleRequest) { r.CoupleImage = "" }, func(r *CoupleRequest) { r.DressSide = "Left" }, func(r *CoupleRequest) { r.OutfitID = "" },
+		func(r *CoupleRequest) { r.Scene = Scene{Mode: "venue"} }, func(r *CoupleRequest) { r.Scene.Image = "private-marker" },
+		func(r *CoupleRequest) { r.Scene.Mode = "upload" }, func(r *CoupleRequest) { r.CoupleImage = "data:image/png;base64," + r.CoupleImage },
+	} {
+		input := coupleInput(t)
+		modify(&input)
+		if _, err := service.Generate(context.Background(), "principal", "id", input); err == nil {
+			t.Fatal("invalid input accepted")
+		}
+	}
+	if calls.Load() != 0 {
+		t.Fatal("invalid inputs invoked generator")
+	}
+	service.newGenerator = func() (ImageGenerator, error) { return nil, errors.New("private-marker") }
+	if _, err := service.Generate(context.Background(), "principal", "id", coupleInput(t)); err == nil || err.ErrorCode != "MODEL_CONFIGURATION_INVALID" || strings.Contains(err.Error(), "private-marker") {
+		t.Fatal("unsafe config error")
+	}
+	release, ok := admission.Acquire("principal")
+	if !ok {
+		t.Fatal("configuration failure leaked concurrency")
+	}
+	release()
+}
+func TestCoupleFailureAlwaysReleasesAdmission(t *testing.T) {
+	for _, scenario := range []string{"upstream", "result", "asset", "unknown", "nil asset", "timeout", "cancel"} {
+		t.Run(scenario, func(t *testing.T) {
+			admission := security.NewConcurrencyManager(1, 1)
+			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer cancel()
+			generator := testGenerator{run: func(ctx context.Context, r GenerationRequest) (*imagevalidate.ValidatedImage, error) {
+				switch scenario {
+				case "upstream":
+					return nil, errors.New("private-marker")
+				case "result":
+					return &imagevalidate.ValidatedImage{MIME: "image/png", Data: []byte("private-marker")}, nil
+				case "timeout":
+					<-ctx.Done()
+					return nil, ctx.Err()
+				case "cancel":
+					cancel()
+					return validResult(t), nil
+				}
+				return validResult(t), nil
+			}}
+			reader := testOutfits{run: func(context.Context, string) (catalog.OutfitImages, error) {
+				if scenario == "asset" {
+					return catalog.OutfitImages{}, errors.New("private-marker")
+				}
+				if scenario == "unknown" {
+					return catalog.OutfitImages{}, catalog.ErrUnknownOutfit
+				}
+				if scenario == "nil asset" {
+					return catalog.OutfitImages{}, nil
+				}
+				return outfitImages(t), nil
+			}}
+			service := serviceFor(t, generator, reader, admission)
+			want := map[string]string{"upstream": "MODEL_REQUEST_FAILED", "result": "INVALID_MODEL_RESULT", "asset": "OUTFIT_UNAVAILABLE", "unknown": "UNKNOWN_OUTFIT", "nil asset": "OUTFIT_UNAVAILABLE", "timeout": "GENERATION_TIMEOUT", "cancel": "GENERATION_CANCELLED"}[scenario]
+			if _, err := service.Generate(ctx, "p", "id", coupleInput(t)); err == nil || err.ErrorCode != want || strings.Contains(err.Error(), "private-marker") {
+				t.Fatalf("expected %s, got %v", want, err)
+			}
+			release, ok := admission.Acquire("p")
+			if !ok {
+				t.Fatal("concurrency leaked")
+			}
+			release()
+		})
+	}
+}
+func TestCoupleConcurrentAttemptIsRejected(t *testing.T) {
+	admission := security.NewConcurrencyManager(1, 1)
+	entered := make(chan struct{})
+	resume := make(chan struct{})
+	done := make(chan *security.APIError, 1)
+	output := validResult(t)
+	images := outfitImages(t)
+	var reads atomic.Int32
+	service := serviceFor(t, testGenerator{run: func(context.Context, GenerationRequest) (*imagevalidate.ValidatedImage, error) {
+		close(entered)
+		<-resume
+		return output, nil
+	}}, testOutfits{run: func(context.Context, string) (catalog.OutfitImages, error) {
+		reads.Add(1)
+		return images, nil
+	}}, admission)
+	input := coupleInput(t)
+	go func() { _, err := service.Generate(context.Background(), "p", "id", input); done <- err }()
+	<-entered
+	rejected := coupleInput(t)
+	rejected.CoupleImage = "not-base64"
+	rejected.Scene = Scene{Mode: "upload", Image: "not-base64"}
+	_, err := service.Generate(context.Background(), "p", "id", rejected)
+	readCount := reads.Load()
+	close(resume)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if err == nil || err.ErrorCode != "CONCURRENCY_LIMITED" {
+		t.Fatalf("busy attempt must be rejected before image decoding, got %v", err)
+	}
+	if readCount != 1 {
+		t.Fatalf("busy attempt read outfit assets: %d reads", readCount)
+	}
+	release, ok := admission.Acquire("p")
+	if !ok {
+		t.Fatal("success leaked concurrency")
+	}
+	release()
+}
+func TestReferenceTotalLimit(t *testing.T) {
+	refs := references(t, true)
+	// Each remains a complete valid image below 8 MiB; all five exceed 14 MiB.
+	for i := range refs {
+		refs[i].Data = append(append([]byte{}, refs[i].Data...), make([]byte, 5<<20)...)
+	}
+	if err := validateReferences(refs); !errors.Is(err, ErrReferences) {
+		t.Fatal("combined references accepted")
+	}
+}
+
+func TestBusyRequestsDoNotAllocateImagePixels(t *testing.T) {
+	// A small compressed PNG whose full pixel buffer is 80 MB.
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, image.NewRGBA(image.Rect(0, 0, 4000, 5000))); err != nil {
+		t.Fatal(err)
+	}
+	encoded := base64.StdEncoding.EncodeToString(buffer.Bytes())
+	if image, err := imagevalidate.ValidateImage(encoded, imagevalidate.DefaultImageLimits()); err != nil || image.Width != 4000 || image.Height != 5000 {
+		t.Fatalf("pixel-allocation fixture must be a valid 20 MP image: %v", err)
+	}
+	input := CoupleRequest{CoupleImage: encoded, OutfitID: "W001", DressSide: "left", Scene: Scene{Mode: "upload", Image: encoded}}
+	for _, scenario := range []struct {
+		name, occupiedBy string
+		globalLimit      int
+	}{
+		{"per principal", "p", 2},
+		{"global", "other", 1},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			admission := security.NewConcurrencyManager(scenario.globalLimit, 1)
+			release, ok := admission.Acquire(scenario.occupiedBy)
+			if !ok {
+				t.Fatal("cannot occupy concurrency slot")
+			}
+			defer release()
+			service, err := NewCoupleService(func() (ImageGenerator, error) {
+				t.Fatal("busy request initialized the model")
+				return nil, nil
+			}, testOutfits{run: func(context.Context, string) (catalog.OutfitImages, error) {
+				t.Fatal("busy request read outfit assets")
+				return catalog.OutfitImages{}, nil
+			}}, admission)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.GC()
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			_, apiErr := service.Generate(context.Background(), "p", "id", input)
+			runtime.ReadMemStats(&after)
+			if apiErr == nil || apiErr.ErrorCode != "CONCURRENCY_LIMITED" {
+				t.Fatalf("expected concurrency rejection, got %v", apiErr)
+			}
+			// Allow small runtime allocations, but never a decoded pixel buffer.
+			const maxRejectedAllocation = 8 << 20
+			allocated := after.TotalAlloc - before.TotalAlloc
+			if allocated >= maxRejectedAllocation {
+				t.Fatalf("busy request allocated %d bytes before rejection", allocated)
+			}
+			t.Logf("busy request allocated %d bytes; no pixel decoding", allocated)
+		})
+	}
+}

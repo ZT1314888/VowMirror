@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { request as httpRequest } from 'node:http';
 import { validateManifest } from '../scripts/verify-wedding-assets.mjs';
 
 const require = createRequire('/opt/browser/package.json');
@@ -10,6 +11,56 @@ assert.equal(stage, 'foundation', 'only the implemented foundation stage can be 
 const base = process.env.SMOKE_BASE_URL ?? 'http://web:8080';
 const accessToken = process.env.TRYON_API_KEYS?.split(',').map(token => token.trim()).find(Boolean);
 assert.ok(accessToken, 'catalog smoke requires TRYON_API_KEYS in the browser tool container');
+
+async function verifyBodyLimit() {
+  const limit = 24 * 1024 * 1024;
+  const oversized = Buffer.alloc(limit + 1, 'a');
+  oversized.write('{"couple_image":"');
+  oversized.write('"}', oversized.length - 2);
+  const chunkSize = 64 * 1024;
+  const clientRequestID = 'synthetic-body-limit-client-marker';
+  const cases = [
+    { name: 'content-length', token: accessToken, chunked: false },
+    { name: 'chunked', token: accessToken, chunked: true },
+    { name: 'unauthenticated', token: '', chunked: false },
+  ];
+  for (const scenario of cases) {
+    const response = await new Promise((resolve, reject) => {
+      const request = httpRequest(base + '/api/tryon/couple', {
+        method: 'POST', agent: false, signal: AbortSignal.timeout(15_000),
+        headers: { 'Content-Type': 'application/json', 'X-Request-ID': clientRequestID,
+          ...(scenario.token ? { Authorization: `Bearer ${scenario.token}` } : {}),
+          ...(scenario.chunked ? { 'Transfer-Encoding': 'chunked' } : { 'Content-Length': oversized.length }) },
+      }, response => {
+        const chunks = [];
+        response.on('data', chunk => chunks.push(chunk));
+        response.on('error', reject);
+        response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, body: Buffer.concat(chunks).toString() }));
+      });
+      request.on('error', reject);
+      for (let offset = 0; offset < oversized.length; offset += chunkSize) {
+        request.write(oversized.subarray(offset, offset + chunkSize));
+      }
+      request.end();
+    });
+    assert.equal(response.status, 413, scenario.name);
+    assert.match(response.headers['content-type'] ?? '', /^application\/json\b/, scenario.name);
+    const requestID = response.headers['x-request-id'];
+    assert.ok(requestID, `${scenario.name}: missing request ID`);
+    assert.notEqual(requestID, clientRequestID, 'request ID must be server-generated');
+    assert.equal(response.headers['cache-control'], 'no-store', scenario.name);
+    assert.equal(response.headers['x-content-type-options'], 'nosniff', scenario.name);
+    assert.equal(response.headers['referrer-policy'], 'no-referrer', scenario.name);
+    assert.match(response.headers['content-security-policy'] ?? '', /default-src 'self'/, scenario.name);
+    const payload = JSON.parse(response.body);
+    assert.equal(payload.code, 41301, scenario.name);
+    assert.deepEqual(payload.data, { error_code: 'REQUEST_TOO_LARGE', request_id: requestID }, scenario.name);
+    assert.equal(payload.message, '上传内容过大，请压缩图片后重试', scenario.name);
+    console.log(`Body limit through Nginx: ${scenario.name} passed`);
+  }
+}
+
+await verifyBodyLimit();
 const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage();
@@ -39,7 +90,7 @@ try {
   assert.equal(health.status(), 200);
   assert.deepEqual(await health.json(), { code: 0, message: '', data: { status: 'ok' } });
   assert.ok(health.headers()['x-request-id']);
-  for (const path of ['/api/tryon', '/api/tryon/couple']) {
+  for (const path of ['/api/tryon']) {
     assert.equal((await page.request.post(base + path, { data: {} })).status(), 404, `POST ${path} must be removed`);
   }
   for (const token of ['', 'invalid-catalog-smoke-token']) {
@@ -49,6 +100,26 @@ try {
     assert.equal(response.status(), 401, 'catalog requires a valid access token');
     assert.ok(response.headers()['x-request-id']);
   }
+  for (const token of ['', 'invalid-generation-smoke-token']) {
+    const response = await page.request.post(base + '/api/tryon/couple', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}, data: {},
+    });
+    assert.equal(response.status(), 401, 'generation requires a valid access token');
+    assert.ok(response.headers()['x-request-id']);
+  }
+  // An invalid contract must fail before a model request, even if runtime credentials exist.
+  const generation = await page.evaluate(async token => {
+    const response = await fetch('/api/tryon/couple', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ couple_image: '', outfit_id: 'W001', dress_side: 'left', scene: { mode: 'original' } }),
+    });
+    return { status: response.status, body: await response.json() };
+  }, accessToken);
+  assert.equal(generation.status, 422);
+  assert.equal(generation.body.data.error_code, 'INVALID_IMAGE_BASE64');
+  // Account for the one expected failed fetch without discarding unrelated errors.
+  assert.equal(consoleErrors.length, 1, 'only the explicit invalid-generation probe may log an error');
+  assert.match(consoleErrors.shift(), /Failed to load resource:.*422/);
   let catalogResponse;
   try {
     catalogResponse = await page.request.get(base + '/api/catalog/outfits', {
@@ -82,7 +153,7 @@ try {
   await page.unroute('**/api/health');
   await page.getByRole('button', { name: '重新检查连接' }).click();
   await page.getByText('后端连接正常', { exact: true }).waitFor();
-  console.log(JSON.stringify({ stage, widths: [375, 768, 1024, 1440], health: 'passed', catalog: { auth: '401/401/200', outfits: catalog.data.outfits.length, poses: catalog.data.poses.length, status: 'unverified' }, obsoleteRoutes: '404', privateFiles: '404', keyboard: 'passed', transportFailure: 'passed', pageErrors }));
+  console.log(JSON.stringify({ stage, widths: [375, 768, 1024, 1440], health: 'passed', catalog: { auth: '401/401/200', outfits: catalog.data.outfits.length, poses: catalog.data.poses.length, status: 'unverified' }, generation: { auth: '401/401', invalidInput: '422', oversized: 'JSON 413 content-length/chunked/unauthenticated; server request IDs; security headers' }, obsoleteRoutes: '404', privateFiles: '404', keyboard: 'passed', transportFailure: 'passed', pageErrors }));
 } finally {
   await browser.close();
 }

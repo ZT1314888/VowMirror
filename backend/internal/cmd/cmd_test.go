@@ -218,7 +218,6 @@ func TestFoundationRoutes(t *testing.T) {
 		{http.MethodPost, "/tryon"},
 		{http.MethodGet, "/comfyui/health"},
 		{http.MethodGet, "/hello"},
-		{http.MethodPost, "/tryon/couple"},
 	} {
 		request, err := http.NewRequest(route.method, base+route.path, nil)
 		if err != nil {
