@@ -58,7 +58,12 @@ func ValidateImage(input string, limits ImageLimits) (*ValidatedImage, error) {
 		}
 	}
 
-	// 4. 校验真实字节大小
+	return ValidateBytes(data, declaredMIME, limits)
+}
+
+// ValidateBytes is the shared boundary for uploads, fixed assets and results.
+func ValidateBytes(data []byte, declaredMIME string, limits ImageLimits) (*ValidatedImage, error) {
+	// Bound allocation before decoding the complete image.
 	if limits.MaxDecodedImageBytes > 0 && int64(len(data)) > limits.MaxDecodedImageBytes {
 		return nil, security.ErrImageFileTooLarge
 	}
@@ -100,6 +105,11 @@ func ValidateImage(input string, limits ImageLimits) (*ValidatedImage, error) {
 	pixels := int64(cfg.Width) * int64(cfg.Height)
 	if limits.MaxPixels > 0 && pixels > limits.MaxPixels {
 		return nil, security.ErrImagePixelLimitExceeded
+	}
+
+	decoded, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil || decoded.Bounds().Dx() != cfg.Width || decoded.Bounds().Dy() != cfg.Height {
+		return nil, security.ErrUnsupportedImageType
 	}
 
 	// 9. 计算 SHA-256 摘要前缀（用于脱敏追踪与缓存标识）

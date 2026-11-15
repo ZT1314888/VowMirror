@@ -1,6 +1,6 @@
 module backend
 
-go 1.22
+go 1.25
 
 require (
 	github.com/gogf/gf/v2 v2.7.1

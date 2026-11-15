@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gcfg"
 
 	"backend/internal/catalog"
+	"backend/internal/logic/tryon"
 	"backend/internal/middleware"
 	"backend/internal/security"
 )
@@ -41,13 +43,22 @@ func newServer(ctx context.Context, name string, loadManifest func() (*catalog.M
 		return nil, err
 	}
 	// Missing access tokens fail startup; health itself remains public.
-	// Future business routes will receive this service explicitly.
 	securityService, err := security.InitService(ctx)
+	if err != nil {
+		return nil, err
+	}
+	coupleService, err := generationService(loadManifest, securityService)
 	if err != nil {
 		return nil, err
 	}
 	s := g.Server(name)
 	s.SetAddr(ServerAddress)
+	// The route enforces 24 MiB; GoFrame's default 8 MiB wrapper rejects valid requests.
+	s.SetClientMaxBodySize(0)
+	// GoFrame wraps ResponseWriter without exposing per-request deadline controls.
+	// Socket deadlines bound uploads and writes; the service context bounds model processing.
+	s.SetReadTimeout(tryon.RequestTimeout)
+	s.SetWriteTimeout(60 * time.Second)
 	s.SetDumpRouterMap(false)
 	s.Group("/", func(group *ghttp.RouterGroup) {
 		group.Middleware(middleware.RequestID)
@@ -67,6 +78,11 @@ func newServer(ctx context.Context, name string, loadManifest func() (*catalog.M
 				}
 				r.Response.WriteJson(g.Map{"code": 0, "message": "", "data": manifest})
 			})
+		})
+		group.Group("/tryon", func(generationGroup *ghttp.RouterGroup) {
+			generationGroup.Middleware(middleware.NewAuthMiddleware(securityService.TokenStore).Handler)
+			generationGroup.Middleware(middleware.NewBodyLimitMiddleware(tryon.MaxBodyBytes).Handler)
+			generationGroup.POST("/couple", coupleHandler(coupleService))
 		})
 	})
 	return s, nil

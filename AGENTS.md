@@ -4,7 +4,7 @@
 
 ## 范围与隐私
 
-- 当前项目为内部单实例婚礼工具，Phase 1 仅开发入口和健康检查。没有旧单人兼容入口、图库、浏览器模型配置、历史、ComfyUI 或素材后台。
+- 当前项目为内部单实例婚礼工具，Phase 3 开发多图核心与双人 API；当前页面仍为开发入口和健康检查。没有旧单人兼容入口、图库、浏览器模型配置、历史、ComfyUI 或素材后台。
 - 未经单独指令，不实施后续 Phase、不付费调用模型、不提交／推送 Git、不公开部署。每个 Phase 获得明确交付指令后，必须先完成该阶段验收，再按阶段独立分支提交与推送。
 - 真实 Key、Token、密码、私钥绝不进入 Git 或暂存区。唯一环境模板为根 `.env.example`，凭据字段必须为空；真实 `.env`、`config.yaml`、私有照片和本地备份必须被 Git 与 Docker 构建上下文忽略。
 - 镜像只复制 `backend/manifest/config/config.example.yaml`。启动显式读取这一个模板，固定监听 `:8000`；不再搜索或回退到真实本地配置。模型 Key 只从 Docker 运行时环境注入，浏览器未来仅配置后端访问 Token。
@@ -16,7 +16,7 @@
 
 先定位根因与不变量，结构性问题收敛到唯一实现，删除过期逻辑／兼容分支；不叠加绕过、静默回退、假成功或吞错。依赖通过参数／接口注入，业务不依赖隐式全局服务。保持小函数、浅嵌套、明确错误，禁止无消费者的占位目录。
 
-所有 Go 依赖、格式化、测试、vet、构建均在 Docker 执行，不安装宿主机 Go 或 GoFrame CLI。根 `compose.yaml` 是运行、检查和 CI 的唯一入口，工具 profile 不随应用启动。
+所有 Go 依赖、格式化、测试、vet、构建均在 Docker 执行，不安装宿主机 Go 或 GoFrame CLI。执行 Docker 或 Compose 命令前先确认 Docker 引擎可连接；如果发现 Docker Desktop 未启动，直接启动 Docker Desktop，等待 `docker version` 确认引擎就绪后再继续。启动失败或引擎仍不可用时必须保留明确错误，不得把未执行的验证当作通过。根 `compose.yaml` 是运行、检查和 CI 的唯一入口，工具 profile 不随应用启动。
 
 ```sh
 docker compose build tools-go tools-node tools-browser web backend

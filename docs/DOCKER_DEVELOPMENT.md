@@ -25,7 +25,7 @@ docker compose up -d --build --wait web backend
 docker compose ps
 ```
 
-浏览器打开入口，看到“后端连接正常”。`GET /api/health` 仅返回存活信息，不需 Token、不调用模型。缺失／非法 Token 使后端启动报错；无模型 Key 时基础仍可运行。当前没有任何生成路由。
+浏览器打开入口，看到“后端连接正常”。`GET /api/health` 仅返回存活信息，不需 Token、不调用模型。缺失／非法 Token 使后端启动报错；模型字段为空时健康／目录仍可运行，生成返回 `503 MODEL_CONFIGURATION_INVALID`。
 
 不要公开输出 `docker compose config` 的完整结果，它会展开运行时环境变量。只用 `--quiet` 核查配置。
 
@@ -62,10 +62,16 @@ docker compose run --rm -T tools-go go build -o /tmp/vowmirror .
 | tools-go / tools-node | tools profile，无自动应用启动；源码只读 |
 | tools-browser | 固定版本 Playwright／Chromium，真实访问 web 和 backend；不调用模型 |
 | `TRYON_API_KEYS` | 必需；逗号分隔，每个 32–512 字符，运行时注入 backend 和 tools profile 的浏览器烟测容器；不进入页面、镜像或日志 |
-| `MODEL_PROVIDER/NAME/BASE_URL/API_KEY` | 后续服务端模型预留，目前无消费者；保持空 |
+| `MODEL_PROVIDER/NAME/BASE_URL/API_KEY` | 服务端生成配置；已闭合 `gemini`／`gemini-3.1-flash-image` 四／五图映射；Base URL 必须为 HTTPS API 根地址，例如 `https://generativelanguage.googleapis.com/v1beta`。真实模型调用须单独指令，验证时保持空 |
 | 配置模板 | 只复制 `backend/manifest/config/config.example.yaml`，显式读取；不加载本地真实配置 |
 
 构建上下文使用允许清单，排除 `.git`、`.local`、文档、环境文件、真实配置、密钥、日志和产物。静态镜像只含入口和运行模块，不含源仓库、草稿、测试或旧图库。后端运行镜像包含二进制、系统证书、配置模板和唯一素材清单，不包含服装、姿势或私有图片；Go 仅存在构建／工具镜像。
+
+Phase 3 通过根 Compose 将 `W001`–`W030` 套装目录分别只读挂载到后端；`private/` 与 `poses/` 不挂入应用。全新检出时 Compose 可建立空套装目录，健康和目录正常，生成读取缺失图片会明确返回 `OUTFIT_UNAVAILABLE`；不创建假图片，不要求私有素材进入 CI。清单之外的文件不能由客户端指定读取。Nginx 关闭请求和响应代理缓冲及响应临时文件，人物上传与结果不落盘。
+
+生成请求上限 24 MiB。Nginx `/api/` 在传输边界拦截超限请求，返回 JSON `41301 / REQUEST_TOO_LARGE`；响应头与正文带同一服务器请求 ID，保留安全响应头并禁止缓存，未鉴权超限请求也返回 413。后端保留相同上限以约束分块读取和直接访问，但关闭 GoFrame 默认的 8 MiB 隐式限制。代理层必须就地拒绝：仅关闭代理预检会使后端在上传尚未结束时提前断开，实测被 Nginx 转换为 502；两层错误契约由真实入口回归约束，代理不执行图片或模型校验。单图 8 MiB、256–8192 边长、2000 万像素；四／五图原始字节合计上限 14 MiB，序列化后完整模型请求不得超过 20,000,000 字节。后者按 Gemini 官方内联请求 20 MB 限制执行，含 Base64、文本和 JSON，原图总量是更保守的本地约束。输出仅接受一张完整解码的横版 PNG／JPEG／WebP；上游 JSON 上限 12 MiB，结果图片仍受单图限制。无自动重试或切模型；只接收内联结果，URL 结果明确失败，不发额外下载请求。
+
+处理上下文限时 55 秒，覆盖请求体解析后的剩余处理时间并传播到模型请求；服务端上传读取最多 55 秒、写响应最多 60 秒。浏览器提交到可查看的 60 秒完整交互由 Phase 4 实现，真实供应商时延留在后续单独授权实测。所有准入后退出均释放并发；未接入额度扣减或费用拦截。
 
 Node 与 Go 使用同一组素材清单契约用例；两个数组允许重排，但必须完整覆盖 30 套服装与 30 个 `unverified` 姿势。Node 标准检查校验 fixture 和真实清单的结构，不要求私有图片进入 CI。已有本地素材时，另运行文件检查：
 

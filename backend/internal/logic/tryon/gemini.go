@@ -1,142 +1,110 @@
 package tryon
 
 import (
+	"backend/internal/imagevalidate"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
 )
 
-// Gemini Google Gemini 图像生成适配器
 type Gemini struct {
-	apiKey  string
-	baseURL string
-	model   string
-	name    string
-	client  *http.Client
+	config ModelConfig
+	client *http.Client
 }
 
-// NewGemini 从配置创建适配器
-func NewGemini(cfg *ModelConfig) *Gemini {
-	return &Gemini{
-		apiKey:  cfg.APIKey,
-		baseURL: strings.TrimRight(cfg.BaseURL, "/"),
-		model:   cfg.Model,
-		name:    cfg.Name,
-		client:  newModelHTTPClient(),
-	}
-}
+func (g *Gemini) Model() string { return g.config.Model }
 
-func (g *Gemini) Name() string {
-	if g.name == "" {
-		return "gemini"
-	}
-	return g.name
-}
-
-// geminiRequest Gemini generateContent 请求体
 type geminiRequest struct {
-	Contents         []geminiContent  `json:"contents"`
-	GenerationConfig *geminiGenConfig `json:"generationConfig,omitempty"`
+	Contents         []geminiContent `json:"contents"`
+	GenerationConfig geminiGenConfig `json:"generationConfig"`
 }
-
 type geminiContent struct {
 	Role  string       `json:"role,omitempty"`
 	Parts []geminiPart `json:"parts"`
 }
-
 type geminiPart struct {
 	Text       string            `json:"text,omitempty"`
 	InlineData *geminiInlineData `json:"inlineData,omitempty"`
 }
-
 type geminiInlineData struct {
-	MimeType string `json:"mimeType"`
-	Data     string `json:"data"`
+	MIME string `json:"mimeType"`
+	Data string `json:"data"`
 }
-
 type geminiGenConfig struct {
-	ResponseModalities []string `json:"responseModalities,omitempty"`
+	ResponseModalities []string   `json:"responseModalities"`
+	CandidateCount     int        `json:"candidateCount"`
+	ImageConfig        OutputSpec `json:"imageConfig"`
 }
 
-type geminiResponse struct {
-	Candidates []geminiCandidate `json:"candidates"`
-	Error      *geminiError      `json:"error,omitempty"`
-}
-
-type geminiCandidate struct {
-	Content geminiContent `json:"content"`
-}
-
-type geminiError struct {
-	Message string `json:"message"`
-	Code    int    `json:"code"`
-}
-
-func (g *Gemini) Generate(ctx context.Context, personB64, garmentB64, prompt, size string) (string, error) {
-	if g.apiKey == "" {
-		return "", fmt.Errorf("Gemini API key not configured")
+func (g *Gemini) Generate(ctx context.Context, input GenerationRequest) (*imagevalidate.ValidatedImage, error) {
+	if err := validateReferences(input.References); err != nil {
+		return nil, err
 	}
-
-	reqBody := geminiRequest{
-		Contents: []geminiContent{
-			{
-				Role: "user",
-				Parts: []geminiPart{
-					{Text: prompt},
-					{InlineData: &geminiInlineData{MimeType: "image/png", Data: ensureBase64(personB64)}},
-					{InlineData: &geminiInlineData{MimeType: "image/png", Data: ensureBase64(garmentB64)}},
-				},
-			},
-		},
-		GenerationConfig: &geminiGenConfig{
-			ResponseModalities: []string{"TEXT", "IMAGE"},
-		},
+	if input.Prompt == "" || input.Output != (OutputSpec{AspectRatio: "3:2", ImageSize: "1K"}) {
+		return nil, ErrReferences
 	}
-
-	body, err := json.Marshal(reqBody)
+	parts := []geminiPart{{Text: input.Prompt}}
+	for _, ref := range input.References {
+		parts = append(parts, geminiPart{Text: "Reference role: " + string(ref.Role)}, geminiPart{InlineData: &geminiInlineData{MIME: ref.MIME, Data: base64.StdEncoding.EncodeToString(ref.Data)}})
+	}
+	body, err := json.Marshal(geminiRequest{
+		Contents:         []geminiContent{{Role: "user", Parts: parts}},
+		GenerationConfig: geminiGenConfig{ResponseModalities: []string{"IMAGE"}, CandidateCount: 1, ImageConfig: input.Output},
+	})
+	if err != nil || len(body) > MaxProviderRequestBytes {
+		return nil, ErrReferences
+	}
+	endpoint := strings.TrimRight(g.config.BaseURL, "/") + "/models/" + g.config.Model + ":generateContent"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return "", err
-	}
-
-	url := fmt.Sprintf("%s/models/%s:generateContent", g.baseURL, g.model)
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("模型服务请求创建失败")
+		return nil, ErrConfiguration
 	}
 	req.Header.Set("Content-Type", "application/json")
-	// Key 放在请求头，避免出现在 URL、代理访问日志或网络错误文本中。
-	req.Header.Set("x-goog-api-key", g.apiKey)
-
+	req.Header.Set("x-goog-api-key", g.config.APIKey)
 	resp, err := g.client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("无法连接模型服务")
+		return nil, ErrUpstream
 	}
 	defer resp.Body.Close()
-
-	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Gemini API error (status %d): %s", resp.StatusCode, truncate(string(respBody), 500))
+		return nil, ErrUpstream
 	}
-
-	var result geminiResponse
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", err
+	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxResponseBytes+1))
+	if err != nil || int64(len(data)) > MaxResponseBytes {
+		return nil, ErrUpstream
 	}
-	if result.Error != nil {
-		return "", fmt.Errorf("Gemini API error: %s", result.Error.Message)
+	var result struct {
+		Candidates []struct {
+			Content      geminiContent `json:"content"`
+			FinishReason string        `json:"finishReason"`
+		} `json:"candidates"`
+		Error json.RawMessage `json:"error"`
 	}
-
-	// 从候选内容中提取图片（inline_data）
-	for _, cand := range result.Candidates {
-		for _, part := range cand.Content.Parts {
-			if part.InlineData != nil && part.InlineData.Data != "" {
-				return part.InlineData.Data, nil
-			}
+	if json.Unmarshal(data, &result) != nil || len(result.Error) != 0 || len(result.Candidates) != 1 || result.Candidates[0].FinishReason != "STOP" {
+		return nil, ErrResult
+	}
+	var output *imagevalidate.ValidatedImage
+	for _, part := range result.Candidates[0].Content.Parts {
+		if part.InlineData == nil {
+			continue
+		}
+		if output != nil || part.InlineData.MIME == "" {
+			return nil, ErrResult
+		}
+		output, err = ValidateResult("data:" + part.InlineData.MIME + ";base64," + part.InlineData.Data)
+		if err != nil {
+			return nil, err
 		}
 	}
-	return "", fmt.Errorf("Gemini returned no image in response")
+	if output == nil {
+		return nil, ErrResult
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	return output, nil
 }
