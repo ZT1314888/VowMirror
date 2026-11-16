@@ -100,7 +100,7 @@ services:
     networks:
       - app
     shm_size: 256mb
-    command: ["node", "tests/smoke.mjs", "--stage", "foundation"]
+    command: ["node", "tests/smoke.mjs", "--stage", "phase4"]
 
 networks:
   app:

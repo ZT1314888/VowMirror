@@ -25,7 +25,7 @@ docker compose up -d --build --wait web backend
 docker compose ps
 ```
 
-浏览器打开入口，看到“后端连接正常”。`GET /api/health` 仅返回存活信息，不需 Token、不调用模型。缺失／非法 Token 使后端启动报错；模型字段为空时健康／目录仍可运行，生成返回 `503 MODEL_CONFIGURATION_INVALID`。
+浏览器打开入口，看到“服务连接正常”。`GET /api/health` 仅返回存活信息，不需 Token、不调用模型。缺失／非法 Token 使后端启动报错；模型字段为空时健康／目录仍可运行，生成返回 `503 MODEL_CONFIGURATION_INVALID`。
 
 不要公开输出 `docker compose config` 的完整结果，它会展开运行时环境变量。只用 `--quiet` 核查配置。
 
@@ -35,7 +35,7 @@ docker compose ps
 docker compose build tools-go tools-node tools-browser
 docker compose run --rm -T tools-go
 docker compose run --rm -T tools-node
-docker compose run --rm -T tools-browser node tests/smoke.mjs --stage foundation
+docker compose run --rm -T tools-browser
 ```
 
 `tools-node` 通过 `sh` 执行只读挂载的当前工作树脚本，无需因脚本变更重建镜像，也不依赖检出文件的执行位；CI 与本地运行同一脚本。Go 脚本先准备依赖和编译，再执行外层硬期限测试、gofmt 检查、vet、`/tmp/vowmirror` 构建。全量测试终止上限 60 秒，源码挂载只读；依赖和编译缓存分别在 `vowmirror-foundation-go-mod`、`vowmirror-foundation-go-build` 命名卷，工具退出后不丢缓存。

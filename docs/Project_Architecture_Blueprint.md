@@ -1,6 +1,6 @@
 # VowMirror 当前架构
 
-更新日期：2026-11-14，开发分支 `feat/wedding-phase-3-generation`。本文描述开发基础、素材目录及 Phase 3 双人生成 API；生成页面与真实模型调用仍属后续阶段。实施前完整草稿已备份，本轮证据见 [长期计划](plan/2026-11-05-wedding-project-roadmap.md)。
+更新日期：2026-11-16，开发分支 `feat/wedding-phase-4-basic-ui`。本文描述开发基础、素材目录、Phase 3 双人生成 API 与 Phase 4 浏览器工作流；真实模型调用仍需单独授权。实施前完整草稿已备份，本轮证据见 [长期计划](plan/2026-11-05-wedding-project-roadmap.md)。
 
 ## 运行与边界
 
@@ -32,7 +32,7 @@ flowchart LR
 |---|---|
 | [web/image-core.mjs](../web/image-core.mjs) | 读取 Blob，保留字节和真实 MIME；结果签名与扩展名解析；无设置、存储或网络依赖 |
 | [web/response-core.mjs](../web/response-core.mjs) | JSON 响应解析和受控错误映射；格式错误直接失败，不显示原始上游正文 |
-| [web/app.mjs](../web/app.mjs) | 同源健康检查、5 秒超时、可见失败和手动重新检查；无上传或生成 |
+| [web/app.mjs](../web/app.mjs) | 同源目录读取与双人生成；冻结单次请求快照、60 秒取消／期限、错误恢复、真实 MIME 结果下载及 Object URL 生命周期 |
 | [imagevalidate](../backend/internal/imagevalidate/validate.go) | 上传、素材与结果共用字节／真实 MIME／完整解码校验；256–8192 边长、2000 万像素、单图 8 MiB |
 | [security](../backend/internal/security/service.go) | Token 摘要恒定时间比对、进程内限流／并发组件；继承额度组件未接入业务路由，后续生成不使用额度扣减；无隐式全局默认服务 |
 | [middleware](../backend/internal/middleware/auth.go) | 保留独立鉴权、CORS、请求体、限流、请求标识组件；由路由组接线，不再内部识别旧单人路径 |
@@ -41,7 +41,7 @@ flowchart LR
 | [固定素材读取](../backend/internal/catalog/reader.go) | 只按 ID 从清单解析三张图；OpenRoot 限定目录、拒绝逃逸与非普通文件；缺图／损坏明确失败 |
 | [compose.yaml](../compose.yaml) | 唯一运行与检查入口；工具不会随应用启动；源码只读、Go 缓存命名卷 |
 
-当前页面不写 localStorage／IndexedDB，不上传照片，不调用供应商。后端健康请求只在内存处理；日志送 stdout。没有数据库、队列、账号或后台。未来 Token 可在浏览器保存，人物／结果只保留当次内存，不迁移旧历史。
+页面通过用户操作将照片和结果仅保存在当前页面内存；刷新不恢复照片／结果。Token 默认不保存，勾选后只将访问 Token 写入 localStorage；不写 IndexedDB。页面只请求同源 API，不直接调用模型供应商。后端健康请求只在内存处理；日志送 stdout。没有数据库、队列、账号或后台。
 
 ## 双人生成契约与安全出口
 
@@ -53,7 +53,7 @@ flowchart LR
 
 生成 API 的 24 MiB 请求体上限由 Nginx 传输边界与后端流式读取共同执行，关闭 GoFrame 默认的 8 MiB 隐式限制。Nginx 提前拦截超限请求时返回标准 JSON 413、服务器请求 ID、安全头和 `no-store`，不再返回默认 HTML；未鉴权超限请求同样返回 413。保留代理拦截是为了避免流式上传中后端提前断开被转换为 502；真实入口回归约束两层 413 契约一致，图片和模型校验只在后端执行。
 
-并发为进程内状态，全局 2、每 Token 主体 1。55 秒上下文覆盖请求解析与生成，客户端断开会取消上游；服务端同时设置 55 秒读取／60 秒写入期限。准入后所有退出释放资源，不接入费用、额度统计或预算拦截。前端健康仍为 5 秒，生成页面及完整“提交到查看”60 秒交互属于 Phase 4，真实时延属于后续实测。
+并发为进程内状态，全局 2、每 Token 主体 1。55 秒上下文覆盖请求解析与生成，客户端断开会取消上游；服务端同时设置 55 秒读取／60 秒写入期限。准入后所有退出释放资源，不接入费用、额度统计或预算拦截。前端健康检查为 5 秒，生成请求在浏览器 60 秒硬期限后取消；真实模型时延属于后续实测。
 
 两张合照及九张场地图只存放在 Git 与 Docker 构建上下文均忽略的 `assets/wedding/private/`，其中 `intake.json` 是唯一私有接收清单。工具容器显式只读核验；应用镜像、接口和场馆目录不读取这些文件。应用只读挂载 30 个固定套装目录，不挂载 private 或 poses。用户上传和结果只在请求内存；Nginx 关闭请求／响应代理缓冲及响应临时文件，不在服务器落盘。不实现左右肖像。
 

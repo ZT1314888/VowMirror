@@ -3,26 +3,83 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>VowMirror · 开发入口</title>
+  <meta name="color-scheme" content="light">
+  <title>VowMirror · 双人婚礼造型</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/web/foundation.css">
   <script type="module" src="/web/app.mjs"></script>
 </head>
 <body>
   <main>
-    <p class="eyebrow">VOWMIRROR / 开发基础</p>
-    <h1>婚礼双人 AI 换装</h1>
-    <p class="intro">开发环境已建立，婚礼生成功能待开发。</p>
-    <section aria-labelledby="status-title">
-      <h2 id="status-title">服务状态</h2>
-      <p id="health-status" role="status" aria-live="polite">正在检查后端连接…</p>
-      <button id="check-health" type="button">重新检查连接</button>
+    <header class="page-header">
+      <a class="wordmark" href="/" aria-label="VowMirror 首页">VowMirror</a>
+      <div class="service-state"><span class="state-dot" aria-hidden="true"></span><span id="health-status" role="status" aria-live="polite">正在检查服务</span></div>
+    </header>
+
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">双人婚礼造型</p>
+      <h1 id="page-title">把这一刻，换成婚礼模样</h1>
+      <p>上传一张两人全身合照，选择造型后生成一张婚礼合影。</p>
     </section>
-    <section aria-labelledby="scope-title">
-      <h2 id="scope-title">当前可用</h2>
-      <p>此入口可检查服务连接。新人照片上传、套装选择和生成流程将在后续阶段接入。</p>
-    </section>
+
+    <div class="workspace">
+      <form id="generation-form" novalidate>
+        <section class="form-section" aria-labelledby="photo-title">
+          <div class="section-heading"><span class="step-number">01</span><div><h2 id="photo-title">选择合照</h2><p>请使用清晰、能看见两人全身与鞋履的照片。</p></div></div>
+          <label class="upload-area" for="couple-image">
+            <input id="couple-image" name="couple-image" type="file" accept="image/png,image/jpeg,image/webp" required>
+            <span class="upload-mark" aria-hidden="true">＋</span>
+            <span class="upload-title">选择一张合照</span>
+            <span class="upload-hint">PNG、JPG 或 WebP，最大 8 MiB</span>
+          </label>
+          <div id="photo-preview-wrap" class="photo-preview-wrap" hidden>
+            <img id="photo-preview" alt="已选择的双人合照预览">
+            <button id="clear-photo" class="text-button" type="button">移除照片</button>
+          </div>
+          <p id="photo-error" class="field-error" role="alert" hidden></p>
+        </section>
+
+        <section class="form-section" aria-labelledby="look-title">
+          <div class="section-heading"><span class="step-number">02</span><div><h2 id="look-title">选择婚礼造型</h2><p>造型名称来自当前可用目录。</p></div></div>
+          <div class="field-row">
+            <label for="outfit">套装</label>
+            <div class="catalog-control"><select id="outfit" name="outfit" required disabled><option value="">先加载可用套装</option></select><button id="load-outfits" class="secondary-button" type="button">加载套装</button></div>
+          </div>
+          <p id="catalog-status" class="field-note" role="status" aria-live="polite">输入访问 Token 后加载套装。</p>
+          <fieldset class="side-fieldset">
+            <legend>婚纱穿在画面中的哪一侧？</legend>
+            <div class="side-options">
+              <label><input type="radio" name="dress-side" value="left" checked><span>画面左侧</span></label>
+              <label><input type="radio" name="dress-side" value="right"><span>画面右侧</span></label>
+            </div>
+            <p id="side-preview" class="field-note side-preview">画面左侧的人穿婚纱，另一位穿男装。</p>
+          </fieldset>
+          <p class="original-scene"><span class="scene-icon" aria-hidden="true">✓</span>保留合照中的原有背景</p>
+        </section>
+
+        <section class="form-section" aria-labelledby="access-title">
+          <div class="section-heading"><span class="step-number">03</span><div><h2 id="access-title">访问设置</h2><p>Token 仅用于请求后端。</p></div></div>
+          <label class="field-label" for="access-token">后端访问 Token</label>
+          <input id="access-token" name="access-token" type="password" autocomplete="current-password" spellcheck="false" placeholder="粘贴访问 Token" required>
+          <label class="save-token"><input id="save-token" type="checkbox"><span>在此设备保存 Token</span></label>
+          <p class="field-note">照片和生成结果不会保存；刷新页面后需要重新选择照片。</p>
+        </section>
+
+        <div id="form-error" class="form-error" role="alert" tabindex="-1" hidden></div>
+        <div class="form-actions">
+          <button id="generate" class="primary-button" type="submit">生成婚礼合影</button>
+          <button id="cancel-generation" class="secondary-button" type="button" hidden>取消生成</button>
+        </div>
+      </form>
+
+      <section id="result-section" class="result-section" aria-labelledby="result-title">
+        <div class="result-heading"><div><p class="eyebrow">预览</p><h2 id="result-title">生成结果</h2></div><span id="result-state" class="result-state">等待生成</span></div>
+        <div id="result-empty" class="result-empty"><span class="result-placeholder" aria-hidden="true">VM</span><p>完成左侧设置后，生成结果会显示在这里。</p></div>
+        <p id="generation-status" class="generation-status" role="status" aria-live="polite" hidden></p>
+        <div id="result-image-wrap" class="result-image-wrap" hidden><img id="result-image" alt="生成的双人婚礼合影"><p id="result-meta" class="result-meta"></p><a id="download-result" class="download-button" download>下载合影</a></div>
+      </section>
+    </div>
+    <footer><span>VowMirror</span><button id="check-health" class="text-button" type="button">重新检查连接</button></footer>
   </main>
 </body>
 </html>

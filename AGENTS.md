@@ -4,8 +4,8 @@
 
 ## 范围与隐私
 
-- 当前项目为内部单实例婚礼工具，Phase 3 开发多图核心与双人 API；当前页面仍为开发入口和健康检查。没有旧单人兼容入口、图库、浏览器模型配置、历史、ComfyUI 或素材后台。
-- 未经单独指令，不实施后续 Phase、不付费调用模型、不提交／推送 Git、不公开部署。每个 Phase 获得明确交付指令后，必须先完成该阶段验收，再按阶段独立分支提交与推送。
+- 当前项目为内部单实例婚礼工具，已实现 Phase 3 多图核心与双人 API、Phase 4 基础双人页面。没有旧单人兼容入口、图库、浏览器模型配置、历史、ComfyUI 或素材后台。
+- 每个 Phase 获得明确实施指令后，先检查并保留现有工作区改动，再从前一阶段已交付分支建立当前阶段独立分支；确认分支正确后才开始修改文件。完成该阶段验收后，只有另获提交／推送指令才执行提交与推送。未经单独指令，不实施后续 Phase、不付费调用模型、不公开部署。
 - 真实 Key、Token、密码、私钥绝不进入 Git 或暂存区。唯一环境模板为根 `.env.example`，凭据字段必须为空；真实 `.env`、`config.yaml`、私有照片和本地备份必须被 Git 与 Docker 构建上下文忽略。
 - 镜像只复制 `backend/manifest/config/config.example.yaml`。启动显式读取这一个模板，固定监听 `:8000`；不再搜索或回退到真实本地配置。模型 Key 只从 Docker 运行时环境注入，浏览器未来仅配置后端访问 Token。
 - 不将真实姓名、私人邮箱、电话、私人 IP、个人绝对路径写入代码、文档、提交或 PR。保留 LICENSE 原有版权声明。
@@ -23,7 +23,7 @@ docker compose build tools-go tools-node tools-browser web backend
 docker compose run --rm -T tools-go
 docker compose run --rm -T tools-node
 docker compose up -d web backend
-docker compose run --rm -T tools-browser node tests/smoke.mjs --stage foundation
+docker compose run --rm -T tools-browser
 git diff --check
 ```
 
@@ -41,16 +41,18 @@ git diff --check
 
 提交使用 Conventional Commits：`fix:`、`feat:`、`docs:`、`test:`、`refactor:`、`chore:`。主分支为 `main`；首个阶段开发分支从 `main` 建立，后续阶段沿前一阶段分支建立，格式 `<type>/<kebab-case-topic>`。
 
-## 阶段分支交付
+## 阶段开发与交付
 
-阶段交付按以下顺序执行：
+阶段按以下顺序开发与交付：
 
-1. 阶段验收证据全部通过；
-2. 从前一阶段分支建立当前阶段独立分支；
-3. 检查 `git status`，逐行检查暂存 diff，并扫描敏感信息、私有文件和构建产物；
-4. 运行该阶段要求的 Docker 测试、构建和浏览器烟测；
+1. 收到当前 Phase 的明确实施指令后，检查 `git status`；识别并保留已有改动，不覆盖、不丢弃，也不把它们擅自带入新阶段；
+2. 在该阶段首次文件修改之前，从前一阶段已交付分支建立当前阶段独立分支，并确认当前分支和起始提交正确；
+3. 只在当前阶段分支实施该阶段工作，按阶段要求运行测试、构建和浏览器烟测；修复失败并重验，直到验收证据全部通过；
+4. 收到提交／推送指令后，再检查 `git status`、逐行检查暂存 diff，并扫描敏感信息、私有文件和构建产物；
 5. 创建一个 Conventional Commit；
 6. 使用 `git push -u origin <phase-branch>` 推送阶段分支；
 7. 记录提交 SHA、远端分支、验证结果和未完成项。
+
+阶段验收通过是提交与推送的前置条件，不是建立阶段分支的前置条件。实施指令本身不代表已授权提交或推送。
 
 各阶段新增改动必须单独交付，不得将多个 Phase 的新增改动混在同一分支或提交中；保留前序阶段继承历史，不重写或拆分。禁止 force push，禁止提交私有素材、凭据、`.env`、备份、日志和构建产物。阶段分支推送不自动合并 `main`；合并仍是独立操作。

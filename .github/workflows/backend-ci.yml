@@ -31,8 +31,8 @@ jobs:
           echo "TRYON_API_KEYS=$token" >> "$GITHUB_ENV"
       - name: Start application
         run: docker compose up -d --wait web backend
-      - name: Foundation browser smoke
-        run: docker compose run --rm -T tools-browser node tests/smoke.mjs --stage foundation
+      - name: Phase 4 browser smoke
+        run: docker compose run --rm -T tools-browser
       - name: Stop application
         if: always()
         run: docker compose down
