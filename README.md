@@ -1,6 +1,6 @@
 # VowMirror
 
-婚礼双人 AI 换装项目，当前提供中文开发入口、健康检查、固定套装目录和 Phase 3 双人生成 API。上传、生成和下载页面属于后续 Phase 4，当前页面仍只检查后端连接。
+婚礼双人 AI 换装项目，当前提供双人合照上传预览、固定套装选择、婚纱画面左右选择、生成结果预览与下载。生成请求连接 Phase 3 双人 API；真实模型调用仍需单独授权。
 
 GoFrame 后端已实现 Gemini 3.1 Flash Image 的四／五图协议映射；OpenAI 兼容与豆包配置明确返回能力错误，旧双图传输实现已移除。模拟测试只证明请求契约和安全路径，未验证真实模型效果、速度或费用。
 
@@ -15,7 +15,7 @@ GoFrame 后端已实现 Gemini 3.1 Flash Image 的四／五图协议映射；Ope
 docker compose up -d --build web backend
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)。前端仅绑定本机回环，后端 8000 不映射宿主机。缺失或无效访问 Token 会使后端明确启动失败；健康检查本身不需要 Token，不调用模型。
+打开 [http://localhost:3000](http://localhost:3000)。前端仅绑定本机回环，后端 8000 不映射宿主机。页面使用后端访问 Token 读取套装并提交生成；可选择只在本机保存 Token，照片和结果不会持久化。缺失或无效访问 Token 会使后端明确启动失败；真实模型字段未配置时，生成接口明确失败，不调用其他供应商。
 
 ## 验证
 
@@ -23,7 +23,7 @@ docker compose up -d --build web backend
 docker compose build tools-go tools-node tools-browser
 docker compose run --rm -T tools-go
 docker compose run --rm -T tools-node
-docker compose run --rm -T tools-browser node tests/smoke.mjs --stage foundation
+docker compose run --rm -T tools-browser
 ```
 
 Go 检查含全量测试、格式检查、vet 和构建；整条测试的外层硬期限不超过 60 秒。缓存位于 Docker 命名卷，构建产物位于容器临时目录。工具服务不会随应用启动。
