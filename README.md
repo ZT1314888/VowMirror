@@ -15,7 +15,8 @@ GoFrame 后端已实现 Gemini 3.1 Flash Image 的四／五图协议映射；Ope
 docker compose up -d --build web backend
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)。前端仅绑定本机回环，后端 8000 不映射宿主机。页面使用后端访问 Token 读取套装并提交生成；可选择只在本机保存 Token，照片和结果不会持久化。缺失或无效访问 Token 会使后端明确启动失败；真实模型字段未配置时，生成接口明确失败，不调用其他供应商。
+打开 [http://localhost:3000](http://localhost:3000)。前端仅绑定本机回环，后端 8000 不映射宿主机。页面使用后端访问 Token 读取套装并提交生成；可选择只在本机保存 Token，
+照片和结果不会持久化。缺失或无效访问 Token 会使后端明确启动失败；真实模型字段未配置时，生成接口明确失败，不调用其他供应商。
 
 ## 验证
 
@@ -28,9 +29,17 @@ docker compose run --rm -T tools-browser
 
 Go 检查含全量测试、格式检查、vet 和构建；整条测试的外层硬期限不超过 60 秒。缓存位于 Docker 命名卷，构建产物位于容器临时目录。工具服务不会随应用启动。
 
-开发命令与故障定位见 [Docker 开发说明](docs/DOCKER_DEVELOPMENT.md)；实现边界见 [当前架构](docs/Project_Architecture_Blueprint.md)；阶段、输入缺口和本轮证据见 [长期计划](docs/plan/2026-11-05-wedding-project-roadmap.md)。
+普通 `tools-browser` 仅对真实页面、健康和目录执行读取，生成交互均在浏览器中受控拦截；未受控的生成请求会被阻断并使烟测失败。它不执行真实生成接口 HTTP 探针。
 
-`POST /api/tryon/couple` 需要 Token，仅接受合照、套装编号、婚纱画面左右及互斥场地模式。页面可保留原背景或上传场地图；合照与场地图均校验真实格式、完整解码、8 MiB、256–8192 边长和 2000 万像素，替换／清除／切换会释放场地预览，刷新不恢复。固定场馆按唯一清单编号读取；当前 `venues: []`、目录为空，页面不显示该选项。本批九张私有场地图不作为内置场馆。
+Phase 6 完整无付费验收：`pwsh -NoProfile -File scripts/verify-phase6.ps1 -ColdBuild`（Windows PowerShell 可用
+`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-phase6.ps1 -ColdBuild`）。使用独立 Compose 项目、全新缓存；
+核实四项模型配置为空、两个运行网络均为 internal 后，执行浏览器边界回归、真实 HTTP 错误验收和完整浏览器烟测。CI 使用相同入口，证据留在忽略的 `.local/phase6/`；详细边界见 Docker 开发说明。
+
+开发命令与故障定位见 [Docker 开发说明](docs/DOCKER_DEVELOPMENT.md)；实现边界见 [当前架构](docs/Project_Architecture_Blueprint.md)；阶段、输入缺口和本轮证据见
+[长期计划](docs/plan/2026-11-05-wedding-project-roadmap.md)。
+
+`POST /api/tryon/couple` 需要 Token，仅接受合照、套装编号、婚纱画面左右及互斥场地模式。页面可保留原背景或上传场地图；合照与场地图均校验真实格式、完整解码、8 MiB、256–8192 边长和 2000
+万像素，替换／清除／切换会释放场地预览，刷新不恢复。固定场馆按唯一清单编号读取；当前 `venues: []`、目录为空，页面不显示该选项。本批九张私有场地图不作为内置场馆。
 
 服务端从唯一清单读取素材，运行时只读挂载 30 个套装目录与固定场馆目录；私有人像和场地接收目录不会挂入应用。缺图明确失败；没有模型设置界面、素材后台或历史存储。真实模型调用必须单独授权，本项目面向内部单实例开发与验证。
 

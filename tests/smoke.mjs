@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { request as httpRequest } from 'node:http';
+import { blockUncontrolledGeneration, observeConsole } from './browser-observations.mjs';
 import { validateManifest } from '../scripts/verify-wedding-assets.mjs';
 
 const require = createRequire('/opt/browser/package.json');
@@ -11,54 +11,10 @@ const stage = stageIndex >= 0 ? process.argv[stageIndex + 1] : '';
 const probeIndex = process.argv.indexOf('--probe');
 const probe = probeIndex >= 0 ? process.argv[probeIndex + 1] : 'all';
 assert.ok(['all', 'catalog', 'generation'].includes(probe), 'unknown regression probe');
-assert.equal(stage, 'phase5', 'only the implemented Phase 5 stage can be verified');
+assert.equal(stage, 'phase6', 'only the current Phase 6 acceptance stage can be verified');
 const base = process.env.SMOKE_BASE_URL ?? 'http://web:8080';
 const accessToken = process.env.TRYON_API_KEYS?.split(',').map(token => token.trim()).find(Boolean);
-assert.ok(accessToken, 'Phase 5 smoke requires TRYON_API_KEYS in the browser tool container');
-
-async function verifyBodyLimit() {
-  const limit = 24 * 1024 * 1024;
-  const oversized = Buffer.alloc(limit + 1, 'a');
-  oversized.write('{"couple_image":"');
-  oversized.write('"}', oversized.length - 2);
-  const chunkSize = 64 * 1024;
-  const clientRequestID = 'synthetic-body-limit-client-marker';
-  for (const scenario of [
-    { name: 'content-length', token: accessToken, chunked: false },
-    { name: 'chunked', token: accessToken, chunked: true },
-    { name: 'unauthenticated', token: '', chunked: false },
-  ]) {
-    const response = await new Promise((resolve, reject) => {
-      const request = httpRequest(base + '/api/tryon/couple', {
-        method: 'POST', agent: false, signal: AbortSignal.timeout(15_000),
-        headers: { 'Content-Type': 'application/json', 'X-Request-ID': clientRequestID,
-          ...(scenario.token ? { Authorization: `Bearer ${scenario.token}` } : {}),
-          ...(scenario.chunked ? { 'Transfer-Encoding': 'chunked' } : { 'Content-Length': oversized.length }) },
-      }, response => {
-        const chunks = [];
-        response.on('data', chunk => chunks.push(chunk));
-        response.on('error', reject);
-        response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, body: Buffer.concat(chunks).toString() }));
-      });
-      request.on('error', reject);
-      for (let offset = 0; offset < oversized.length; offset += chunkSize) request.write(oversized.subarray(offset, offset + chunkSize));
-      request.end();
-    });
-    assert.equal(response.status, 413, scenario.name);
-    assert.match(response.headers['content-type'] ?? '', /^application\/json\b/, scenario.name);
-    const requestID = response.headers['x-request-id'];
-    assert.ok(requestID, `${scenario.name}: missing request ID`);
-    assert.notEqual(requestID, clientRequestID);
-    assert.equal(response.headers['cache-control'], 'no-store');
-    assert.equal(response.headers['x-content-type-options'], 'nosniff');
-    const payload = JSON.parse(response.body);
-    assert.equal(payload.code, 41301, scenario.name);
-    assert.deepEqual(payload.data, { error_code: 'REQUEST_TOO_LARGE', request_id: requestID }, scenario.name);
-    console.log(`Body limit through Nginx: ${scenario.name} passed`);
-  }
-}
-
-await verifyBodyLimit();
+assert.ok(accessToken, 'Phase 6 smoke requires TRYON_API_KEYS in the browser tool container');
 
 function deferred() {
   let resolve;
@@ -116,12 +72,14 @@ async function assertControls(page, operation = 'idle') {
 }
 
 const browser = await chromium.launch({ headless: true });
+let boundary;
 try {
-  const page = await browser.newPage({ acceptDownloads: true });
+  const page = await browser.newPage({ acceptDownloads: true, serviceWorkers: 'block' });
   page.setDefaultTimeout(10_000);
   page.setDefaultNavigationTimeout(15_000);
   const pageErrors = [];
-  const consoleErrors = [];
+  const consoleObservation = observeConsole(page);
+  boundary = await blockUncontrolledGeneration(page);
   const requested = [];
   await page.addInitScript(() => {
     window.__revokedObjectURLs = [];
@@ -135,7 +93,6 @@ try {
     };
   });
   page.on('pageerror', error => pageErrors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   page.on('request', request => requested.push(request.url()));
   for (const width of [375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -143,6 +100,7 @@ try {
     assert.equal(response.status(), 200);
     await page.getByRole('heading', { name: '把这一刻，换成婚礼模样' }).waitFor();
     await page.getByText('服务连接正常', { exact: true }).waitFor();
+    boundary.assertSafe();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && [...document.querySelectorAll('#outfit, #load-outfits, .side-options, .scene-options, #generate')].every(element => element.getBoundingClientRect().right <= innerWidth)), true, `overflow or clipped control at ${width}`);
   }
   assert.deepEqual(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length })), { local: 0, session: 0 });
@@ -160,18 +118,6 @@ try {
   assert.deepEqual(Object.keys(catalog).sort(), ['code', 'data', 'message']);
   assert.deepEqual(Object.keys(catalog.data).sort(), ['outfits', 'poses', 'venues', 'version']);
   assert.deepEqual(catalog.data.venues, [], 'private intake must not become fixed venues');
-  const validCouple = readFileSync(new URL('../backend/internal/imagevalidate/testdata/checker.png', import.meta.url)).toString('base64');
-  for (const [scene, code] of [
-    [{ mode: 'original', image: '' }, 'INVALID_REQUEST'],
-    [{ mode: 'upload', image: '', venue_id: 'V001' }, 'INVALID_REQUEST'],
-    [{ mode: 'upload', image: 'broken' }, 'INVALID_IMAGE_BASE64'],
-    [{ mode: 'venue', venue_id: 'V999' }, 'UNKNOWN_VENUE'],
-    [{ mode: 'venue', venue_id: '../private/intake.json' }, 'UNKNOWN_VENUE'],
-  ]) {
-    const response = await page.request.post(base + '/api/tryon/couple', { headers: { Authorization: `Bearer ${accessToken}` }, data: { couple_image: validCouple, outfit_id: 'W001', dress_side: 'left', scene } });
-    assert.equal(response.status(), 422);
-    assert.equal((await response.json()).data.error_code, code);
-  }
   assert.deepEqual(validateManifest(catalog.data), []);
 
   await page.locator('#access-token').fill(accessToken);
@@ -191,11 +137,6 @@ try {
   page.on('request', request => {
     if (request.url().endsWith('/api/catalog/outfits')) catalogRequests++;
     if (request.url().endsWith('/api/tryon/couple')) requests.push({ body: request.postDataJSON(), authorization: request.headers().authorization });
-  });
-  // Any unplanned generation fails here instead of reaching a real model.
-  await page.route('**/api/tryon/couple', async route => {
-    await route.abort('blockedbyclient');
-    assert.fail('unexpected generation request outside a controlled scenario');
   });
   const successResponse = { status: 200, contentType: 'application/json', body: JSON.stringify({ code: 0, message: '', data: { image: fixture.toString('base64'), mime_type: 'image/png', width: 384, height: 256, model: 'test-only', request_id: 'synthetic-generation' } }) };
 
@@ -436,7 +377,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `scene overflow at ${width}`);
   }
   for (const path of ['/assets/wedding/private/intake.json', '/assets/wedding/venues/', '/.env']) assert.equal((await page.request.get(base + path)).status(), 404);
-  console.log('Phase 5 scene: real three-format decode, invalid files/dimensions, replacement, clear, mode switch, late decode, five-image payload, edit lock and URL release passed');
+  console.log('Phase 6 inherited scene flow: real three-format decode, invalid files/dimensions, replacement, clear, mode switch, late decode, five-image payload, edit lock and URL release passed');
 
   const currentPhotoURL = await page.locator('#photo-preview').getAttribute('src');
   await page.getByRole('button', { name: '移除照片' }).click();
@@ -450,11 +391,22 @@ try {
   assert.equal(await page.locator('#scene-image-preview-wrap').isVisible(), false);
   assert.equal(await page.locator('input[name="scene-mode"]:checked').inputValue(), 'original');
   assert.deepEqual(await page.evaluate(() => Object.keys(localStorage)), ['vowmirror-access-token']);
+  await page.locator('#save-token').uncheck();
+  assert.deepEqual(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length })), { local: 0, session: 0 });
+  consoleObservation.assertNoSensitive({
+    token: [accessToken],
+    photo: [fixture.toString('base64')],
+    scene: ['png', 'jpg', 'webp'].map(format => readFileSync(new URL(`../backend/internal/imagevalidate/testdata/checker.${format}`, import.meta.url)).toString('base64')),
+    result: [JSON.parse(successResponse.body).data.image],
+  });
   assert.deepEqual(pageErrors, []);
+  const consoleErrors = consoleObservation.errors();
   assert.equal(consoleErrors.length, 1, 'only the explicit failed-generation probe may log a console error');
   assert.match(consoleErrors[0], /503 \(Service Unavailable\)/);
   assert.ok(requested.every(url => new URL(url).origin === new URL(base).origin), 'page must not contact external services');
+  boundary.assertSafe();
   console.log(JSON.stringify({ stage, probe, widths: [375, 768, 1024, 1440], health: 'passed', catalog: { auth: '401/401/200', outfits: catalog.data.outfits.length, reload: 'exclusive operation' }, generation: { editing: 'locked', duplicateSubmission: 'single request', result: 'PNG preview and download', failure: 'manual retry only', cancellation: 'controlled late response ignored', timeout: '60 seconds; controlled late response ignored; manual retry passed', persistence: 'token only' }, pageErrors }));
 } finally {
   await browser.close();
+  boundary?.assertSafe();
 }

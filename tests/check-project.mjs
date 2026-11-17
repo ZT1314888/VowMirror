@@ -51,7 +51,7 @@ for (const path of allFiles) {
 }
 const nginx = await text('docker/nginx.conf');
 assert.match(nginx, /location \/ \{ return 404; \}/);
-assert.match(await text('compose.yaml'), /127\.0\.0\.1:3000:8080/);
+assert.match(await text('compose.yaml'), /127\.0\.0\.1:\$\{VOWMIRROR_WEB_PORT:-3000\}:8080/);
 assert.doesNotMatch(await text('.github/workflows/backend-ci.yml'), /setup-go|go-version/);
 assert.doesNotMatch(await text('backend/manifest/docker/Dockerfile'), /config\*|COPY \. \./);
 console.log(`Project structure, all roadmap task IDs, source cleanup and documentation links passed (${allFiles.length} files)`);
