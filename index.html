@@ -54,7 +54,27 @@
             </div>
             <p id="side-preview" class="field-note side-preview">画面左侧的人穿婚纱，另一位穿男装。</p>
           </fieldset>
-          <p class="original-scene"><span class="scene-icon" aria-hidden="true">✓</span>保留合照中的原有背景</p>
+          <fieldset class="scene-fieldset">
+            <legend>场地参考（可选）</legend>
+            <div class="scene-options">
+              <label><input type="radio" name="scene-mode" value="original" checked><span>保留原背景</span></label>
+              <label><input type="radio" name="scene-mode" value="upload"><span>上传场地照片</span></label>
+              <label id="venue-mode-option" hidden><input type="radio" name="scene-mode" value="venue"><span>固定场馆</span></label>
+            </div>
+            <p id="scene-preview" class="field-note" role="status" aria-live="polite">生成时保留合照中的原有背景。</p>
+            <div id="venue-select-wrap" class="field-row" hidden><label for="venue">场馆</label><select id="venue"><option value="">选择场馆</option></select></div>
+            <label id="scene-upload-area" class="upload-area scene-upload-area" for="scene-image" hidden>
+              <input id="scene-image" name="scene-image" type="file" accept="image/png,image/jpeg,image/webp">
+              <span class="upload-mark" aria-hidden="true">＋</span>
+              <span class="upload-title">选择一张场地照片</span>
+              <span class="upload-hint">PNG、JPG 或 WebP，最大 8 MiB</span>
+            </label>
+            <div id="scene-image-preview-wrap" class="photo-preview-wrap" hidden>
+              <img id="scene-image-preview" alt="已选择的场地照片预览">
+              <button id="clear-scene" class="text-button" type="button">移除场地照片</button>
+            </div>
+            <p id="scene-error" class="field-error" role="alert" hidden></p>
+          </fieldset>
         </section>
 
         <section class="form-section" aria-labelledby="access-title">

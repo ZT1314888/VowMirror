@@ -1,5 +1,8 @@
 // Shared image helpers; no settings, storage, or network dependencies.
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MIN_IMAGE_EDGE = 256;
+const MAX_IMAGE_EDGE = 8192;
+const MAX_IMAGE_PIXELS = 20_000_000;
 
 export function detectImageMimeFromBytes(bytes) {
   if (bytes.length >= 8 && bytes.slice(0, 8).every((b, i) => b === [137, 80, 78, 71, 13, 10, 26, 10][i])) return 'image/png';
@@ -45,18 +48,29 @@ export function createResultImageDataUrl(info) {
   return `data:${info.mime};base64,${info.b64}`;
 }
 
-export async function readImageFile(file) {
+export async function readImageFile(file, decode = globalThis.createImageBitmap) {
   if (!(file instanceof Blob) || !file.size) throw new Error('图片为空');
   if (file.size > MAX_IMAGE_BYTES) throw new Error('图片超过 8 MiB');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const mime = detectImageMimeFromBytes(bytes);
   if (!mime) throw new Error('不支持的图片格式');
   if (file.type && normalizeImageMime(file.type) !== mime) throw new Error('图片声明与真实格式不一致');
+  let bitmap;
+  try {
+    bitmap = await decode(new Blob([bytes], { type: mime }));
+  } catch {
+    throw new Error('图片无法解码，请重新选择完整的 PNG、JPG 或 WebP 图片。');
+  }
+  const { width, height } = bitmap;
+  bitmap.close();
+  if (width < MIN_IMAGE_EDGE || height < MIN_IMAGE_EDGE || width > MAX_IMAGE_EDGE || height > MAX_IMAGE_EDGE || width * height > MAX_IMAGE_PIXELS) {
+    throw new Error('图片每边须为 256–8192 像素，且总像素不超过 2000 万，请调整后重新选择。');
+  }
   // Chunking avoids passing a large argument list to String.fromCharCode.
   let binary = '';
   const chunkSize = 8192;
   for (let offset = 0; offset < bytes.length; offset += chunkSize) {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
   }
-  return { bytes, mime, base64: btoa(binary) };
+  return { bytes, mime, width, height, base64: btoa(binary) };
 }

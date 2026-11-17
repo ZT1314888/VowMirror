@@ -1,12 +1,71 @@
 package catalog
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestVenueReaderFixedIDsAndInvalidFiles(t *testing.T) {
+	for _, scenario := range []string{"valid", "empty catalog", "missing", "truncated", "directory", "symlink"} {
+		t.Run(scenario, func(t *testing.T) {
+			reader, _, fixture := readerFixture(t)
+			manifest, err := reader.LoadManifest()
+			if err != nil {
+				t.Fatal(err)
+			}
+			manifest.Venues = []Venue{{ID: "V001", Name: "Synthetic venue", Path: "venues/V001/scene.png"}}
+			full := filepath.Join(reader.Directory, "venues", "V001", "scene.png")
+			if err := os.MkdirAll(filepath.Dir(full), 0700); err != nil {
+				t.Fatal(err)
+			}
+			switch scenario {
+			case "valid":
+				if err := os.WriteFile(full, fixture, 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "empty catalog":
+				manifest.Venues = []Venue{}
+			case "truncated":
+				if err := os.WriteFile(full, fixture[:40], 0600); err != nil {
+					t.Fatal(err)
+				}
+			case "directory":
+				if err := os.Mkdir(full, 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink":
+				outside := filepath.Join(t.TempDir(), "outside.png")
+				if err := os.WriteFile(outside, fixture, 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, full); err != nil {
+					t.Fatal(err)
+				}
+			}
+			img, err := reader.ReadVenue(context.Background(), "V001")
+			if scenario == "valid" {
+				if err != nil || img.MIME != "image/png" || !bytes.Equal(img.Data, fixture) {
+					t.Fatalf("venue changed: %v", err)
+				}
+			} else if scenario == "empty catalog" {
+				if !errors.Is(err, ErrUnknownVenue) {
+					t.Fatalf("empty catalog: %v", err)
+				}
+			} else if !errors.Is(err, ErrVenueUnavailable) {
+				t.Fatalf("invalid venue accepted: %v", err)
+			}
+			for _, id := range []string{"../V001", "venues/V001/scene.png", "https://invalid/scene.png", "V999"} {
+				if _, err := reader.ReadVenue(context.Background(), id); !errors.Is(err, ErrUnknownVenue) {
+					t.Fatalf("invalid ID %s: %v", id, err)
+				}
+			}
+		})
+	}
+}
 
 func readerFixture(t *testing.T) (*Reader, Outfit, []byte) {
 	t.Helper()

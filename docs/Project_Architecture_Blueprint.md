@@ -1,6 +1,6 @@
 # VowMirror 当前架构
 
-更新日期：2026-11-16，开发分支 `feat/wedding-phase-4-basic-ui`。本文描述开发基础、素材目录、Phase 3 双人生成 API 与 Phase 4 浏览器工作流；真实模型调用仍需单独授权。实施前完整草稿已备份，本轮证据见 [长期计划](plan/2026-11-05-wedding-project-roadmap.md)。
+更新日期：2026-11-17，开发分支 `feat/wedding-phase-5-scene-reference`。本文描述开发基础、素材目录、Phase 3 双人生成 API、Phase 4 浏览器工作流与 Phase 5 场地参考；真实模型调用仍需单独授权。本轮证据见 [长期计划](plan/2026-11-05-wedding-project-roadmap.md)。
 
 ## 运行与边界
 
@@ -30,7 +30,7 @@ flowchart LR
 
 | 模块 | 当前用途与边界 |
 |---|---|
-| [web/image-core.mjs](../web/image-core.mjs) | 读取 Blob，保留字节和真实 MIME；结果签名与扩展名解析；无设置、存储或网络依赖 |
+| [web/image-core.mjs](../web/image-core.mjs) | 合照／场地共用 Blob 校验，保留字节和真实 MIME；浏览器完整解码、尺寸及像素校验并释放位图；结果签名与扩展名解析；无设置、存储或网络依赖 |
 | [web/response-core.mjs](../web/response-core.mjs) | JSON 响应解析和受控错误映射；格式错误直接失败，不显示原始上游正文 |
 | [web/app.mjs](../web/app.mjs) | 同源目录读取与双人生成；冻结单次请求快照、60 秒取消／期限、错误恢复、真实 MIME 结果下载及 Object URL 生命周期 |
 | [imagevalidate](../backend/internal/imagevalidate/validate.go) | 上传、素材与结果共用字节／真实 MIME／完整解码校验；256–8192 边长、2000 万像素、单图 8 MiB |
@@ -38,14 +38,16 @@ flowchart LR
 | [middleware](../backend/internal/middleware/auth.go) | 保留独立鉴权、CORS、请求体、限流、请求标识组件；由路由组接线，不再内部识别旧单人路径 |
 | [云端协议](../backend/internal/logic/tryon/generator.go) | 显式模型配置与 HTTP transport；仅 Gemini 3.1 Flash Image 闭合四／五图，其余协议／型号返回能力错误；旧双图实现已移除 |
 | [婚礼编排](../backend/internal/logic/tryon/couple.go) | 唯一编排；生成器工厂、素材读取器、并发准入接口构造注入；一次提交一次模型请求，无视觉附加调用、自动重试或切模型 |
-| [固定素材读取](../backend/internal/catalog/reader.go) | 只按 ID 从清单解析三张图；OpenRoot 限定目录、拒绝逃逸与非普通文件；缺图／损坏明确失败 |
+| [固定素材读取](../backend/internal/catalog/reader.go) | 只按 ID 从唯一清单解析套装三张图或固定场馆一张图；共用读取／完整解码，OpenRoot 限定目录、拒绝逃逸与非普通文件；缺图／损坏明确失败 |
 | [compose.yaml](../compose.yaml) | 唯一运行与检查入口；工具不会随应用启动；源码只读、Go 缓存命名卷 |
 
 页面通过用户操作将照片和结果仅保存在当前页面内存；刷新不恢复照片／结果。Token 默认不保存，勾选后只将访问 Token 写入 localStorage；不写 IndexedDB。页面只请求同源 API，不直接调用模型供应商。后端健康请求只在内存处理；日志送 stdout。没有数据库、队列、账号或后台。
 
 ## 双人生成契约与安全出口
 
-请求字段仅为 `couple_image`、`outfit_id`、`dress_side` 和 `scene`。婚纱位置为按画面观察的 `left`／`right`；场地为 `{ "mode": "original" }` 或 `{ "mode": "upload", "image": "Base64/Data URL" }`，原背景不得带 image 字段。拒绝未知、重复、大小写变体、空值及尾随 JSON；不接受肖像、素材路径、出口、Key 或模型名。
+请求字段仅为 `couple_image`、`outfit_id`、`dress_side` 和 `scene`。婚纱位置为按画面观察的 `left`／`right`；场地互斥为 `{ "mode": "original" }`、`{ "mode": "upload", "image": "Base64/Data URL" }` 或 `{ "mode": "venue", "venue_id": "V001" }`。image 只允许上传模式，venue_id 只允许固定场馆模式，原背景两者均不得出现（包括空字段）。拒绝未知、重复、大小写变体、空值及尾随 JSON；不接受肖像、素材路径、出口、Key 或模型名。
+
+唯一素材清单必含 `venues` 数组；真实固定场馆路径限定 `venues/Vxxx/`，编号 V001–V999。当前数组与本地目录为空，不创建虚构条目，页面隐藏固定场馆模式；后续有授权照片才在同一清单添加。未知编号返回 `UNKNOWN_VENUE`，缺失／损坏返回 `VENUE_UNAVAILABLE`，不切回原背景。页面原背景／上传场地切换会清除场地图及旧结果，异步解码按选择版本丢弃过期完成；生成时锁定场地编辑。
 
 有序参考为合照、婚纱、男装、男鞋特写及可选场地图，含角色、原字节和真实 MIME。提示词固定对应画面左右、身份、不混穿、完整鞋履及全身；场地只用于背景。Gemini 请求逐图附角色标签，要求一个候选、单张横版 `3:2`／`1K`；响应为一张 Base64 图片、`mime_type`、实际宽高、配置模型与服务器 `request_id`，统一封装在 `{code,message,data}` 中。
 
@@ -55,7 +57,7 @@ flowchart LR
 
 并发为进程内状态，全局 2、每 Token 主体 1。55 秒上下文覆盖请求解析与生成，客户端断开会取消上游；服务端同时设置 55 秒读取／60 秒写入期限。准入后所有退出释放资源，不接入费用、额度统计或预算拦截。前端健康检查为 5 秒，生成请求在浏览器 60 秒硬期限后取消；真实模型时延属于后续实测。
 
-两张合照及九张场地图只存放在 Git 与 Docker 构建上下文均忽略的 `assets/wedding/private/`，其中 `intake.json` 是唯一私有接收清单。工具容器显式只读核验；应用镜像、接口和场馆目录不读取这些文件。应用只读挂载 30 个固定套装目录，不挂载 private 或 poses。用户上传和结果只在请求内存；Nginx 关闭请求／响应代理缓冲及响应临时文件，不在服务器落盘。不实现左右肖像。
+两张合照及九张场地图只存放在 Git 与 Docker 构建上下文均忽略的 `assets/wedding/private/`，其中 `intake.json` 是唯一私有接收清单。工具容器显式只读核验；应用镜像、接口和场馆目录不读取这些文件。应用只读挂载 30 个固定套装目录及空的固定场馆目录，不挂载 private 或 poses。用户上传和结果只在请求内存；Nginx 关闭请求／响应代理缓冲及响应临时文件，不在服务器落盘。不实现左右肖像。
 
 ## 验证与文档归属
 

@@ -61,6 +61,7 @@ services:
       - ./assets/wedding/W028:/assets/wedding/W028:ro
       - ./assets/wedding/W029:/assets/wedding/W029:ro
       - ./assets/wedding/W030:/assets/wedding/W030:ro
+      - ./assets/wedding/venues:/assets/wedding/venues:ro
     networks:
       - app
 
@@ -100,7 +101,7 @@ services:
     networks:
       - app
     shm_size: 256mb
-    command: ["node", "tests/smoke.mjs", "--stage", "phase4"]
+    command: ["node", "tests/smoke.mjs", "--stage", "phase5"]
 
 networks:
   app:

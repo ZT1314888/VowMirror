@@ -40,6 +40,10 @@ func TestCoupleStrictJSON(t *testing.T) {
 		strings.Replace(good, `"scene":{"mode":"original"}`, `"scene":{"mode":"original","mode":"upload"}`, 1),
 		strings.Replace(good, `"scene":{"mode":"original"}`, `"scene":null`, 1),
 		strings.Replace(good, `"scene":{"mode":"original"}`, `"scene":{"mode":"original","model":"private-marker"}`, 1),
+		strings.Replace(good, `"scene":{"mode":"original"}`, `"scene":{"mode":"original","venue_id":""}`, 1),
+		strings.Replace(good, `"scene":{"mode":"original"}`, `"scene":{"mode":"upload","image":"image","venue_id":"V001"}`, 1),
+		strings.Replace(good, `"scene":{"mode":"original"}`, `"scene":{"mode":"venue","image":"","venue_id":"V001"}`, 1),
+		strings.Replace(good, `"scene":{"mode":"original"}`, `"scene":{"mode":"venue","venue_id":null}`, 1),
 	} {
 		if _, err := decodeCouple(strings.NewReader(bad)); err == nil {
 			t.Errorf("invalid contract accepted: %s", bad)
@@ -68,6 +72,9 @@ type apiOutfits struct{ image *imagevalidate.ValidatedImage }
 
 func (r apiOutfits) ReadOutfit(context.Context, string) (catalog.OutfitImages, error) {
 	return catalog.OutfitImages{Dress: r.image, Menswear: r.image, Shoes: r.image}, nil
+}
+func (r apiOutfits) ReadVenue(context.Context, string) (*imagevalidate.ValidatedImage, error) {
+	return nil, catalog.ErrUnknownVenue
 }
 
 func TestCoupleHTTPBoundary(t *testing.T) {

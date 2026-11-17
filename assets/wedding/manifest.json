@@ -1,4 +1,4 @@
-﻿{
+{
     "version":  1,
     "outfits":  [
                     {
@@ -393,5 +393,6 @@
                       "path":  "poses/P030.png",
                       "status":  "unverified"
                   }
-              ]
+              ],
+  "venues": []
 }

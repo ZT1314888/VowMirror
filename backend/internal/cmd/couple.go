@@ -69,7 +69,7 @@ func decodeCouple(body io.Reader) (tryon.CoupleRequest, error) {
 			return input, err
 		}
 	}
-	scene, err := strictObject(json.NewDecoder(strings.NewReader(string(fields["scene"]))), "mode", "image")
+	scene, err := strictObject(json.NewDecoder(strings.NewReader(string(fields["scene"]))), "mode", "image", "venue_id")
 	if err != nil {
 		return input, err
 	}
@@ -83,8 +83,16 @@ func decodeCouple(body io.Reader) (tryon.CoupleRequest, error) {
 		if err := json.Unmarshal(scene["image"], &input.Scene.Image); err != nil {
 			return input, err
 		}
-		if input.Scene.Mode == "original" {
+		if input.Scene.Mode != "upload" {
 			return input, errors.New("original scene cannot contain image")
+		}
+	}
+	if len(scene["venue_id"]) != 0 {
+		if input.Scene.Mode != "venue" || string(scene["venue_id"]) == "null" {
+			return input, errors.New("venue_id requires venue mode")
+		}
+		if err := json.Unmarshal(scene["venue_id"], &input.Scene.VenueID); err != nil {
+			return input, err
 		}
 	}
 	return input, nil

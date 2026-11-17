@@ -13,7 +13,7 @@ export const ROLE_FIELDS = ['dress', 'menswear', 'shoes_detail'];
 export const EXPECTED_POSE_COUNT = 30;
 export const POSE_IDS = Array.from({ length: EXPECTED_POSE_COUNT }, (_, index) => `P${String(index + 1).padStart(3, '0')}`);
 const ALLOWED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp'];
-const MANIFEST_KEYS = ['version', 'outfits', 'poses'];
+const MANIFEST_KEYS = ['version', 'outfits', 'poses', 'venues'];
 const OUTFIT_KEYS = ['id', 'name', ...ROLE_FIELDS];
 const ID_PATTERN = /^W\d{3}$/;
 const POSE_ID_PATTERN = /^P\d{3}$/;
@@ -31,7 +31,8 @@ const USAGE = `用法：node scripts/verify-wedding-assets.mjs <manifest.json> [
   ],
   "poses": [
     { "id": "P001", "name": "姿势 P001", "path": "poses/P001.png", "status": "unverified" }
-  ]
+  ],
+  "venues": []
 }
 
 规则：
@@ -41,6 +42,7 @@ const USAGE = `用法：node scripts/verify-wedding-assets.mjs <manifest.json> [
 - 拒绝绝对路径、盘符、URL、".."/"." 段、反斜杠和错误扩展名（允许：${ALLOWED_EXTENSIONS.join(' ')}）。
 - 全部路径不得重复或跨套共享。
 - poses 必须完整覆盖 P001..P030，路径为 poses/Pxxx.png，status 为 unverified；两个数组均不要求排序。
+- venues 必须是数组；无授权固定场馆时为空。真实场馆编号 V001..V999，路径在 venues/Vxxx/ 内。
 
 注意：默认只做结构校验，不验证文件存在、内容与许可；传入 --check-files 时会检查清单引用的文件存在、非空及 PNG/JPEG/WebP 签名。
 私有照片（人物肖像、场地等）禁止提交仓库，私密素材目录已被根 .gitignore 忽略。`;
@@ -202,6 +204,26 @@ export function validateManifest(manifest) {
   const missingPoses = POSE_IDS.filter(id => !seenPoseIds.has(id));
   if (missingPoses.length > 0) problems.push(`缺少姿势编号：${missingPoses.join('、')}`);
   if (manifest.poses.length !== EXPECTED_POSE_COUNT) problems.push(`姿势数量必须为 ${EXPECTED_POSE_COUNT}，当前为 ${manifest.poses.length}`);
+  if (!Array.isArray(manifest.venues)) {
+    problems.push('清单 venues 必须是数组，无真实场馆时为空数组');
+    return problems;
+  }
+  const venueIDs = new Set();
+  const venuePaths = new Set();
+  for (const venue of manifest.venues) {
+    if (!isPlainObject(venue)) {
+      problems.push('场馆条目必须是对象');
+      continue;
+    }
+    if (Object.keys(venue).some(key => !['id', 'name', 'path'].includes(key))) problems.push('场馆存在未知字段');
+    if (typeof venue.id !== 'string' || !/^V[0-9]{3}$/.test(venue.id) || venue.id === 'V000' || venueIDs.has(venue.id)) problems.push('场馆编号无效或重复');
+    venueIDs.add(venue.id);
+    if (typeof venue.name !== 'string' || !venue.name.trim()) problems.push('场馆名称必须非空');
+    if (typeof venue.path !== 'string' || !venue.path.startsWith('venues/')) problems.push('场馆路径必须位于 venues/');
+    else checkPathField(venue.id, 'path', venue.path.slice('venues/'.length), problems);
+    if (venuePaths.has(venue.path)) problems.push('场馆路径重复');
+    venuePaths.add(venue.path);
+  }
   return problems;
 }
 
@@ -212,6 +234,7 @@ export function validateManifestText(text) {
 function assetEntries(manifest) {
   const entries = manifest.outfits.flatMap(outfit => ROLE_FIELDS.map(field => ({ path: outfit[field], kind: 'image' })));
   if (Array.isArray(manifest.poses)) entries.push(...manifest.poses.map(pose => ({ path: pose.path, kind: 'image' })));
+  if (Array.isArray(manifest.venues)) entries.push(...manifest.venues.map(venue => ({ path: venue.path, kind: 'image' })));
   return entries;
 }
 

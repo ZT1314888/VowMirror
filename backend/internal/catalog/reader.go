@@ -11,6 +11,8 @@ import (
 
 var ErrUnknownOutfit = errors.New("未知套装编号")
 var ErrAssetUnavailable = errors.New("套装素材缺失或无效")
+var ErrUnknownVenue = errors.New("未知场馆编号")
+var ErrVenueUnavailable = errors.New("场馆素材缺失或无效")
 
 type OutfitImages struct {
 	Dress    *imagevalidate.ValidatedImage
@@ -23,6 +25,27 @@ type Reader struct {
 	LoadManifest func() (*Manifest, error)
 }
 
+func (r *Reader) ReadVenue(ctx context.Context, id string) (*imagevalidate.ValidatedImage, error) {
+	manifest, err := r.LoadManifest()
+	if err != nil {
+		return nil, ErrVenueUnavailable
+	}
+	for _, venue := range manifest.Venues {
+		if venue.ID != id {
+			continue
+		}
+		img, err := r.read(ctx, venue.Path)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if err != nil {
+			return nil, ErrVenueUnavailable
+		}
+		return img, nil
+	}
+	return nil, ErrUnknownVenue
+}
+
 func (r *Reader) ReadOutfit(ctx context.Context, id string) (OutfitImages, error) {
 	manifest, err := r.LoadManifest()
 	if err != nil {
@@ -32,17 +55,12 @@ func (r *Reader) ReadOutfit(ctx context.Context, id string) (OutfitImages, error
 		if outfit.ID != id {
 			continue
 		}
-		root, err := os.OpenRoot(r.Directory)
-		if err != nil {
-			return OutfitImages{}, ErrAssetUnavailable
-		}
-		defer root.Close()
 		images := make([]*imagevalidate.ValidatedImage, 0, 3)
 		for _, name := range []string{outfit.Dress, outfit.Menswear, outfit.ShoesDetail} {
 			if ctx.Err() != nil {
 				return OutfitImages{}, ctx.Err()
 			}
-			img, err := readImage(root, name)
+			img, err := r.read(ctx, name)
 			if err != nil {
 				return OutfitImages{}, ErrAssetUnavailable
 			}
@@ -51,6 +69,18 @@ func (r *Reader) ReadOutfit(ctx context.Context, id string) (OutfitImages, error
 		return OutfitImages{Dress: images[0], Menswear: images[1], Shoes: images[2]}, nil
 	}
 	return OutfitImages{}, ErrUnknownOutfit
+}
+
+func (r *Reader) read(ctx context.Context, name string) (*imagevalidate.ValidatedImage, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	root, err := os.OpenRoot(r.Directory)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	return readImage(root, name)
 }
 
 func readImage(root *os.Root, name string) (*imagevalidate.ValidatedImage, error) {

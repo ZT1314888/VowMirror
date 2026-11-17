@@ -26,6 +26,15 @@ const sidePreview = document.querySelector('#side-preview');
 const clearPhotoButton = document.querySelector('#clear-photo');
 const loadOutfitsButton = document.querySelector('#load-outfits');
 const sideInputs = form.querySelectorAll('input[name="dress-side"]');
+const sceneInputs = form.querySelectorAll('input[name="scene-mode"]');
+const sceneInput = document.querySelector('#scene-image');
+const scenePreview = document.querySelector('#scene-image-preview');
+const scenePreviewWrap = document.querySelector('#scene-image-preview-wrap');
+const sceneError = document.querySelector('#scene-error');
+const clearSceneButton = document.querySelector('#clear-scene');
+const venueSelect = document.querySelector('#venue');
+const sceneNote = document.querySelector('#scene-preview');
+const SCENE_UPLOAD_NOTE = '仅参考场地的建筑、舞台和装饰；人物与服装仍使用合照和套装参考。';
 
 let coupleImage = null;
 let photoURL = '';
@@ -33,6 +42,10 @@ let resultURL = '';
 let operation = { kind: 'idle' };
 let selectionVersion = 0;
 let outfits = [];
+let sceneImage = null;
+let sceneURL = '';
+let sceneVersion = 0;
+let venues = [];
 
 tokenInput.value = localStorage.getItem(TOKEN_KEY) ?? '';
 saveToken.checked = Boolean(tokenInput.value);
@@ -44,6 +57,10 @@ function setOperation(next) {
   imageInput.disabled = generating;
   clearPhotoButton.disabled = generating;
   sideInputs.forEach(input => { input.disabled = generating; });
+  sceneInputs.forEach(input => { input.disabled = generating; });
+  sceneInput.disabled = generating;
+  clearSceneButton.disabled = generating;
+  venueSelect.disabled = generating;
   loadOutfitsButton.disabled = busy;
   outfitSelect.disabled = busy || outfits.length === 0;
   tokenInput.disabled = busy;
@@ -78,6 +95,42 @@ function releasePhotoURL() {
 function releaseResultURL() {
   if (resultURL) URL.revokeObjectURL(resultURL);
   resultURL = '';
+}
+
+function clearScene() {
+  sceneVersion++;
+  sceneImage = null;
+  sceneInput.value = '';
+  if (sceneURL) URL.revokeObjectURL(sceneURL);
+  sceneURL = '';
+  scenePreview.removeAttribute('src');
+  scenePreviewWrap.hidden = true;
+  sceneError.hidden = true;
+  sceneInput.removeAttribute('aria-invalid');
+}
+
+async function selectScene(file) {
+  if (operation.kind === 'generation') return;
+  clearScene();
+  clearResult();
+  const version = sceneVersion;
+  if (!file) return;
+  sceneNote.textContent = '正在读取场地照片…';
+  try {
+    const image = await readImageFile(file);
+    if (version !== sceneVersion) return;
+    sceneImage = image;
+    sceneURL = URL.createObjectURL(new Blob([image.bytes], { type: image.mime }));
+    scenePreview.src = sceneURL;
+    scenePreviewWrap.hidden = false;
+  } catch (error) {
+    if (version !== sceneVersion) return;
+    sceneError.textContent = error.message;
+    sceneError.hidden = false;
+    sceneInput.setAttribute('aria-invalid', 'true');
+  } finally {
+    if (version === sceneVersion) sceneNote.textContent = SCENE_UPLOAD_NOTE;
+  }
 }
 
 function clearResult() {
@@ -117,6 +170,11 @@ async function loadOutfits() {
     return;
   }
   const request = { kind: 'catalog' };
+  if (form.querySelector('input[name="scene-mode"]:checked').value === 'venue') {
+    form.querySelector('input[name="scene-mode"][value="original"]').click();
+  }
+  venues = [];
+  document.querySelector('#venue-mode-option').hidden = true;
   setOperation(request);
   catalogStatus.textContent = '正在读取套装目录…';
   try {
@@ -126,11 +184,19 @@ async function loadOutfits() {
     const body = await parseAPIResponse(response);
     if (!response.ok || body.code !== 0 || !Array.isArray(body.data?.outfits)) throw new Error(getAPIError(response, body).text);
     outfits = body.data.outfits;
+    venues = body.data.venues;
+    if (!Array.isArray(venues)) throw new Error('场馆目录格式无效');
+    venueSelect.replaceChildren(new Option('选择场馆', ''));
+    for (const venue of venues) venueSelect.add(new Option(venue.name, venue.id));
+    document.querySelector('#venue-mode-option').hidden = venues.length === 0;
     outfitSelect.replaceChildren(new Option('选择一套婚礼造型', ''));
     for (const outfit of outfits) outfitSelect.add(new Option(outfit.name, outfit.id));
     catalogStatus.textContent = `已读取 ${outfits.length} 套可用造型。`;
   } catch (error) {
     outfits = [];
+    venues = [];
+    document.querySelector('#venue-mode-option').hidden = true;
+    document.querySelector('#venue-select-wrap').hidden = true;
     outfitSelect.replaceChildren(new Option('无法读取套装目录', ''));
     catalogStatus.textContent = `套装目录读取失败：${error.message}`;
   } finally {
@@ -144,6 +210,8 @@ async function selectPhoto(file) {
   photoError.hidden = true;
   coupleImage = null;
   releasePhotoURL();
+  photoPreview.removeAttribute('src');
+  photoPreviewWrap.hidden = true;
   clearResult();
   if (!file) {
     photoPreviewWrap.hidden = true;
@@ -153,7 +221,7 @@ async function selectPhoto(file) {
     const image = await readImageFile(file);
     if (version !== selectionVersion) return;
     coupleImage = image;
-    photoURL = URL.createObjectURL(file);
+    photoURL = URL.createObjectURL(new Blob([image.bytes], { type: image.mime }));
     photoPreview.src = photoURL;
     photoPreviewWrap.hidden = false;
   } catch (error) {
@@ -171,12 +239,17 @@ function buildSnapshot() {
   if (!tokenInput.value.trim()) throw new Error('请输入后端访问 Token。');
   const dressSide = form.querySelector('input[name="dress-side"]:checked')?.value;
   if (!['left', 'right'].includes(dressSide)) throw new Error('请选择婚纱在画面中的一侧。');
+  const mode = form.querySelector('input[name="scene-mode"]:checked')?.value;
+  if (!['original', 'upload', 'venue'].includes(mode)) throw new Error('请选择场地模式。');
+  if (mode === 'upload' && !sceneImage) throw new Error('请选择一张有效的场地照片，或切换为保留原背景。');
+  if (mode === 'venue' && !venues.some(venue => venue.id === venueSelect.value)) throw new Error('请选择目录中的固定场馆。');
+  const scene = mode === 'upload' ? { mode, image: sceneImage.base64 } : mode === 'venue' ? { mode, venue_id: venueSelect.value } : { mode };
   return Object.freeze({
     couple_image: coupleImage.base64,
     outfit_id: outfit.id,
     outfit_name: outfit.name,
     dress_side: dressSide,
-    scene: Object.freeze({ mode: 'original' }),
+    scene: Object.freeze(scene),
     token: tokenInput.value.trim(),
   });
 }
@@ -246,6 +319,24 @@ async function generate() {
 }
 
 imageInput.addEventListener('change', () => selectPhoto(imageInput.files?.[0]));
+sceneInput.setAttribute('aria-describedby', 'scene-preview scene-error');
+sceneInput.addEventListener('change', () => selectScene(sceneInput.files?.[0]));
+clearSceneButton.addEventListener('click', () => {
+  if (operation.kind === 'generation') return;
+  clearScene();
+  sceneNote.textContent = SCENE_UPLOAD_NOTE;
+  clearResult();
+});
+sceneInputs.forEach(input => input.addEventListener('change', () => {
+  if (operation.kind === 'generation') return;
+  clearScene();
+  clearResult();
+  const upload = input.value === 'upload';
+  document.querySelector('#scene-upload-area').hidden = !upload;
+  document.querySelector('#venue-select-wrap').hidden = input.value !== 'venue';
+  venueSelect.value = '';
+  sceneNote.textContent = input.value === 'original' ? '生成时保留合照中的原有背景。' : SCENE_UPLOAD_NOTE;
+}));
 clearPhotoButton.addEventListener('click', () => {
   if (operation.kind === 'generation') return;
   selectionVersion++;
@@ -269,6 +360,7 @@ cancelButton.addEventListener('click', () => {
 document.querySelector('#check-health').addEventListener('click', checkHealth);
 window.addEventListener('pagehide', () => {
   releasePhotoURL();
+  clearScene();
   releaseResultURL();
   if (operation.kind === 'generation') operation.controller.abort();
 });
