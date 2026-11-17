@@ -19,8 +19,9 @@ type CoupleRequest struct {
 }
 
 type Scene struct {
-	Mode  string `json:"mode"`
-	Image string `json:"image,omitempty"`
+	Mode    string `json:"mode"`
+	Image   string `json:"image,omitempty"`
+	VenueID string `json:"venue_id,omitempty"`
 }
 
 type CoupleResponse struct {
@@ -34,6 +35,7 @@ type CoupleResponse struct {
 
 type OutfitReader interface {
 	ReadOutfit(context.Context, string) (catalog.OutfitImages, error)
+	ReadVenue(context.Context, string) (*imagevalidate.ValidatedImage, error)
 }
 type Admission interface{ Acquire(string) (func(), bool) }
 type GeneratorFactory func() (ImageGenerator, error)
@@ -60,7 +62,7 @@ func (s *CoupleService) Generate(ctx context.Context, principal, requestID strin
 	if input.OutfitID == "" || (input.DressSide != "left" && input.DressSide != "right") {
 		return nil, invalidRequest()
 	}
-	if (input.Scene.Mode != "original" && input.Scene.Mode != "upload") || (input.Scene.Mode == "original" && input.Scene.Image != "") || (input.Scene.Mode == "upload" && input.Scene.Image == "") {
+	if !validScene(input.Scene) {
 		return nil, invalidRequest()
 	}
 	if principal == "" {
@@ -81,6 +83,18 @@ func (s *CoupleService) Generate(ctx context.Context, principal, requestID strin
 		scene, err = imagevalidate.ValidateImage(input.Scene.Image, imagevalidate.DefaultImageLimits())
 		if err != nil {
 			return nil, imageError(err)
+		}
+	}
+	if input.Scene.Mode == "venue" {
+		scene, err = s.outfits.ReadVenue(ctx, input.Scene.VenueID)
+		if ctx.Err() != nil {
+			return nil, contextError(ctx)
+		}
+		if errors.Is(err, catalog.ErrUnknownVenue) {
+			return nil, security.NewAPIError(422, 42208, "UNKNOWN_VENUE", "未知场馆编号")
+		}
+		if err != nil || scene == nil {
+			return nil, security.NewAPIError(503, 50304, "VENUE_UNAVAILABLE", "场馆素材缺失或无效")
 		}
 	}
 	generator, err := s.newGenerator()
@@ -132,6 +146,19 @@ func (s *CoupleService) Generate(ctx context.Context, principal, requestID strin
 		return nil, contextError(ctx)
 	}
 	return response, nil
+}
+
+func validScene(scene Scene) bool {
+	switch scene.Mode {
+	case "original":
+		return scene.Image == "" && scene.VenueID == ""
+	case "upload":
+		return scene.Image != "" && scene.VenueID == ""
+	case "venue":
+		return scene.Image == "" && scene.VenueID != ""
+	default:
+		return false
+	}
 }
 
 func couplePrompt(side string, scene bool) string {

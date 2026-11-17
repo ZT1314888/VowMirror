@@ -61,17 +61,16 @@ select:disabled { color: #767d7b; background: #eeefed; }
 .primary-button:hover { background: var(--berry-dark); }
 button:disabled { opacity: .58; cursor: wait; }
 .field-note { margin: 8px 0 0; }
-.side-fieldset { margin: 22px 0 0; padding: 0; border: 0; }
-.side-fieldset legend { margin-bottom: 10px; font-size: 14px; font-weight: 650; }
-.side-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.side-options label { position: relative; cursor: pointer; }
-.side-options input { position: absolute; inset: 0; opacity: 0; }
-.side-options span { min-height: 46px; display: grid; place-items: center; border: 1px solid #aeb7b3; border-radius: 4px; background: white; }
-.side-options input:checked + span { border-color: var(--berry); color: var(--berry-dark); background: #f8eef0; box-shadow: inset 0 0 0 1px var(--berry); }
-.side-options input:focus-visible + span { outline: 3px solid #a65a70; outline-offset: 2px; }
+.side-fieldset, .scene-fieldset { margin: 22px 0 0; padding: 0; border: 0; min-width: 0; }
+.side-fieldset legend, .scene-fieldset legend { margin-bottom: 10px; font-size: 14px; font-weight: 650; }
+.side-options, .scene-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.side-options label, .scene-options label { position: relative; cursor: pointer; }
+.side-options input, .scene-options input { position: absolute; inset: 0; opacity: 0; }
+.side-options span, .scene-options span { min-height: 46px; display: grid; place-items: center; border: 1px solid #aeb7b3; border-radius: 4px; background: white; }
+.side-options input:checked + span, .scene-options input:checked + span { border-color: var(--berry); color: var(--berry-dark); background: #f8eef0; box-shadow: inset 0 0 0 1px var(--berry); }
+.side-options input:focus-visible + span, .scene-options input:focus-visible + span { outline: 3px solid #a65a70; outline-offset: 2px; }
+.scene-upload-area { margin-top: 12px; }
 .side-preview { color: var(--ink); }
-.original-scene { display: flex; align-items: center; gap: 9px; margin: 18px 0 0; color: var(--teal); font-size: 14px; font-weight: 650; }
-.scene-icon { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid #9fc1b9; border-radius: 50%; }
 .field-label { display: block; margin-bottom: 7px; }
 .save-token { display: flex; align-items: center; gap: 9px; min-height: 44px; margin-top: 4px; font-size: 14px; cursor: pointer; }
 .save-token input { width: 18px; height: 18px; accent-color: var(--berry); }

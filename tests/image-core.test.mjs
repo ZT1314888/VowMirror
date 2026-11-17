@@ -4,6 +4,9 @@ import test from 'node:test';
 import { detectImageMimeFromBytes, detectImageMimeFromBase64, imageExtensionForMime, resolveResultImageInfo, createResultImageDataUrl, readImageFile } from '../web/image-core.mjs';
 import { parseAPIResponse, getAPIError } from '../web/response-core.mjs';
 
+// Module tests inject dimensions; actual PNG/JPEG/WebP decoding is verified in Chromium.
+const decodeFixture = async () => ({ width: 384, height: 256, close() {} });
+
 for (const [extension, mime] of [['png', 'image/png'], ['jpg', 'image/jpeg'], ['webp', 'image/webp']]) {
   test(`real ${extension} fixture preserves bytes and MIME`, async () => {
     const bytes = await readFile(new URL(`../backend/internal/imagevalidate/testdata/checker.${extension}`, import.meta.url));
@@ -14,7 +17,7 @@ for (const [extension, mime] of [['png', 'image/png'], ['jpg', 'image/jpeg'], ['
     const result = resolveResultImageInfo(b64, 'image/png');
     assert.equal(result.mime, mime);
     assert.equal(createResultImageDataUrl(result), `data:${mime};base64,${b64}`);
-    const input = await readImageFile(new Blob([bytes], { type: mime }));
+    const input = await readImageFile(new Blob([bytes], { type: mime }), decodeFixture);
     assert.equal(input.base64, b64);
     assert.equal(input.mime, mime);
     assert.deepEqual(Buffer.from(input.bytes), bytes);
@@ -29,6 +32,18 @@ test('invalid inputs fail explicitly', async () => {
   const png = await readFile(new URL('../backend/internal/imagevalidate/testdata/checker.png', import.meta.url));
   await assert.rejects(readImageFile(new Blob([png], { type: 'image/jpeg' })), /不一致/);
   await assert.rejects(readImageFile(new Blob([new Uint8Array(8 * 1024 * 1024 + 1)])), /超过/);
+});
+
+test('decoded image dimensions and failures are explicit and release the bitmap', async () => {
+  const png = await readFile(new URL('../backend/internal/imagevalidate/testdata/checker.png', import.meta.url));
+  for (const [width, height, valid] of [[256,256,true],[8192,256,true],[4000,5000,true],[255,256,false],[256,255,false],[8193,256,false],[256,8193,false],[4001,5000,false]]) {
+    let closed = false;
+    const promise = readImageFile(new Blob([png]), async () => ({ width, height, close() { closed = true; } }));
+    if (valid) assert.equal((await promise).width, width);
+    else await assert.rejects(promise, /256–8192/);
+    assert.equal(closed, true);
+  }
+  await assert.rejects(readImageFile(new Blob([png]), async () => { throw new Error('decode failure'); }), /无法解码/);
 });
 
 test('response parser accepts JSON and exposes malformed responses as errors', async () => {

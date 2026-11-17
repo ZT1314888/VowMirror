@@ -10,12 +10,77 @@ import (
 	"errors"
 	"image"
 	"image/png"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestFixedVenueUsesSameFiveImageContract(t *testing.T) {
+	manifest, err := catalog.LoadManifest("../../../../tests/fixtures/wedding-assets-manifest.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Venues = []catalog.Venue{{ID: "V001", Name: "Synthetic venue", Path: "venues/V001/scene.webp"}}
+	root := t.TempDir()
+	outfit := manifest.Outfits[0]
+	for _, entry := range []struct{ path, format string }{{outfit.Dress, "png"}, {outfit.Menswear, "jpg"}, {outfit.ShoesDetail, "png"}, {manifest.Venues[0].Path, "webp"}} {
+		target := filepath.Join(root, entry.path)
+		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(target, fixture(t, entry.format), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reader := &catalog.Reader{Directory: root, LoadManifest: func() (*catalog.Manifest, error) { return manifest, nil }}
+	calls := 0
+	gen := testGenerator{run: func(_ context.Context, input GenerationRequest) (*imagevalidate.ValidatedImage, error) {
+		calls++
+		if len(input.References) != 5 || input.References[4].Role != RoleScene || input.References[4].MIME != "image/webp" || !bytes.Equal(input.References[4].Data, fixture(t, "webp")) {
+			t.Fatal("fixed scene reference changed")
+		}
+		if !strings.Contains(input.Prompt, "reference 5 only for the venue") {
+			t.Fatal("fixed scene prompt missing")
+		}
+		return validResult(t), nil
+	}}
+	service := serviceFor(t, gen, reader, security.NewConcurrencyManager(1, 1))
+	input := coupleInput(t)
+	input.Scene = Scene{Mode: "venue", VenueID: "V001"}
+	if _, err := service.Generate(context.Background(), "p", "id", input); err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []struct {
+		scene Scene
+		code  string
+	}{
+		{Scene{Mode: "venue", VenueID: "../V001"}, "UNKNOWN_VENUE"},
+		{Scene{Mode: "venue", VenueID: "V999"}, "UNKNOWN_VENUE"},
+		{Scene{Mode: "venue"}, "INVALID_REQUEST"},
+		{Scene{Mode: "venue", VenueID: "V001", Image: "image"}, "INVALID_REQUEST"},
+		{Scene{Mode: "upload", VenueID: "V001", Image: "image"}, "INVALID_REQUEST"},
+		{Scene{Mode: "original", VenueID: "V001"}, "INVALID_REQUEST"},
+	} {
+		input.Scene = scenario.scene
+		if _, err := service.Generate(context.Background(), "p", "id", input); err == nil || err.ErrorCode != scenario.code {
+			t.Fatalf("scene %+v: %v", scenario.scene, err)
+		}
+	}
+	input.Scene = Scene{Mode: "venue", VenueID: "V001"}
+	if err := os.WriteFile(filepath.Join(root, manifest.Venues[0].Path), []byte("broken"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Generate(context.Background(), "p", "id", input); err == nil || err.ErrorCode != "VENUE_UNAVAILABLE" {
+		t.Fatalf("corrupt venue: %v", err)
+	}
+	if calls != 1 {
+		t.Fatal("invalid scenes reached generator")
+	}
+}
 
 type testGenerator struct {
 	run func(context.Context, GenerationRequest) (*imagevalidate.ValidatedImage, error)
@@ -32,6 +97,9 @@ type testOutfits struct {
 
 func (r testOutfits) ReadOutfit(ctx context.Context, id string) (catalog.OutfitImages, error) {
 	return r.run(ctx, id)
+}
+func (r testOutfits) ReadVenue(context.Context, string) (*imagevalidate.ValidatedImage, error) {
+	return nil, catalog.ErrUnknownVenue
 }
 func outfitImages(t *testing.T) catalog.OutfitImages {
 	refs := references(t, false)
@@ -82,13 +150,22 @@ func TestCoupleServiceContract(t *testing.T) {
 			if len(r.References) != want || r.References[0].MIME != "image/jpeg" || r.References[2].MIME != "image/webp" || r.Output != (OutputSpec{AspectRatio: "3:2", ImageSize: "1K"}) {
 				t.Error("invalid generation contract")
 			}
-			for _, phrase := range []string{"viewer's right", "identities", "head to toe", "Do not mix outfits", "shoes_detail"} {
+			for _, phrase := range []string{"viewer's right", "identities", "faces", "natural proportions", "head to toe", "without cropping", "Do not mix outfits", "shoes_detail"} {
 				if !strings.Contains(r.Prompt, phrase) {
 					t.Errorf("missing prompt rule %s", phrase)
 				}
 			}
 			if scene != strings.Contains(r.Prompt, "reference 5") {
 				t.Error("scene prompt mismatch")
+			}
+			if scene {
+				for _, phrase := range []string{"only for the venue", "architecture, stage and decorations", "without replacing the people"} {
+					if !strings.Contains(r.Prompt, phrase) {
+						t.Errorf("missing scene rule %s", phrase)
+					}
+				}
+			} else if !strings.Contains(r.Prompt, "Preserve the original background from reference 1") {
+				t.Error("original background rule missing")
 			}
 			if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > RequestTimeout {
 				t.Error("missing deadline")

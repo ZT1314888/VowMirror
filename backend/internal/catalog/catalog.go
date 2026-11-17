@@ -13,11 +13,19 @@ const outfitCount = 30
 const poseCount = 30
 
 var schemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
+var venueIDPattern = regexp.MustCompile(`^V[0-9]{3}$`)
 
 type Manifest struct {
 	Version int      `json:"version"`
 	Outfits []Outfit `json:"outfits"`
 	Poses   []Pose   `json:"poses"`
+	Venues  []Venue  `json:"venues"`
+}
+
+type Venue struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Path string `json:"path"`
 }
 
 type Outfit struct {
@@ -44,7 +52,7 @@ func LoadManifest(path string) (*Manifest, error) {
 }
 
 func ParseManifest(data []byte) (*Manifest, error) {
-	fields, err := objectFields(trimUTF8BOM(data), "version", "outfits", "poses")
+	fields, err := objectFields(trimUTF8BOM(data), "version", "outfits", "poses", "venues")
 	if err != nil {
 		return nil, fmt.Errorf("解析婚礼素材清单失败: %w", err)
 	}
@@ -64,7 +72,11 @@ func ParseManifest(data []byte) (*Manifest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("解析姿势清单失败: %w", err)
 	}
-	manifest := Manifest{Version: 1, Outfits: outfits, Poses: poses}
+	venues, err := parseObjects[Venue](fields["venues"], "id", "name", "path")
+	if err != nil {
+		return nil, fmt.Errorf("解析场馆清单失败: %w", err)
+	}
+	manifest := Manifest{Version: 1, Outfits: outfits, Poses: poses, Venues: venues}
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}
@@ -131,6 +143,16 @@ func (m *Manifest) Validate() error {
 	}
 	if len(m.Poses) != poseCount {
 		return fmt.Errorf("婚礼素材清单必须包含 30 个姿势")
+	}
+	if m.Venues == nil {
+		return fmt.Errorf("场馆清单必须为数组，无素材时使用空数组")
+	}
+	venueIDs := make(map[string]bool)
+	for _, venue := range m.Venues {
+		if !venueIDPattern.MatchString(venue.ID) || venue.ID == "V000" || venueIDs[venue.ID] || isBlank(venue.Name) || !validOutfitPath(venue.ID, strings.TrimPrefix(venue.Path, "venues/")) || !strings.HasPrefix(venue.Path, "venues/") {
+			return fmt.Errorf("场馆清单条目无效或重复")
+		}
+		venueIDs[venue.ID] = true
 	}
 	outfitIDs := expectedIDs("W", outfitCount)
 	seenPaths := make(map[string]bool)
