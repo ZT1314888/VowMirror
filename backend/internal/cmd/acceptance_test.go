@@ -1,0 +1,173 @@
+package cmd
+
+import (
+	"backend/internal/catalog"
+	"backend/internal/imagevalidate"
+	"backend/internal/logic/tryon"
+	"backend/internal/middleware"
+	"backend/internal/security"
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/net/ghttp"
+)
+
+// Exercise the real HTTP handler, service, reader and TLS adapter together.
+// Only the loopback upstream and non-person fixture supply test data.
+func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
+	const token = "synthetic-acceptance-access-token-00000000"
+	const marker = "synthetic-acceptance-private-marker"
+	t.Setenv("TEST_ACCEPTANCE_TOKEN", token)
+	store, err := security.NewTokenStore(true, "TEST_ACCEPTANCE_TOKEN")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile("../imagevalidate/testdata/checker.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, err := imagevalidate.ValidateBytes(data, "", imagevalidate.DefaultImageLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded := base64.StdEncoding.EncodeToString(data)
+	input, err := json.Marshal(tryon.CoupleRequest{CoupleImage: encoded, OutfitID: "W001", DressSide: "left", Scene: tryon.Scene{Mode: "original"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []struct {
+		name, code string
+		status     int
+		calls      int32
+	}{
+		{"missing asset", "OUTFIT_UNAVAILABLE", 503, 0},
+		{"upstream", "MODEL_REQUEST_FAILED", 502, 1},
+		{"invalid result", "INVALID_MODEL_RESULT", 502, 1},
+		{"deadline", "GENERATION_TIMEOUT", 504, 1},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			var calls atomic.Int32
+			stopped := make(chan struct{})
+			upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer close(stopped)
+				calls.Add(1)
+				if r.Header.Get("x-goog-api-key") != marker || r.URL.RawQuery != "" {
+					t.Error("unexpected credential transport")
+				}
+				if _, err := io.Copy(io.Discard, r.Body); err != nil {
+					t.Error(err)
+					return
+				}
+				switch scenario.name {
+				case "deadline":
+					<-r.Context().Done()
+				case "upstream":
+					w.WriteHeader(http.StatusTooManyRequests)
+					_, _ = io.WriteString(w, marker)
+				default:
+					_, _ = io.WriteString(w, `{"candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"`+marker+`"}]}}]}`)
+				}
+			}))
+			defer upstream.Close()
+			factory := func() (tryon.ImageGenerator, error) {
+				return tryon.NewGenerator(tryon.ModelConfig{Provider: "gemini", Model: tryon.GeminiModel, APIKey: marker, BaseURL: upstream.URL}, upstream.Client().Transport)
+			}
+			var reader tryon.OutfitReader = apiOutfits{image: img}
+			if scenario.name == "missing asset" {
+				reader = &catalog.Reader{Directory: t.TempDir(), LoadManifest: func() (*catalog.Manifest, error) {
+					return catalog.LoadManifest("../../../tests/fixtures/wedding-assets-manifest.json")
+				}}
+			}
+			admission := security.NewConcurrencyManager(1, 1)
+			service, err := tryon.NewCoupleService(factory, reader, admission)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s := g.Server("acceptance-" + strings.ReplaceAll(scenario.name, " ", "-"))
+			s.SetPort(0)
+			s.SetDumpRouterMap(false)
+			logs := &synchronizedLog{}
+			s.Logger().SetWriter(logs)
+			s.Group("/", func(group *ghttp.RouterGroup) {
+				group.Middleware(middleware.RequestID, middleware.NewAuthMiddleware(store).Handler)
+				group.POST("/tryon/couple", func(r *ghttp.Request) {
+					if scenario.name == "deadline" {
+						// A shorter parent deadline verifies propagation without a 55s unit test.
+						ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
+						defer cancel()
+						r.Request = r.Request.WithContext(ctx)
+					}
+					coupleHandler(service)(r)
+				})
+			})
+			if err := s.Start(); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := s.Shutdown(); err != nil {
+					t.Error(err)
+				}
+			})
+			req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+strconv.Itoa(s.GetListenedPort())+"/tryon/couple", bytes.NewReader(input))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("X-Request-ID", marker)
+			response, err := (&http.Client{Timeout: 2 * time.Second}).Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			body, err := io.ReadAll(response.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload struct {
+				Data struct {
+					Code      string `json:"error_code"`
+					RequestID string `json:"request_id"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(body, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if response.StatusCode != scenario.status || payload.Data.Code != scenario.code || calls.Load() != scenario.calls {
+				t.Fatalf("unexpected status/code/attempts: %d %s %d", response.StatusCode, payload.Data.Code, calls.Load())
+			}
+			if payload.Data.RequestID == "" || payload.Data.RequestID != response.Header.Get("X-Request-ID") || response.Header.Get("Cache-Control") != "no-store" {
+				t.Fatal("missing correlation or cache boundary")
+			}
+			if scenario.calls != 0 {
+				select {
+				case <-stopped:
+				case <-time.After(time.Second):
+					t.Fatal("TLS upstream did not stop")
+				}
+			}
+			for _, secret := range []string{token, marker, encoded, upstream.URL} {
+				if strings.Contains(string(body)+response.Header.Get("X-Request-ID")+logs.String(), secret) {
+					t.Fatal("sensitive data entered HTTP response or application logs")
+				}
+			}
+			release, ok := admission.Acquire("acceptance-next-request")
+			if !ok {
+				t.Fatal("failed request leaked global admission slot")
+			}
+			release()
+		})
+	}
+}

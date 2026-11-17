@@ -221,7 +221,10 @@ func TestCoupleFailureAlwaysReleasesAdmission(t *testing.T) {
 	for _, scenario := range []string{"upstream", "result", "asset", "unknown", "nil asset", "timeout", "cancel"} {
 		t.Run(scenario, func(t *testing.T) {
 			admission := security.NewConcurrencyManager(1, 1)
-			ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			ctx, cancel := context.WithCancel(context.Background())
+			if scenario == "timeout" {
+				ctx, cancel = context.WithTimeout(ctx, 50*time.Millisecond)
+			}
 			defer cancel()
 			generator := testGenerator{run: func(ctx context.Context, r GenerationRequest) (*imagevalidate.ValidatedImage, error) {
 				switch scenario {

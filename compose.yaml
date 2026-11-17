@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
     ports:
-      - "127.0.0.1:3000:8080"
+      - "127.0.0.1:${VOWMIRROR_WEB_PORT:-3000}:8080"
     depends_on:
       - backend
     healthcheck:
@@ -101,13 +101,16 @@ services:
     networks:
       - app
     shm_size: 256mb
-    command: ["node", "tests/smoke.mjs", "--stage", "phase5"]
+    command: ["node", "tests/smoke.mjs", "--stage", "phase6"]
 
 networks:
   app:
+    internal: ${VOWMIRROR_ACCEPTANCE_OFFLINE:-false}
+  default:
+    internal: ${VOWMIRROR_ACCEPTANCE_OFFLINE:-false}
 
 volumes:
   go-mod:
-    name: vowmirror-foundation-go-mod
+    name: ${VOWMIRROR_GO_MOD_VOLUME:-vowmirror-foundation-go-mod}
   go-build:
-    name: vowmirror-foundation-go-build
+    name: ${VOWMIRROR_GO_BUILD_VOLUME:-vowmirror-foundation-go-build}
