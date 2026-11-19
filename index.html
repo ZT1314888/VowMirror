@@ -47,12 +47,12 @@
           </div>
           <p id="catalog-status" class="field-note" role="status" aria-live="polite">输入访问 Token 后加载套装。</p>
           <fieldset class="side-fieldset">
-            <legend>婚纱穿在画面中的哪一侧？</legend>
+            <legend>原合照哪一侧的人穿婚纱？</legend>
             <div class="side-options">
               <label><input type="radio" name="dress-side" value="left" checked><span>画面左侧</span></label>
               <label><input type="radio" name="dress-side" value="right"><span>画面右侧</span></label>
             </div>
-            <p id="side-preview" class="field-note side-preview">画面左侧的人穿婚纱，另一位穿男装。</p>
+            <p id="side-preview" class="field-note side-preview">按原合照位置分配服装，并保留两人左右站位；服装选择不受性别影响。</p>
           </fieldset>
           <fieldset class="scene-fieldset">
             <legend>场地参考（可选）</legend>
@@ -95,7 +95,7 @@
       <section id="result-section" class="result-section" aria-labelledby="result-title">
         <div class="result-heading"><div><p class="eyebrow">预览</p><h2 id="result-title">生成结果</h2></div><span id="result-state" class="result-state">等待生成</span></div>
         <div id="result-empty" class="result-empty"><span class="result-placeholder" aria-hidden="true">VM</span><p>完成左侧设置后，生成结果会显示在这里。</p></div>
-        <p id="generation-status" class="generation-status" role="status" aria-live="polite" hidden></p>
+        <p id="generation-status" class="generation-status" role="status" aria-live="polite" aria-atomic="true" hidden></p>
         <div id="result-image-wrap" class="result-image-wrap" hidden><img id="result-image" alt="生成的双人婚礼合影"><p id="result-meta" class="result-meta"></p><a id="download-result" class="download-button" download>下载合影</a></div>
       </section>
     </div>

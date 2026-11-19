@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -58,7 +57,7 @@ func newServer(ctx context.Context, name string, loadManifest func() (*catalog.M
 	// GoFrame wraps ResponseWriter without exposing per-request deadline controls.
 	// Socket deadlines bound uploads and writes; the service context bounds model processing.
 	s.SetReadTimeout(tryon.RequestTimeout)
-	s.SetWriteTimeout(60 * time.Second)
+	s.SetWriteTimeout(tryon.StreamWriteTimeout)
 	s.SetDumpRouterMap(false)
 	s.Group("/", func(group *ghttp.RouterGroup) {
 		group.Middleware(middleware.RequestID)

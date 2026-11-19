@@ -6,10 +6,12 @@ import (
 	"backend/internal/logic/tryon"
 	"backend/internal/middleware"
 	"backend/internal/security"
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"image"
@@ -62,10 +64,10 @@ type apiGenerator struct {
 	output *imagevalidate.ValidatedImage
 }
 
-func (g apiGenerator) Model() string { return tryon.GeminiModel }
-func (g apiGenerator) Generate(context.Context, tryon.GenerationRequest) (*imagevalidate.ValidatedImage, error) {
+func (g apiGenerator) Model() string { return tryon.GPTImageModel }
+func (g apiGenerator) Generate(context.Context, tryon.GenerationRequest) (*tryon.GenerationResult, error) {
 	g.calls.Add(1)
-	return g.output, nil
+	return &tryon.GenerationResult{Image: g.output, ProviderModel: tryon.GPTImageModel, ProviderRequestID: "synthetic-upstream-id"}, nil
 }
 
 type apiOutfits struct{ image *imagevalidate.ValidatedImage }
@@ -75,6 +77,94 @@ func (r apiOutfits) ReadOutfit(context.Context, string) (catalog.OutfitImages, e
 }
 func (r apiOutfits) ReadVenue(context.Context, string) (*imagevalidate.ValidatedImage, error) {
 	return nil, catalog.ErrUnknownVenue
+}
+
+type testSSEFrame struct {
+	Event string
+	Data  json.RawMessage
+}
+
+func decodeTestSSE(data []byte) ([]testSSEFrame, error) {
+	frames := make([]testSSEFrame, 0)
+	for _, raw := range bytes.Split(data, []byte("\n\n")) {
+		if len(raw) == 0 {
+			continue
+		}
+		frame := testSSEFrame{}
+		var payload strings.Builder
+		for _, line := range strings.Split(strings.ReplaceAll(string(raw), "\r", ""), "\n") {
+			field, value, found := strings.Cut(line, ":")
+			if !found {
+				continue
+			}
+			value = strings.TrimPrefix(value, " ")
+			switch field {
+			case "event":
+				frame.Event = value
+			case "data":
+				if payload.Len() > 0 {
+					payload.WriteByte('\n')
+				}
+				payload.WriteString(value)
+			}
+		}
+		if payload.Len() == 0 {
+			return nil, io.ErrUnexpectedEOF
+		}
+		frame.Data = json.RawMessage(payload.String())
+		if !json.Valid(frame.Data) {
+			return nil, errors.New("invalid SSE JSON")
+		}
+		frames = append(frames, frame)
+	}
+	return frames, nil
+}
+
+func readTestSSEFrame(reader *bufio.Reader) (testSSEFrame, error) {
+	frame := testSSEFrame{}
+	var payload strings.Builder
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return testSSEFrame{}, err
+		}
+		line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+		if line == "" {
+			break
+		}
+		field, value, found := strings.Cut(line, ":")
+		if !found {
+			continue
+		}
+		value = strings.TrimPrefix(value, " ")
+		switch field {
+		case "event":
+			frame.Event = value
+		case "data":
+			if payload.Len() > 0 {
+				payload.WriteByte('\n')
+			}
+			payload.WriteString(value)
+		}
+	}
+	if payload.Len() == 0 || !json.Valid([]byte(payload.String())) {
+		return testSSEFrame{}, errors.New("invalid SSE frame")
+	}
+	frame.Data = json.RawMessage(payload.String())
+	return frame, nil
+}
+
+type blockingAPIGenerator struct {
+	started chan struct{}
+	stopped chan struct{}
+}
+
+func (g blockingAPIGenerator) Model() string { return tryon.GPTImageModel }
+func (g blockingAPIGenerator) Generate(ctx context.Context, _ tryon.GenerationRequest) (*tryon.GenerationResult, error) {
+	close(g.started)
+	<-ctx.Done()
+	close(g.stopped)
+	return nil, ctx.Err()
 }
 
 func TestCoupleHTTPBoundary(t *testing.T) {
@@ -93,7 +183,7 @@ func TestCoupleHTTPBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	var landscape bytes.Buffer
-	if err := png.Encode(&landscape, image.NewRGBA(image.Rect(0, 0, 384, 256))); err != nil {
+	if err := png.Encode(&landscape, image.NewRGBA(image.Rect(0, 0, tryon.OutputWidth, tryon.OutputHeight))); err != nil {
 		t.Fatal(err)
 	}
 	result, err := imagevalidate.ValidateBytes(landscape.Bytes(), "", imagevalidate.DefaultImageLimits())
@@ -171,19 +261,137 @@ func TestCoupleHTTPBoundary(t *testing.T) {
 		t.Fatal("rejected request invoked model")
 	}
 	status, header, body := request(bytes.NewReader(good), token, "application/json", int64(len(good)))
-	if status != 200 || header.Get("Cache-Control") != "no-store" {
+	if status != 200 || header.Get("Cache-Control") != "no-store" || !strings.HasPrefix(header.Get("Content-Type"), "text/event-stream") {
 		t.Fatalf("generation failed: %d %s", status, body)
+	}
+	frames, err := decodeTestSSE(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	terminalCount := 0
+	for _, frame := range frames {
+		if frame.Event == "result" || frame.Event == "error" {
+			terminalCount++
+		}
+	}
+	if terminalCount != 1 || frames[len(frames)-1].Event != "result" {
+		t.Fatal("SSE must end with exactly one result terminal")
 	}
 	var response struct {
 		Code int                  `json:"code"`
 		Data tryon.CoupleResponse `json:"data"`
 	}
-	if err := json.Unmarshal(body, &response); err != nil {
+	if err := json.Unmarshal(frames[len(frames)-1].Data, &response); err != nil {
 		t.Fatal(err)
 	}
-	if response.Code != 0 || response.Data.MIME != "image/png" || response.Data.Model != tryon.GeminiModel || response.Data.RequestID != header.Get("X-Request-ID") || calls.Load() != 1 {
+	if response.Code != 0 || response.Data.MIME != "image/png" || response.Data.Model != tryon.GPTImageModel || response.Data.RequestID != header.Get("X-Request-ID") || response.Data.ProviderModel != tryon.GPTImageModel || response.Data.ProviderRequestID != "synthetic-upstream-id" || calls.Load() != 1 {
 		t.Fatal("invalid response contract")
 	}
+}
+
+func TestSSEHeartbeatsKeepStreamWithoutClaimingProgressAndDisconnectCancelsUpstream(t *testing.T) {
+	data, err := os.ReadFile("../imagevalidate/testdata/checker.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, err := imagevalidate.ValidateBytes(data, "", imagevalidate.DefaultImageLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	generator := blockingAPIGenerator{started: make(chan struct{}), stopped: make(chan struct{})}
+	handlerStopped := make(chan struct{})
+	admission := security.NewConcurrencyManager(1, 1)
+	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return generator, nil }, apiOutfits{image: img}, admission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := g.Server("couple-sse-heartbeat")
+	s.SetPort(0)
+	s.SetDumpRouterMap(false)
+	s.Group("/", func(group *ghttp.RouterGroup) {
+		group.Middleware(middleware.RequestID, middleware.NewBodyLimitMiddleware(tryon.MaxBodyBytes).Handler)
+		group.POST("/tryon/couple", func(r *ghttp.Request) {
+			defer close(handlerStopped)
+			r.SetCtxVar(middleware.CtxPrincipalID, "heartbeat-test-principal")
+			coupleHandlerWithHeartbeat(service, 20*time.Millisecond)(r)
+		})
+	})
+	if err := s.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := s.Shutdown(); err != nil {
+			t.Error(err)
+		}
+	})
+	input, _ := json.Marshal(tryon.CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(data), OutfitID: "W001", DressSide: "left", Scene: tryon.Scene{Mode: "original"}})
+	ctx, cancel := context.WithCancel(context.Background())
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://127.0.0.1:"+strconv.Itoa(s.GetListenedPort())+"/tryon/couple", bytes.NewReader(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := (&http.Client{Timeout: 2 * time.Second}).Do(request)
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || !strings.HasPrefix(response.Header.Get("Content-Type"), "text/event-stream") || response.Header.Get("Cache-Control") != "no-store" {
+		cancel()
+		response.Body.Close()
+		t.Fatalf("stream did not start correctly: %d %v", response.StatusCode, response.Header)
+	}
+	reader := bufio.NewReader(response.Body)
+	heartbeats := 0
+	for heartbeats < 2 {
+		frame, err := readTestSSEFrame(reader)
+		if err != nil {
+			cancel()
+			response.Body.Close()
+			t.Fatal(err)
+		}
+		if frame.Event == "result" || frame.Event == "error" {
+			cancel()
+			response.Body.Close()
+			t.Fatal("blocked generation unexpectedly produced a terminal event")
+		}
+		if frame.Event == "heartbeat" {
+			heartbeats++
+			var payload map[string]any
+			if err := json.Unmarshal(frame.Data, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := payload["phase"]; ok {
+				t.Fatal("heartbeat must not claim a generation phase")
+			}
+		}
+	}
+	select {
+	case <-generator.started:
+	case <-time.After(time.Second):
+		cancel()
+		response.Body.Close()
+		t.Fatal("generation did not start")
+	}
+	cancel()
+	if err := response.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-generator.stopped:
+	case <-time.After(time.Second):
+		t.Fatal("client disconnect did not cancel upstream work")
+	}
+	select {
+	case <-handlerStopped:
+	case <-time.After(time.Second):
+		t.Fatal("request handler did not finish after cancellation")
+	}
+	release, ok := admission.Acquire("heartbeat-test-principal")
+	if !ok {
+		t.Fatal("finished handler leaked the concurrency slot")
+	}
+	release()
 }
 
 func TestProductionCoupleRouteRejectsUnconfiguredModel(t *testing.T) {
@@ -233,7 +441,8 @@ func TestProductionCoupleRouteRejectsUnconfiguredModel(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if response.StatusCode != 503 || !bytes.Contains(payload, []byte("MODEL_CONFIGURATION_INVALID")) {
+			frames, frameErr := decodeTestSSE(payload)
+			if response.StatusCode != 200 || frameErr != nil || len(frames) == 0 || frames[len(frames)-1].Event != "error" || !bytes.Contains(frames[len(frames)-1].Data, []byte("MODEL_CONFIGURATION_INVALID")) {
 				t.Fatalf("padding=%d chunked=%v: unexpected config response: %d %s", padding, chunked, response.StatusCode, payload)
 			}
 		}
@@ -266,7 +475,7 @@ func TestHTTPCancellationReachesTLSUpstreamAndReleasesSlot(t *testing.T) {
 	}))
 	defer upstream.Close()
 	factory := func() (tryon.ImageGenerator, error) {
-		return tryon.NewGenerator(tryon.ModelConfig{Provider: "gemini", Model: tryon.GeminiModel, BaseURL: upstream.URL, APIKey: "synthetic-private-marker"}, upstream.Client().Transport)
+		return tryon.NewGenerator(tryon.ModelConfig{Provider: "chuanapi", Model: tryon.GPTImageModel, BaseURL: upstream.URL + "/v1", APIKey: "synthetic-private-marker"}, upstream.Client().Transport)
 	}
 	data, err := os.ReadFile("../imagevalidate/testdata/checker.png")
 	if err != nil {
@@ -312,22 +521,32 @@ func TestHTTPCancellationReachesTLSUpstreamAndReleasesSlot(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Request-ID", "synthetic-private-marker")
 	client := &http.Client{Timeout: 2 * time.Second}
-	done := make(chan error, 1)
+	type responseResult struct {
+		response *http.Response
+		err      error
+	}
+	done := make(chan responseResult, 1)
 	go func() {
-		resp, err := client.Do(req)
-		if resp != nil {
-			resp.Body.Close()
-		}
-		done <- err
+		response, err := client.Do(req)
+		done <- responseResult{response: response, err: err}
 	}()
 	select {
 	case <-arrived:
 	case <-time.After(time.Second):
 		t.Fatal("upstream not reached")
 	}
+	var response responseResult
+	select {
+	case response = <-done:
+	case <-time.After(time.Second):
+		t.Fatal("SSE response headers were not flushed")
+	}
+	if response.err != nil || response.response == nil || response.response.StatusCode != http.StatusOK || !strings.HasPrefix(response.response.Header.Get("Content-Type"), "text/event-stream") {
+		t.Fatalf("expected an established event stream: %+v", response)
+	}
 	cancel()
-	if err := <-done; err == nil {
-		t.Error("cancelled request returned success")
+	if err := response.response.Body.Close(); err != nil {
+		t.Error(err)
 	}
 	for _, stopped := range []<-chan struct{}{upstreamStopped, handlerStopped} {
 		select {

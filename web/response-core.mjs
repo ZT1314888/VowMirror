@@ -23,6 +23,8 @@ export async function parseAPIResponse(response) {
 
 export function getAPIError(response, body) {
   const code = body?.data?.error_code ?? ({ 401: 'AUTH_REQUIRED', 403: 'ORIGIN_NOT_ALLOWED', 413: 'REQUEST_TOO_LARGE' }[response.status]);
+  if (code === 'GENERATION_TIMEOUT') return { code, text: '生成超过服务端时限，已停止请求。你可以手动重试。' };
+  if (code === 'GENERATION_CANCELLED') return { code, text: '生成已取消。你可以手动重试。' };
   if (ERROR_MESSAGES[code]) return { code, text: ERROR_MESSAGES[code] };
   return { code: 'API_ERROR', text: `后端请求失败（HTTP ${response.status}）` };
 }

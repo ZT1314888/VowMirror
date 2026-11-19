@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"time"
 
 	"backend/internal/catalog"
 	"backend/internal/imagevalidate"
@@ -25,12 +26,14 @@ type Scene struct {
 }
 
 type CoupleResponse struct {
-	Image     string `json:"image"`
-	MIME      string `json:"mime_type"`
-	Width     int    `json:"width"`
-	Height    int    `json:"height"`
-	Model     string `json:"model"`
-	RequestID string `json:"request_id"`
+	Image             string `json:"image"`
+	MIME              string `json:"mime_type"`
+	Width             int    `json:"width"`
+	Height            int    `json:"height"`
+	Model             string `json:"model"`
+	RequestID         string `json:"request_id"`
+	ProviderModel     string `json:"provider_model,omitempty"`
+	ProviderRequestID string `json:"provider_request_id,omitempty"`
 }
 
 type OutfitReader interface {
@@ -53,28 +56,36 @@ func NewCoupleService(factory GeneratorFactory, outfits OutfitReader, admission 
 	return &CoupleService{newGenerator: factory, outfits: outfits, admission: admission}, nil
 }
 
-func (s *CoupleService) Generate(ctx context.Context, principal, requestID string, input CoupleRequest) (*CoupleResponse, *security.APIError) {
+func (s *CoupleService) Generate(ctx context.Context, principal string, trace RequestTrace, input CoupleRequest) (*CoupleResponse, *security.APIError) {
 	ctx, cancel := context.WithTimeout(ctx, RequestTimeout)
 	defer cancel()
 	if ctx.Err() != nil {
 		return nil, contextError(ctx)
 	}
+	validationStarted := time.Now()
 	if input.OutfitID == "" || (input.DressSide != "left" && input.DressSide != "right") {
+		trace.Record("validating_request", validationStarted)
 		return nil, invalidRequest()
 	}
 	if !validScene(input.Scene) {
+		trace.Record("validating_request", validationStarted)
 		return nil, invalidRequest()
 	}
 	if principal == "" {
+		trace.Record("validating_request", validationStarted)
 		return nil, security.ErrAuthRequired
 	}
+	trace.Record("validating_request", validationStarted)
 	release, ok := s.admission.Acquire(principal)
 	if !ok {
 		return nil, security.ErrConcurrencyLimited
 	}
 	defer release()
+	imageValidationStarted := time.Now()
+	trace.Mark(StageObservation{Phase: "validating_images"})
 	couple, err := imagevalidate.ValidateImage(input.CoupleImage, imagevalidate.DefaultImageLimits())
 	if err != nil {
+		trace.Record("validating_images", imageValidationStarted)
 		return nil, imageError(err)
 	}
 	refs := []Reference{{Role: RoleCouple, Data: couple.Data, MIME: couple.MIME}}
@@ -82,23 +93,31 @@ func (s *CoupleService) Generate(ctx context.Context, principal, requestID strin
 	if input.Scene.Mode == "upload" {
 		scene, err = imagevalidate.ValidateImage(input.Scene.Image, imagevalidate.DefaultImageLimits())
 		if err != nil {
+			trace.Record("validating_images", imageValidationStarted)
 			return nil, imageError(err)
 		}
 	}
+	trace.Record("validating_images", imageValidationStarted)
+	assetsStarted := time.Now()
+	trace.Mark(StageObservation{Phase: "preparing_assets"})
 	if input.Scene.Mode == "venue" {
 		scene, err = s.outfits.ReadVenue(ctx, input.Scene.VenueID)
 		if ctx.Err() != nil {
+			trace.Record("preparing_assets", assetsStarted)
 			return nil, contextError(ctx)
 		}
 		if errors.Is(err, catalog.ErrUnknownVenue) {
+			trace.Record("preparing_assets", assetsStarted)
 			return nil, security.NewAPIError(422, 42208, "UNKNOWN_VENUE", "未知场馆编号")
 		}
 		if err != nil || scene == nil {
+			trace.Record("preparing_assets", assetsStarted)
 			return nil, security.NewAPIError(503, 50304, "VENUE_UNAVAILABLE", "场馆素材缺失或无效")
 		}
 	}
 	generator, err := s.newGenerator()
 	if err != nil {
+		trace.Record("preparing_assets", assetsStarted)
 		if errors.Is(err, ErrCapability) {
 			return nil, security.NewAPIError(503, 50302, "MODEL_CAPABILITY_UNSUPPORTED", ErrCapability.Error())
 		}
@@ -106,6 +125,7 @@ func (s *CoupleService) Generate(ctx context.Context, principal, requestID strin
 	}
 	outfit, err := s.outfits.ReadOutfit(ctx, input.OutfitID)
 	if err != nil {
+		trace.Record("preparing_assets", assetsStarted)
 		if ctx.Err() != nil {
 			return nil, contextError(ctx)
 		}
@@ -116,6 +136,7 @@ func (s *CoupleService) Generate(ctx context.Context, principal, requestID strin
 	}
 	for index, img := range []*imagevalidate.ValidatedImage{outfit.Dress, outfit.Menswear, outfit.Shoes} {
 		if img == nil {
+			trace.Record("preparing_assets", assetsStarted)
 			return nil, security.NewAPIError(503, 50303, "OUTFIT_UNAVAILABLE", "套装素材缺失或无效")
 		}
 		refs = append(refs, Reference{Role: []Role{RoleDress, RoleMenswear, RoleShoes}[index], Data: img.Data, MIME: img.MIME})
@@ -124,24 +145,29 @@ func (s *CoupleService) Generate(ctx context.Context, principal, requestID strin
 		refs = append(refs, Reference{Role: RoleScene, Data: scene.Data, MIME: scene.MIME})
 	}
 	if err := validateReferences(refs); err != nil {
+		trace.Record("preparing_assets", assetsStarted)
 		return nil, security.NewAPIError(422, 42207, "REFERENCE_IMAGES_INVALID", ErrReferences.Error())
 	}
+	trace.Record("preparing_assets", assetsStarted)
 	if ctx.Err() != nil {
 		return nil, contextError(ctx)
 	}
-	result, err := generator.Generate(ctx, GenerationRequest{References: refs, Prompt: couplePrompt(input.DressSide, scene != nil), Output: OutputSpec{AspectRatio: "3:2", ImageSize: "1K"}})
+	result, err := generator.Generate(ctx, GenerationRequest{References: refs, Prompt: couplePrompt(input.DressSide, scene != nil), Trace: trace})
 	if ctx.Err() != nil {
 		return nil, contextError(ctx)
 	}
-	if err != nil || result == nil {
+	if err != nil || result == nil || result.Image == nil {
 		return nil, generationError(err)
 	}
 	// Validate at the service boundary as well: injected generators cannot bypass the result contract.
-	result, err = ValidateResult("data:" + result.MIME + ";base64," + base64.StdEncoding.EncodeToString(result.Data))
-	if err != nil {
-		return nil, generationError(err)
+	resultValidationStarted := time.Now()
+	trace.Mark(StageObservation{Phase: "validating_result"})
+	image, err := ValidateResult("data:" + result.Image.MIME + ";base64," + base64.StdEncoding.EncodeToString(result.Image.Data))
+	trace.Record("validating_result", resultValidationStarted)
+	if err != nil || !matchesModel(generator.Model(), result.ProviderModel) || !validProviderIdentifier(result.ProviderRequestID, "") {
+		return nil, generationError(ErrResult)
 	}
-	response := &CoupleResponse{Image: base64.StdEncoding.EncodeToString(result.Data), MIME: result.MIME, Width: result.Width, Height: result.Height, Model: generator.Model(), RequestID: requestID}
+	response := &CoupleResponse{Image: base64.StdEncoding.EncodeToString(image.Data), MIME: image.MIME, Width: image.Width, Height: image.Height, Model: generator.Model(), RequestID: trace.RequestID, ProviderModel: result.ProviderModel, ProviderRequestID: result.ProviderRequestID}
 	if ctx.Err() != nil {
 		return nil, contextError(ctx)
 	}
@@ -166,7 +192,7 @@ func couplePrompt(side string, scene bool) string {
 	if scene {
 		background = "Use reference 5 only for the venue; preserve its architecture, stage and decorations without replacing the people."
 	}
-	return fmt.Sprintf("Create exactly one landscape full-body wedding photograph of the same two people from reference 1 (couple). Preserve both identities, faces and natural proportions. The person on the viewer's %s wears only the wedding dress from reference 2 (dress); the other person wears only the menswear including shoes from reference 3 (menswear), with shoe details from reference 4 (shoes_detail). Do not mix outfits or swap identities. Show both people from head to toe, including complete shoes, without cropping. %s", side, background)
+	return fmt.Sprintf("Create exactly one landscape full-body wedding photograph of the same two people from reference 1 (couple). Reference 1 defines each person's identity and viewer-left/viewer-right position. Preserve both identities, faces, natural proportions, and original left/right positions; do not swap or move the people across sides. Assign clothing by the selected side only, regardless of gender or conventional wedding roles: the person on the viewer's %s in reference 1 must wear only the wedding dress from reference 2 (dress). The other person must wear only the menswear, including shoes, from reference 3 (menswear), with shoe details from reference 4 (shoes_detail). This assignment may intentionally put a man in the wedding dress or a woman in menswear. Do not infer clothing from gender or the original outfits, and do not mix garments. Show both people from head to toe, including complete shoes, without cropping. %s", side, background)
 }
 
 func invalidRequest() *security.APIError {

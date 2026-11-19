@@ -51,7 +51,7 @@ func TestFixedVenueUsesSameFiveImageContract(t *testing.T) {
 	service := serviceFor(t, gen, reader, security.NewConcurrencyManager(1, 1))
 	input := coupleInput(t)
 	input.Scene = Scene{Mode: "venue", VenueID: "V001"}
-	if _, err := service.Generate(context.Background(), "p", "id", input); err != nil {
+	if _, err := service.Generate(context.Background(), "p", RequestTrace{RequestID: "id"}, input); err != nil {
 		t.Fatal(err)
 	}
 	for _, scenario := range []struct {
@@ -66,7 +66,7 @@ func TestFixedVenueUsesSameFiveImageContract(t *testing.T) {
 		{Scene{Mode: "original", VenueID: "V001"}, "INVALID_REQUEST"},
 	} {
 		input.Scene = scenario.scene
-		if _, err := service.Generate(context.Background(), "p", "id", input); err == nil || err.ErrorCode != scenario.code {
+		if _, err := service.Generate(context.Background(), "p", RequestTrace{RequestID: "id"}, input); err == nil || err.ErrorCode != scenario.code {
 			t.Fatalf("scene %+v: %v", scenario.scene, err)
 		}
 	}
@@ -74,7 +74,7 @@ func TestFixedVenueUsesSameFiveImageContract(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, manifest.Venues[0].Path), []byte("broken"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Generate(context.Background(), "p", "id", input); err == nil || err.ErrorCode != "VENUE_UNAVAILABLE" {
+	if _, err := service.Generate(context.Background(), "p", RequestTrace{RequestID: "id"}, input); err == nil || err.ErrorCode != "VENUE_UNAVAILABLE" {
 		t.Fatalf("corrupt venue: %v", err)
 	}
 	if calls != 1 {
@@ -86,10 +86,11 @@ type testGenerator struct {
 	run func(context.Context, GenerationRequest) (*imagevalidate.ValidatedImage, error)
 }
 
-func (g testGenerator) Generate(ctx context.Context, r GenerationRequest) (*imagevalidate.ValidatedImage, error) {
-	return g.run(ctx, r)
+func (g testGenerator) Generate(ctx context.Context, r GenerationRequest) (*GenerationResult, error) {
+	image, err := g.run(ctx, r)
+	return &GenerationResult{Image: image}, err
 }
-func (g testGenerator) Model() string { return GeminiModel }
+func (g testGenerator) Model() string { return GPTImageModel }
 
 type testOutfits struct {
 	run func(context.Context, string) (catalog.OutfitImages, error)
@@ -116,6 +117,34 @@ func outfitImages(t *testing.T) catalog.OutfitImages {
 func coupleInput(t *testing.T) CoupleRequest {
 	return CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(fixture(t, "jpg")), OutfitID: "W001", DressSide: "left", Scene: Scene{Mode: "original"}}
 }
+
+func TestCouplePromptMapsSelectedSideIndependentOfGender(t *testing.T) {
+	for _, side := range []string{"left", "right"} {
+		prompt := couplePrompt(side, false)
+		for _, phrase := range []string{
+			"Reference 1 defines each person's identity and viewer-left/viewer-right position",
+			"Preserve both identities",
+			"original left/right positions",
+			"Assign clothing by the selected side only, regardless of gender or conventional wedding roles",
+			"person on the viewer's " + side + " in reference 1 must wear only the wedding dress",
+			"other person must wear only the menswear",
+			"may intentionally put a man in the wedding dress or a woman in menswear",
+			"Do not infer clothing from gender or the original outfits",
+		} {
+			if !strings.Contains(prompt, phrase) {
+				t.Errorf("%s prompt missing mapping rule %q", side, phrase)
+			}
+		}
+		otherSide := "left"
+		if side == otherSide {
+			otherSide = "right"
+		}
+		if strings.Contains(prompt, "person on the viewer's "+otherSide+" in reference 1 must wear only the wedding dress") {
+			t.Errorf("%s prompt assigns the dress to the opposite side", side)
+		}
+	}
+}
+
 func serviceFor(t *testing.T, generator ImageGenerator, reader OutfitReader, admission Admission) *CoupleService {
 	t.Helper()
 	service, err := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission)
@@ -147,10 +176,10 @@ func TestCoupleServiceContract(t *testing.T) {
 			if scene {
 				want = 5
 			}
-			if len(r.References) != want || r.References[0].MIME != "image/jpeg" || r.References[2].MIME != "image/webp" || r.Output != (OutputSpec{AspectRatio: "3:2", ImageSize: "1K"}) {
+			if len(r.References) != want || r.References[0].MIME != "image/jpeg" || r.References[2].MIME != "image/webp" {
 				t.Error("invalid generation contract")
 			}
-			for _, phrase := range []string{"viewer's right", "identities", "faces", "natural proportions", "head to toe", "without cropping", "Do not mix outfits", "shoes_detail"} {
+			for _, phrase := range []string{"viewer's right in reference 1", "identities", "faces", "natural proportions", "head to toe", "without cropping", "mix garments", "shoes_detail"} {
 				if !strings.Contains(r.Prompt, phrase) {
 					t.Errorf("missing prompt rule %s", phrase)
 				}
@@ -178,8 +207,8 @@ func TestCoupleServiceContract(t *testing.T) {
 		if scene {
 			input.Scene = Scene{Mode: "upload", Image: base64.StdEncoding.EncodeToString(fixture(t, "png"))}
 		}
-		response, err := service.Generate(context.Background(), "principal", "request-id", input)
-		if err != nil || response.Model != GeminiModel || response.MIME != "image/png" || response.RequestID != "request-id" || response.Width != 384 || calls.Load() != 1 {
+		response, err := service.Generate(context.Background(), "principal", RequestTrace{RequestID: "request-id"}, input)
+		if err != nil || response.Model != GPTImageModel || response.MIME != "image/png" || response.RequestID != "request-id" || response.Width != OutputWidth || calls.Load() != 1 {
 			t.Fatalf("invalid result: %v / %d", err, calls.Load())
 		}
 	}
@@ -200,7 +229,7 @@ func TestCoupleInvalidInputsNeverInvokeGenerator(t *testing.T) {
 	} {
 		input := coupleInput(t)
 		modify(&input)
-		if _, err := service.Generate(context.Background(), "principal", "id", input); err == nil {
+		if _, err := service.Generate(context.Background(), "principal", RequestTrace{RequestID: "id"}, input); err == nil {
 			t.Fatal("invalid input accepted")
 		}
 	}
@@ -208,7 +237,7 @@ func TestCoupleInvalidInputsNeverInvokeGenerator(t *testing.T) {
 		t.Fatal("invalid inputs invoked generator")
 	}
 	service.newGenerator = func() (ImageGenerator, error) { return nil, errors.New("private-marker") }
-	if _, err := service.Generate(context.Background(), "principal", "id", coupleInput(t)); err == nil || err.ErrorCode != "MODEL_CONFIGURATION_INVALID" || strings.Contains(err.Error(), "private-marker") {
+	if _, err := service.Generate(context.Background(), "principal", RequestTrace{RequestID: "id"}, coupleInput(t)); err == nil || err.ErrorCode != "MODEL_CONFIGURATION_INVALID" || strings.Contains(err.Error(), "private-marker") {
 		t.Fatal("unsafe config error")
 	}
 	release, ok := admission.Acquire("principal")
@@ -255,7 +284,7 @@ func TestCoupleFailureAlwaysReleasesAdmission(t *testing.T) {
 			}}
 			service := serviceFor(t, generator, reader, admission)
 			want := map[string]string{"upstream": "MODEL_REQUEST_FAILED", "result": "INVALID_MODEL_RESULT", "asset": "OUTFIT_UNAVAILABLE", "unknown": "UNKNOWN_OUTFIT", "nil asset": "OUTFIT_UNAVAILABLE", "timeout": "GENERATION_TIMEOUT", "cancel": "GENERATION_CANCELLED"}[scenario]
-			if _, err := service.Generate(ctx, "p", "id", coupleInput(t)); err == nil || err.ErrorCode != want || strings.Contains(err.Error(), "private-marker") {
+			if _, err := service.Generate(ctx, "p", RequestTrace{RequestID: "id"}, coupleInput(t)); err == nil || err.ErrorCode != want || strings.Contains(err.Error(), "private-marker") {
 				t.Fatalf("expected %s, got %v", want, err)
 			}
 			release, ok := admission.Acquire("p")
@@ -283,12 +312,15 @@ func TestCoupleConcurrentAttemptIsRejected(t *testing.T) {
 		return images, nil
 	}}, admission)
 	input := coupleInput(t)
-	go func() { _, err := service.Generate(context.Background(), "p", "id", input); done <- err }()
+	go func() {
+		_, err := service.Generate(context.Background(), "p", RequestTrace{RequestID: "id"}, input)
+		done <- err
+	}()
 	<-entered
 	rejected := coupleInput(t)
 	rejected.CoupleImage = "not-base64"
 	rejected.Scene = Scene{Mode: "upload", Image: "not-base64"}
-	_, err := service.Generate(context.Background(), "p", "id", rejected)
+	_, err := service.Generate(context.Background(), "p", RequestTrace{RequestID: "id"}, rejected)
 	readCount := reads.Load()
 	close(resume)
 	if err := <-done; err != nil {
@@ -355,7 +387,7 @@ func TestBusyRequestsDoNotAllocateImagePixels(t *testing.T) {
 			runtime.GC()
 			var before, after runtime.MemStats
 			runtime.ReadMemStats(&before)
-			_, apiErr := service.Generate(context.Background(), "p", "id", input)
+			_, apiErr := service.Generate(context.Background(), "p", RequestTrace{RequestID: "id"}, input)
 			runtime.ReadMemStats(&after)
 			if apiErr == nil || apiErr.ErrorCode != "CONCURRENCY_LIMITED" {
 				t.Fatalf("expected concurrency rejection, got %v", apiErr)

@@ -11,10 +11,15 @@ import (
 )
 
 const (
-	GeminiModel          = "gemini-3.1-flash-image"
-	RequestTimeout       = 55 * time.Second
-	MaxBodyBytes   int64 = 24 << 20
-	// Leave room for Base64 and JSON within Gemini's 20 MB inline request limit.
+	GPTImageModel            = "gpt-image-2.5-flare"
+	OutputWidth              = 1536
+	OutputHeight             = 1024
+	OutputSize               = "1536x1024"
+	OutputQuality            = "medium"
+	RequestTimeout           = 85 * time.Second
+	StreamWriteTimeout       = 95 * time.Second
+	MaxBodyBytes       int64 = 24 << 20
+	// Local memory budgets, independent of the provider's larger input limits.
 	MaxReferenceBytes       int64 = 14 << 20
 	MaxProviderRequestBytes       = 20_000_000
 	MaxResponseBytes        int64 = 12 << 20
@@ -46,14 +51,15 @@ type Reference struct {
 type GenerationRequest struct {
 	References []Reference
 	Prompt     string
-	Output     OutputSpec
+	Trace      RequestTrace
 }
-type OutputSpec struct {
-	AspectRatio string `json:"aspectRatio"`
-	ImageSize   string `json:"imageSize"`
+type GenerationResult struct {
+	Image             *imagevalidate.ValidatedImage
+	ProviderModel     string
+	ProviderRequestID string
 }
 type ImageGenerator interface {
-	Generate(context.Context, GenerationRequest) (*imagevalidate.ValidatedImage, error)
+	Generate(context.Context, GenerationRequest) (*GenerationResult, error)
 	Model() string
 }
 type ModelConfig struct {
@@ -64,20 +70,20 @@ type ModelConfig struct {
 }
 
 func NewGenerator(cfg ModelConfig, transport http.RoundTripper) (ImageGenerator, error) {
-	if cfg.Provider == "openai" || cfg.Provider == "doubao" {
+	if cfg.Provider != "" && cfg.Provider != "chuanapi" {
 		return nil, ErrCapability
 	}
-	if transport == nil || cfg.Provider != "gemini" || strings.TrimSpace(cfg.APIKey) == "" || cfg.APIKey != strings.TrimSpace(cfg.APIKey) || strings.ContainsAny(cfg.APIKey, "\r\n") {
+	if transport == nil || cfg.Provider == "" || strings.TrimSpace(cfg.APIKey) == "" || strings.ContainsAny(cfg.APIKey, " \t\r\n") {
 		return nil, ErrConfiguration
 	}
-	if cfg.Model != GeminiModel {
+	if cfg.Model != GPTImageModel {
 		return nil, ErrCapability
 	}
 	u, err := url.Parse(cfg.BaseURL)
-	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.Opaque != "" {
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.Opaque != "" || strings.TrimRight(u.Path, "/") != "/v1" {
 		return nil, ErrConfiguration
 	}
-	return &Gemini{config: cfg, client: newModelHTTPClient(transport)}, nil
+	return &GPTImage{config: cfg, client: newModelHTTPClient(transport)}, nil
 }
 
 func newModelHTTPClient(transport http.RoundTripper) *http.Client {

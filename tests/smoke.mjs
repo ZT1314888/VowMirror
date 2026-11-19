@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { blockUncontrolledGeneration, observeConsole } from './browser-observations.mjs';
 import { validateManifest } from '../scripts/verify-wedding-assets.mjs';
+import { verifyResultLifecycle } from './result-lifecycle.mjs';
 
 const require = createRequire('/opt/browser/package.json');
 const { chromium } = require('playwright');
@@ -11,7 +12,7 @@ const stage = stageIndex >= 0 ? process.argv[stageIndex + 1] : '';
 const probeIndex = process.argv.indexOf('--probe');
 const probe = probeIndex >= 0 ? process.argv[probeIndex + 1] : 'all';
 assert.ok(['all', 'catalog', 'generation'].includes(probe), 'unknown regression probe');
-assert.equal(stage, 'phase6', 'only the current Phase 6 acceptance stage can be verified');
+assert.ok(['phase6', 'phase7'].includes(stage), 'unknown acceptance stage');
 const base = process.env.SMOKE_BASE_URL ?? 'http://web:8080';
 const accessToken = process.env.TRYON_API_KEYS?.split(',').map(token => token.trim()).find(Boolean);
 assert.ok(accessToken, 'Phase 6 smoke requires TRYON_API_KEYS in the browser tool container');
@@ -29,6 +30,16 @@ function withinDeadline(promise, label) {
     timer = setTimeout(() => reject(new Error(`${label} exceeded 10 seconds`)), 10_000);
   });
   return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
+function eventStream(payload) {
+  const requestId = payload.data.request_id;
+  const status = { request_id: requestId, phase: 'reading_input', elapsed_ms: 2, duration_ms: 1 };
+  return {
+    status: 200,
+    contentType: 'text/event-stream',
+    body: `event: status\ndata: ${JSON.stringify(status)}\n\nevent: result\ndata: ${JSON.stringify(payload)}\n\n`,
+  };
 }
 
 // Responses are released by the test, never by a timing guess.
@@ -127,7 +138,7 @@ try {
   await page.locator('#outfit').selectOption(catalog.data.outfits[0].id);
   assert.equal(await page.locator('#venue-mode-option').isVisible(), false, 'no fixed venue option without photos');
   await page.locator('input[name="dress-side"][value="right"]').check();
-  await page.getByText('画面右侧的人穿婚纱，另一位穿男装。', { exact: true }).waitFor();
+  await page.getByText('原合照右侧的人穿婚纱，另一位穿男装；生成后保留两人左右站位，服装选择不受性别影响。', { exact: true }).waitFor();
 
   const fixture = readFileSync(new URL('../backend/internal/imagevalidate/testdata/checker.png', import.meta.url));
   await page.locator('#couple-image').setInputFiles({ name: 'couple.png', mimeType: 'image/png', buffer: fixture });
@@ -138,7 +149,20 @@ try {
     if (request.url().endsWith('/api/catalog/outfits')) catalogRequests++;
     if (request.url().endsWith('/api/tryon/couple')) requests.push({ body: request.postDataJSON(), authorization: request.headers().authorization });
   });
-  const successResponse = { status: 200, contentType: 'application/json', body: JSON.stringify({ code: 0, message: '', data: { image: fixture.toString('base64'), mime_type: 'image/png', width: 384, height: 256, model: 'test-only', request_id: 'synthetic-generation' } }) };
+  const resultBase64 = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1536; canvas.height = 1024;
+    const context = canvas.getContext('2d');
+    for (let y = 0; y < canvas.height; y += 64) {
+      for (let x = 0; x < canvas.width; x += 64) {
+        context.fillStyle = (x + y) % 128 === 0 ? '#829980' : '#e9ebe8';
+        context.fillRect(x, y, 64, 64);
+      }
+    }
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const successPayload = { code: 0, message: '', data: { image: resultBase64, mime_type: 'image/png', width: 1536, height: 1024, model: 'test-only', request_id: 'synthetic-generation' } };
+  const successResponse = eventStream(successPayload);
 
   if (probe !== 'generation') {
     const reload = await controlledResponse(page, '**/api/catalog/outfits', { status: 200, contentType: 'application/json', body: JSON.stringify(catalog) });
@@ -187,7 +211,7 @@ try {
   await first.finish();
   await page.getByText('生成完成', { exact: true }).waitFor();
   await assertControls(page);
-  assert.equal(await page.locator('#result-meta').textContent(), `${catalog.data.outfits[0].name} · 婚纱在画面右侧 · image/png`);
+  assert.ok((await page.locator('#result-meta').textContent()).startsWith(`${catalog.data.outfits[0].name} · 婚纱在画面右侧 · image/png · 可查看耗时 `));
   console.log('Generation edit-lock regression: passed');
   assert.equal(requests.length, 1, 'repeated submit must share one in-flight request');
   assert.deepEqual(Object.keys(requests[0].body).sort(), ['couple_image', 'dress_side', 'outfit_id', 'scene']);
@@ -255,13 +279,13 @@ try {
   const timeoutRequest = await controlledResponse(page, '**/api/tryon/couple', successResponse);
   await page.getByRole('button', { name: '生成婚礼合影' }).click();
   await timeoutRequest.started;
-  await page.clock.fastForward(60_001);
-  await page.locator('#generation-status').getByText('生成超过 60 秒，已停止请求。你可以手动重试。', { exact: true }).waitFor();
+  await page.clock.fastForward(90_001);
+  await page.locator('#generation-status').getByText('生成超过 90 秒，已停止请求。你可以手动重试。', { exact: true }).waitFor();
   await timeoutRequest.finish();
   await page.waitForFunction(() => window.__generationSettled === 5);
   await assertControls(page);
   assert.equal(await page.locator('#result-state').textContent(), '已超时');
-  assert.equal(await page.locator('#generation-status').textContent(), '生成超过 60 秒，已停止请求。你可以手动重试。');
+  assert.equal(await page.locator('#generation-status').textContent(), '生成超过 90 秒，已停止请求。你可以手动重试。');
   assert.equal(await page.locator('#result-image-wrap').isVisible(), false, 'late timeout response must not show a result');
   assert.equal(await page.locator('#result-image').getAttribute('src'), null);
   assert.equal(await page.locator('#download-result').getAttribute('href'), null);
@@ -369,6 +393,7 @@ try {
   await originalAgain.finish();
   await page.getByText('生成完成', { exact: true }).waitFor();
   assert.deepEqual(requests[7].body.scene, { mode: 'original' }, 'original must omit stale image/venue fields');
+  if (stage === 'phase7') console.log(JSON.stringify({ resultLifecycle: await verifyResultLifecycle(page, successResponse) }));
   await page.locator('input[name="scene-mode"][value="upload"]').check();
   await page.locator('#scene-image').setInputFiles({ name: 'before-refresh.png', mimeType: 'image/png', buffer: fixture });
   await page.locator('#scene-image-preview-wrap').waitFor({ state: 'visible' });
@@ -397,7 +422,7 @@ try {
     token: [accessToken],
     photo: [fixture.toString('base64')],
     scene: ['png', 'jpg', 'webp'].map(format => readFileSync(new URL(`../backend/internal/imagevalidate/testdata/checker.${format}`, import.meta.url)).toString('base64')),
-    result: [JSON.parse(successResponse.body).data.image],
+    result: [successPayload.data.image],
   });
   assert.deepEqual(pageErrors, []);
   const consoleErrors = consoleObservation.errors();
@@ -405,7 +430,7 @@ try {
   assert.match(consoleErrors[0], /503 \(Service Unavailable\)/);
   assert.ok(requested.every(url => new URL(url).origin === new URL(base).origin), 'page must not contact external services');
   boundary.assertSafe();
-  console.log(JSON.stringify({ stage, probe, widths: [375, 768, 1024, 1440], health: 'passed', catalog: { auth: '401/401/200', outfits: catalog.data.outfits.length, reload: 'exclusive operation' }, generation: { editing: 'locked', duplicateSubmission: 'single request', result: 'PNG preview and download', failure: 'manual retry only', cancellation: 'controlled late response ignored', timeout: '60 seconds; controlled late response ignored; manual retry passed', persistence: 'token only' }, pageErrors }));
+  console.log(JSON.stringify({ stage, probe, widths: [375, 768, 1024, 1440], health: 'passed', catalog: { auth: '401/401/200', outfits: catalog.data.outfits.length, reload: 'exclusive operation' }, generation: { editing: 'locked', duplicateSubmission: 'single request', result: 'PNG preview and download', failure: 'manual retry only', cancellation: 'controlled late response ignored', timeout: '90 seconds; controlled late response ignored; manual retry passed', persistence: 'token only' }, pageErrors }));
 } finally {
   await browser.close();
   boundary?.assertSafe();

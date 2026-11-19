@@ -88,7 +88,7 @@ docker compose run --rm -T tools-go go build -o /tmp/vowmirror .
 | tools-go / tools-node | tools profile，无自动应用启动；源码只读 |
 | tools-browser | 固定版本 Playwright／Chromium，真实访问 web 和 backend；不调用模型 |
 | `TRYON_API_KEYS` | 必需；逗号分隔，每个 32–512 字符，运行时注入 backend 和 tools profile 的浏览器烟测容器；不进入页面、镜像或日志 |
-| `MODEL_PROVIDER/NAME/BASE_URL/API_KEY` | 服务端生成配置；已闭合 `gemini`／`gemini-3.1-flash-image` 四／五图映射；Base URL 必须为 HTTPS API 根地址，例如 `https://generativelanguage.googleapis.com/v1beta`。真实模型调用须单独指令，验证时保持空 |
+| `MODEL_PROVIDER/NAME/BASE_URL/API_KEY` | 服务端生成配置；实现 `chuanapi`／`gpt-image-2.5-flare` 四／五图编辑映射；Base URL 必须为以 `/v1` 结尾的 HTTPS API 根地址，例如 `https://model.example/v1`。真实模型调用须单独指令，验证时保持空 |
 | 配置模板 | 只复制 `backend/manifest/config/config.example.yaml`，显式读取；不加载本地真实配置 |
 
 构建上下文使用允许清单，排除 `.git`、`.local`、文档、环境文件、真实配置、密钥、日志和产物。静态镜像只含入口和运行模块，不含源仓库、草稿、测试或旧图库。后端运行镜像包含二进制、系统证书、配置模板和唯一素材清单，不包含服装、
@@ -101,11 +101,10 @@ docker compose run --rm -T tools-go go build -o /tmp/vowmirror .
 
 生成请求上限 24 MiB。Nginx `/api/` 在传输边界拦截超限请求，返回 JSON `41301 / REQUEST_TOO_LARGE`；响应头与正文带同一服务器请求 ID，保留安全响应头并禁止缓存，未鉴权超限请求也返回
 413。后端保留相同上限以约束分块读取和直接访问，但关闭 GoFrame 默认的 8 MiB 隐式限制。代理层必须就地拒绝：仅关闭代理预检会使后端在上传尚未结束时提前断开，实测被 Nginx 转换为 502；两层错误契约由真实入口回归约束，
-代理不执行图片或模型校验。单图 8 MiB、256–8192 边长、2000 万像素；四／五图原始字节合计上限 14 MiB，序列化后完整模型请求不得超过 20,000,000 字节。后者按 Gemini 官方内联请求 20 MB
-限制执行，含 Base64、文本和 JSON，原图总量是更保守的本地约束。输出仅接受一张完整解码的横版 PNG／JPEG／WebP；上游 JSON 上限 12 MiB，结果图片仍受单图限制。无自动重试或切模型；只接收内联结果，URL
+代理不执行图片或模型校验。单图 8 MiB、256–8192 边长、2000 万像素；四／五图原始字节合计上限 14 MiB，序列化后完整模型请求不得超过 20,000,000 字节。这两个总量是本地内存边界，不是 GPT Image 官方上限。请求使用 multipart、各文件真实 MIME 和 Bearer Key；输出仅接受一张完整解码的 `1536×1024` PNG；上游 JSON 上限 12 MiB，结果图片仍受单图限制。无自动重试或切模型；只接收内联结果，URL
 结果明确失败，不发额外下载请求。
 
-处理上下文限时 55 秒，覆盖请求体解析后的剩余处理时间并传播到模型请求；服务端上传读取最多 55 秒、写响应最多 60 秒。浏览器提交到可查看的 60 秒完整交互由 Phase 4 实现，真实供应商时延留在后续单独授权实测。所有准入后退出均释放并发；未接入额度扣减或费用拦截。
+请求上下文和模型 HTTP 请求最多 85 秒，覆盖输入读取、图片校验、素材准备和上游调用；服务端写入与 Nginx 代理读取期限为 95 秒。浏览器从提交准备计时，图片成功解码并进入可见渲染帧后才完成，90 秒硬期限覆盖全部过程；阶段状态以真实观测更新，心跳不代表进度也不延长期限。取消／超时释放结果 URL 和并发资源，迟到结果不能恢复。真实供应商时延留在后续单独授权实测。所有准入后退出均释放并发；未接入额度扣减或费用拦截。
 
 Node 与 Go 使用同一组素材清单契约用例；数组允许重排，但必须完整覆盖 30 套服装与 30 个 `unverified` 姿势，`venues` 为必填数组且当前为空。Phase 5 浏览器烟测覆盖场地上传真实三格式解码、
 尺寸／非空校验、预览替换清除、场地切换、迟到解码隔离、生成编辑锁定与刷新不恢复。Node 标准检查校验 fixture 和真实清单的结构，不要求私有图片进入 CI。已有本地素材时，另运行文件检查：
@@ -141,3 +140,11 @@ docker compose down
 停止不会删除源码或命名缓存卷。`tools-browser` 只有真实页面和健康调用通过才算烟测，应用启动不代表验收。
 
 本轮验证与阶段门槛见 [长期计划](plan/2026-11-05-wedding-project-roadmap.md)。
+
+## Phase 7 无付费回归与实测边界
+
+复用唯一隔离入口：`pwsh -NoProfile -File scripts/verify-phase6.ps1 -Stage phase7 -ColdBuild`；不带 Stage 时仍运行历史 Phase 6 范围。CI 使用 Phase 7 参数。空模型配置、独立 internal 网络和非人物夹具保持不变。Phase 7 浏览器新增解码失败、等待解码时取消／超时、迟到解码与一次完整 90 秒实际等待；完整入口清理成功才记录摘要。
+
+供应商回包若包含 `model`，仅允许请求别名或其合法日期快照；缺失时不捏造版本。`X-Request-ID`／回包 `request_id` 为可选供应商标识，冲突或非法标识明确失败；API 原有 `model`／`request_id` 始终表示请求型号／应用请求标识。额外返回字段为可选 `provider_model`／`provider_request_id`。仅接受 `data[0].b64_json`，URL、不完整四／五图协议、声明其他模型或固定输出不符均明确失败，不自动重试、切模型或切出口。
+
+真实五组与取消专项须逐次取得指令；本轮隔离验证不读取真实 `.env`、不发模型请求。详见 [Phase 7 执行说明](plan/2026-11-18-phase7-gpt-image.md)。

@@ -59,5 +59,7 @@ test('error mapping does not display raw upstream messages', () => {
   assert.equal(getAPIError({ status: 401 }, null).code, 'AUTH_REQUIRED');
   assert.equal(getAPIError({ status: 413 }, null).code, 'REQUEST_TOO_LARGE');
   assert.equal(getAPIError({ status: 401 }, { data: { error_code: 'AUTH_INVALID' } }).code, 'AUTH_INVALID');
+  assert.match(getAPIError({ status: 200 }, { data: { error_code: 'GENERATION_TIMEOUT' } }).text, /服务端时限/);
+  assert.match(getAPIError({ status: 200 }, { data: { error_code: 'GENERATION_CANCELLED' } }).text, /已取消/);
   assert.doesNotMatch(getAPIError({ status: 502 }, { message: 'private-marker' }).text, /private-marker/);
 });

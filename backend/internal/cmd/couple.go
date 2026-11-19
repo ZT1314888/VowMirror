@@ -9,12 +9,12 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"backend/internal/catalog"
 	"backend/internal/logic/tryon"
 	"backend/internal/middleware"
 	"backend/internal/security"
-	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
@@ -26,32 +26,101 @@ func generationService(loadManifest func() (*catalog.Manifest, error), securityS
 	return tryon.NewCoupleService(modelFromEnvironment, &catalog.Reader{Directory: "/assets/wedding", LoadManifest: loadManifest}, securityService.ConcurrencyManager)
 }
 
+type countedReader struct {
+	reader io.Reader
+	bytes  int64
+}
+
+func (r *countedReader) Read(buffer []byte) (int, error) {
+	n, err := r.reader.Read(buffer)
+	r.bytes += int64(n)
+	return n, err
+}
+
+func readCoupleRequest(r *ghttp.Request, diagnostics *generationDiagnostics, trace tryon.RequestTrace) (tryon.CoupleRequest, *security.APIError) {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		return tryon.CoupleRequest{}, security.NewAPIError(415, 41501, "JSON_REQUIRED", "请求必须使用 application/json")
+	}
+	body := &countedReader{reader: r.Request.Body}
+	readStarted := time.Now()
+	input, err := decodeCouple(body)
+	diagnostics.inputBytes = body.bytes
+	trace.Record("reading_input", readStarted)
+	if err == nil {
+		return input, nil
+	}
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		return input, security.ErrRequestTooLarge
+	}
+	return input, security.NewAPIError(422, 42200, "INVALID_REQUEST", "请求字段或 JSON 格式无效")
+}
+
+func openGenerationStream(r *ghttp.Request) (*sseEventWriter, *security.APIError) {
+	writer := r.Response.RawWriter()
+	if _, ok := writer.(http.Flusher); !ok {
+		return nil, security.NewAPIError(500, 50001, "STREAM_UNAVAILABLE", "生成事件流不可用")
+	}
+	r.Response.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+	r.Response.Header().Set("X-Accel-Buffering", "no")
+	r.Response.WriteHeader(http.StatusOK)
+	return &sseEventWriter{writer: writer, flush: http.NewResponseController(writer).Flush}, nil
+}
+
 func coupleHandler(service *tryon.CoupleService) func(*ghttp.Request) {
+	return coupleHandlerWithHeartbeat(service, heartbeatInterval)
+}
+
+func coupleHandlerWithHeartbeat(service *tryon.CoupleService, interval time.Duration) func(*ghttp.Request) {
 	return func(r *ghttp.Request) {
+		startedAt := time.Now()
+		requestID := middleware.GetRequestID(r)
+		diagnostics := &generationDiagnostics{startedAt: startedAt}
+		defer diagnostics.log(requestID)
 		r.Response.Header().Set("Cache-Control", "no-store")
-		ctx, cancel := context.WithTimeout(r.Context(), tryon.RequestTimeout)
+		ctx, cancel := context.WithDeadline(r.Context(), startedAt.Add(tryon.RequestTimeout))
 		defer cancel()
-		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-		if err != nil || mediaType != "application/json" {
-			middleware.WriteAPIError(r, security.NewAPIError(415, 41501, "JSON_REQUIRED", "请求必须使用 application/json"))
-			return
-		}
-		input, err := decodeCouple(r.Request.Body)
-		if err != nil {
-			var tooLarge *http.MaxBytesError
-			if errors.As(err, &tooLarge) {
-				middleware.WriteAPIError(r, security.ErrRequestTooLarge)
-				return
+
+		events := make(chan tryon.StageObservation, 64)
+		trace := tryon.RequestTrace{RequestID: requestID, StartedAt: startedAt, Observer: tryon.StageObserverFunc(func(event tryon.StageObservation) {
+			diagnostics.observe(event)
+			select {
+			case events <- event:
+			case <-ctx.Done():
 			}
-			middleware.WriteAPIError(r, security.NewAPIError(422, 42200, "INVALID_REQUEST", "请求字段或 JSON 格式无效"))
+		})}
+		input, apiError := readCoupleRequest(r, diagnostics, trace)
+		if apiError != nil {
+			diagnostics.apiHTTPStatus = apiError.HTTPStatus
+			diagnostics.errorCategory = apiError.ErrorCode
+			middleware.WriteAPIError(r, apiError)
 			return
 		}
-		response, apiErr := service.Generate(ctx, r.GetCtxVar(middleware.CtxPrincipalID).String(), middleware.GetRequestID(r), input)
-		if apiErr != nil {
-			middleware.WriteAPIError(r, apiErr)
+		writer, apiError := openGenerationStream(r)
+		if apiError != nil {
+			diagnostics.apiHTTPStatus = apiError.HTTPStatus
+			diagnostics.errorCategory = apiError.ErrorCode
+			middleware.WriteAPIError(r, apiError)
 			return
 		}
-		r.Response.WriteJson(g.Map{"code": 0, "message": "", "data": response})
+		outcome := make(chan generationOutcome, 1)
+		stream := generationStream{writer: writer, trace: trace, diagnostics: diagnostics, events: events, outcome: outcome}
+		if err := stream.drainStages(); err != nil {
+			diagnostics.errorCategory = "stream_write_failure"
+			return
+		}
+		principal := r.GetCtxVar(middleware.CtxPrincipalID).String()
+		finished := make(chan struct{})
+		go func() {
+			defer close(finished)
+			response, apiError := service.Generate(ctx, principal, trace, input)
+			outcome <- generationOutcome{response: response, apiError: apiError}
+		}()
+		defer func() { cancel(); <-finished }()
+		if err := stream.run(r.Request.Context(), interval); err != nil {
+			diagnostics.errorCategory = "stream_write_failure"
+		}
 	}
 }
 
