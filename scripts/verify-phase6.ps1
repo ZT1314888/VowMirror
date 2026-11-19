@@ -1,4 +1,4 @@
-param([switch]$ColdBuild)
+param([switch]$ColdBuild, [ValidateSet('phase6', 'phase7')][string]$Stage = 'phase6')
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -7,8 +7,8 @@ Set-Location -LiteralPath $root
 if ($LASTEXITCODE -ne 0) { throw 'Docker engine is unavailable' }
 
 # A separate project, fresh caches and an empty template protect the local application.
-$runID = 'phase6-' + [Guid]::NewGuid().ToString('N')
-$evidence = Join-Path $root ('.local/phase6/' + $runID)
+$runID = $Stage + '-' + [Guid]::NewGuid().ToString('N')
+$evidence = Join-Path $root ('.local/' + $Stage + '/' + $runID)
 New-Item -ItemType Directory -Path $evidence | Out-Null
 $token = 'synthetic-' + $runID
 $settings = @{
@@ -90,7 +90,7 @@ try {
     }
     Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', '--test', 'tests/browser-safety.test.mjs')
     Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/http-acceptance.mjs')
-    Invoke-Compose @('run', '--rm', '-T', 'tools-browser')
+    Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/smoke.mjs', '--stage', $Stage)
     Invoke-Compose @('logs', '--no-color', 'web', 'backend')
     $markers = @($token, 'synthetic-body-limit-client-marker', 'synthetic-acceptance-private-marker', [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $root 'backend/internal/imagevalidate/testdata/checker.png'))))
     foreach ($log in Get-ChildItem -LiteralPath $evidence -Filter '*.log') {
@@ -134,6 +134,6 @@ if ($verificationError) { throw $verificationError }
 if ($cleanupError) { throw $cleanupError }
 [IO.File]::WriteAllText((Join-Path $evidence 'summary.json'), (@{
     coldBuild = [bool]$ColdBuild; images = @($imageIDs); offlineNetworks = 2
-    checks = $step; result = 'passed'; cleanup = 'passed'; modelConfiguration = 'empty'; realModelCalls = 0
+    stage = $Stage; checks = $step; result = 'passed'; cleanup = 'passed'; modelConfiguration = 'empty'; realModelCalls = 0
 } | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
-Write-Host 'Phase 6 acceptance passed; model configuration empty; runtime networks internal.'
+Write-Host ($Stage + ' acceptance passed; model configuration empty; runtime networks internal.')

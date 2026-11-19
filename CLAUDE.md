@@ -10,7 +10,7 @@ docker compose up -d --build web backend
 docker compose build tools-go tools-node tools-browser
 docker compose run --rm -T tools-go
 docker compose run --rm -T tools-node
-docker compose run --rm -T tools-browser node tests/smoke.mjs --stage foundation
+docker compose run --rm -T tools-browser node tests/smoke.mjs --stage phase7
 ```
 
 首次启动先按 [Docker 开发说明](docs/DOCKER_DEVELOPMENT.md) 配置根 `.env` 的后端访问 Token；模型字段保持空。

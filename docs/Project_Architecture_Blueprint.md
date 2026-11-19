@@ -1,6 +1,6 @@
 # VowMirror 当前架构
 
-更新日期：2026-11-17，开发分支 `feat/wedding-phase-5-scene-reference`。本文描述开发基础、素材目录、Phase 3 双人生成 API、Phase 4 浏览器工作流与 Phase 5 场地参考；真实模型调用仍需单独授权。本轮证据见 [长期计划](plan/2026-11-05-wedding-project-roadmap.md)。
+更新日期：2026-11-19，开发分支 `feat/wedding-phase-7-model-evaluation`。本文描述开发基础、素材目录、双人生成 API、浏览器工作流、场地参考与 Phase 7 GPT Image 接入；真实模型调用仍需单独授权。本轮证据见 [长期计划](plan/2026-11-05-wedding-project-roadmap.md)。
 
 ## 运行与边界
 
@@ -13,7 +13,7 @@ flowchart LR
   Backend --> Catalog["GET /catalog/outfits · 鉴权后仅返回清单元数据"]
   Backend --> Couple["POST /tryon/couple · 鉴权／输入／配置／并发"]
   Couple --> Outfits["唯一清单／固定套装只读目录"]
-  Couple --> Gemini["Gemini 四／五角色参考 · 单次 HTTPS 请求"]
+  Couple --> GPTImage["GPT Image 四／五图 multipart 编辑 · 单次 HTTPS 请求"]
   Compose["根 Compose"] --> Web
   Compose --> Backend
   Tools["tools profile · Go / Node / Chromium"] --> Source["只读源码挂载"]
@@ -32,11 +32,12 @@ flowchart LR
 |---|---|
 | [web/image-core.mjs](../web/image-core.mjs) | 合照／场地共用 Blob 校验，保留字节和真实 MIME；浏览器完整解码、尺寸及像素校验并释放位图；结果签名与扩展名解析；无设置、存储或网络依赖 |
 | [web/response-core.mjs](../web/response-core.mjs) | JSON 响应解析和受控错误映射；格式错误直接失败，不显示原始上游正文 |
-| [web/app.mjs](../web/app.mjs) | 同源目录读取与双人生成；冻结单次请求快照、60 秒取消／期限、错误恢复、真实 MIME 结果下载及 Object URL 生命周期 |
+| [web/sse-core.mjs](../web/sse-core.mjs) | 有界 UTF-8 SSE 消费；按实际字节限制单事件 12 MiB、整流 13 MiB，拒绝未知事件、断流及重复终态；取消读取释放 reader，无自动重连或 JSON 成功回退 |
+| [web/app.mjs](../web/app.mjs) | 同源目录读取与双人生成；冻结单次请求快照、90 秒取消／期限、错误恢复、真实 MIME 结果下载及 Object URL 生命周期 |
 | [imagevalidate](../backend/internal/imagevalidate/validate.go) | 上传、素材与结果共用字节／真实 MIME／完整解码校验；256–8192 边长、2000 万像素、单图 8 MiB |
 | [security](../backend/internal/security/service.go) | Token 摘要恒定时间比对、进程内限流／并发组件；继承额度组件未接入业务路由，后续生成不使用额度扣减；无隐式全局默认服务 |
 | [middleware](../backend/internal/middleware/auth.go) | 保留独立鉴权、CORS、请求体、限流、请求标识组件；由路由组接线，不再内部识别旧单人路径 |
-| [云端协议](../backend/internal/logic/tryon/generator.go) | 显式模型配置与 HTTP transport；仅 Gemini 3.1 Flash Image 闭合四／五图，其余协议／型号返回能力错误；旧双图实现已移除 |
+| [云端协议](../backend/internal/logic/tryon/generator.go) | 显式模型配置与 HTTP transport；仅 `chuanapi`／`gpt-image-2.5-flare` 四／五图编辑；GPT Image 传输为唯一实现，旧 Gemini 实现已移除 |
 | [婚礼编排](../backend/internal/logic/tryon/couple.go) | 唯一编排；生成器工厂、素材读取器、并发准入接口构造注入；一次提交一次模型请求，无视觉附加调用、自动重试或切模型 |
 | [固定素材读取](../backend/internal/catalog/reader.go) | 只按 ID 从唯一清单解析套装三张图或固定场馆一张图；共用读取／完整解码，OpenRoot 限定目录、拒绝逃逸与非普通文件；缺图／损坏明确失败 |
 | [compose.yaml](../compose.yaml) | 唯一运行与检查入口；工具不会随应用启动；源码只读、Go 缓存命名卷 |
@@ -45,24 +46,28 @@ flowchart LR
 
 ## 双人生成契约与安全出口
 
+生成仍为同源 `POST /api/tryon/couple`、JSON 请求和 Bearer 鉴权。严格 JSON、请求大小及鉴权错误保留原 HTTP/JSON 响应；开流后 HTTP 200 仅表示 SSE 已建立，事件固定为真实阶段 `status`、每 10 秒一次的 `heartbeat` 和唯一 `result`／`error` 终态。成功终态承载原 `{code,message,data}`，错误终态的 `data.http_status` 保留业务错误状态。单一写协程检查 Write／Flush 错误，取消后等待生成协程退出和并发名额释放；诊断仅含经过校验的请求标识、阶段与耗时、状态、错误类别和字节数。
+
 请求字段仅为 `couple_image`、`outfit_id`、`dress_side` 和 `scene`。婚纱位置为按画面观察的 `left`／`right`；场地互斥为 `{ "mode": "original" }`、`{ "mode": "upload", "image": "Base64/Data URL" }` 或 `{ "mode": "venue", "venue_id": "V001" }`。image 只允许上传模式，venue_id 只允许固定场馆模式，原背景两者均不得出现（包括空字段）。拒绝未知、重复、大小写变体、空值及尾随 JSON；不接受肖像、素材路径、出口、Key 或模型名。
 
 唯一素材清单必含 `venues` 数组；真实固定场馆路径限定 `venues/Vxxx/`，编号 V001–V999。当前数组与本地目录为空，不创建虚构条目，页面隐藏固定场馆模式；后续有授权照片才在同一清单添加。未知编号返回 `UNKNOWN_VENUE`，缺失／损坏返回 `VENUE_UNAVAILABLE`，不切回原背景。页面原背景／上传场地切换会清除场地图及旧结果，异步解码按选择版本丢弃过期完成；生成时锁定场地编辑。
 
-有序参考为合照、婚纱、男装、男鞋特写及可选场地图，含角色、原字节和真实 MIME。提示词固定对应画面左右、身份、不混穿、完整鞋履及全身；场地只用于背景。Gemini 请求逐图附角色标签，要求一个候选、单张横版 `3:2`／`1K`；响应为一张 Base64 图片、`mime_type`、实际宽高、配置模型与服务器 `request_id`，统一封装在 `{code,message,data}` 中。
+有序参考为合照、婚纱、男装、男鞋特写及可选场地图，含角色、原字节和真实 MIME。提示词固定对应画面左右、身份、不混穿、完整鞋履及全身；场地只用于背景。GPT Image 使用官方 `POST /v1/images/edits`、有序 `image[]` 文件与真实 MIME，`n=1`、`size=1536x1024`、`quality=medium`、`output_format=png`。响应保留一张 Base64 图片、`mime_type`、实际宽高、请求型号 `model` 与应用 `request_id`，可选增加 `provider_model`／`provider_request_id`，统一封装在 `{code,message,data}` 中。供应商仅声明别名时不当作快照；缺失版本明确标注，声明其他模型则拒绝。
 
-模型出口仅来自服务器运行时环境，必须 HTTPS，Key 只在请求头，拒绝重定向。首测协议只接受内联结果；URL 结果明确失败，无额外下载或任意来源访问。响应状态、JSON 字节数、单张数量、真实 MIME、完整格式及横版尺寸均校验；上游正文、错误字符串和配置不返回客户端、不记日志。请求体 24 MiB，单图 8 MiB，四／五图原始总量 14 MiB，实际序列化模型请求不超过 20,000,000 字节；这是依据 [Gemini 官方内联限制](https://ai.google.dev/gemini-api/docs/image-understanding#inline-image) 选择的保守边界，不代表真实模型质量验收。
+模型出口仅来自服务器运行时环境，必须 HTTPS，Key 只在请求头，拒绝重定向。只接受内联结果；URL 结果明确失败，无额外下载或任意来源访问。响应状态、JSON 字节数、单张数量、真实 MIME、完整格式及固定尺寸均校验；上游正文、错误字符串和配置不返回客户端、不记日志。请求体 24 MiB，单图 8 MiB，四／五图原始总量 14 MiB，实际序列化模型请求不超过 20,000,000 字节；这是本地内存边界，不是 GPT Image 官方输入上限。结果必须是 `1536×1024` PNG。协议依据 [OpenAI 官方图片编辑 API](https://developers.openai.com/api/reference/resources/images/methods/edit)，第三方出口的完整兼容性仍须单独授权实测。
 
 生成 API 的 24 MiB 请求体上限由 Nginx 传输边界与后端流式读取共同执行，关闭 GoFrame 默认的 8 MiB 隐式限制。Nginx 提前拦截超限请求时返回标准 JSON 413、服务器请求 ID、安全头和 `no-store`，不再返回默认 HTML；未鉴权超限请求同样返回 413。保留代理拦截是为了避免流式上传中后端提前断开被转换为 502；真实入口回归约束两层 413 契约一致，图片和模型校验只在后端执行。
 
-并发为进程内状态，全局 2、每 Token 主体 1。55 秒上下文覆盖请求解析与生成，客户端断开会取消上游；服务端同时设置 55 秒读取／60 秒写入期限。准入后所有退出释放资源，不接入费用、额度统计或预算拦截。前端健康检查为 5 秒，生成请求在浏览器 60 秒硬期限后取消；真实模型时延属于后续实测。
+并发为进程内状态，全局 2、每 Token 主体 1。请求上下文和模型 HTTP 请求最多 85 秒，覆盖输入读取、图片校验、素材准备和上游调用；服务端写入与 Nginx 代理读取期限为 95 秒。浏览器从提交准备计时，图片成功解码并进入可见渲染帧后才完成，90 秒硬期限覆盖全部过程；阶段状态以真实观测更新，心跳不表达进度也不延长期限。取消／超时释放结果 URL 和并发资源，迟到结果不能恢复。真实供应商时延属于后续实测。
 
 两张合照及九张场地图只存放在 Git 与 Docker 构建上下文均忽略的 `assets/wedding/private/`，其中 `intake.json` 是唯一私有接收清单。工具容器显式只读核验；应用镜像、接口和场馆目录不读取这些文件。应用只读挂载 30 个固定套装目录及空的固定场馆目录，不挂载 private 或 poses。用户上传和结果只在请求内存；Nginx 关闭请求／响应代理缓冲及响应临时文件，不在服务器落盘。不实现左右肖像。
 
 ## 验证与文档归属
 
-Go 核心、健康／旧路由、Token 配置测试；Node 直接导入 ES 模块；三格式自有夹具缺失必须失败。浏览器工具实际访问 Nginx 页面和后端健康，不用模拟服务代替集成链；仅错误显示分支使用受控 502。
+Go 核心、健康／旧路由、Token 配置测试；Node 直接导入 ES 模块；三格式自有夹具缺失必须失败。浏览器工具实际访问 Nginx 页面和后端健康；生成交互由受控响应拦截，未受控生成被阻断并使测试失败；新增结果解码失败、取消／超时后的迟到解码、Object URL 释放与完整 90 秒实际等待。
 
-本地与 CI 调用同一 Docker 脚本，远端检查以 GitHub Actions 对应提交的实际结果为准。旧蓝图中的 Windows、ComfyUI 和探针记录不视为本轮 Docker 验收；真实供应商、人物效果和费用均未测试。
+本地与 CI 调用同一 Docker 脚本，远端检查以 GitHub Actions 对应提交的实际结果为准。旧蓝图中的 Windows、ComfyUI 和探针记录不视为本轮 Docker 验收。Phase 7 唯一报告校验为 5 组可判定／4 组合格、`phase8Ready=true`，真实取消专项通过。G1 第二次及 G3、G4、G5 六项评分全部通过；G2 三次正式尝试未合格，独立诊断最快图六项评分通过，仅补充可判定证据，不计入正式尝试或合格组数。完整耗时、失败与供应商元数据缺失记录见 Phase 7 执行说明。
 
 [Docker 开发说明](DOCKER_DEVELOPMENT.md) 是命令与环境说明；[长期计划](plan/2026-11-05-wedding-project-roadmap.md) 是决策、阶段与本轮证据；[代码来源](CODE_PROVENANCE.md) 记录继承代码和图片授权边界。
+
+评测元数据及阶段就绪判定仅由 [phase7-evaluation.mjs](../scripts/phase7-evaluation.mjs) 实现；固定矩阵、逐次指令、人工六项评分、供应商版本缺失、取消专项和受控证据约束见 [Phase 7 执行说明](plan/2026-11-18-phase7-gpt-image.md)。Phase 7 实测、Phase 8 正式界面和独立服务器公开上线按顺序单独交付。

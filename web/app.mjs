@@ -1,8 +1,30 @@
 import { getAPIError, parseAPIResponse } from './response-core.mjs';
 import { imageExtensionForMime, normalizeImageMime, readImageFile, resolveResultImageInfo } from './image-core.mjs';
+import { consumeSSE } from './sse-core.mjs';
 
 const TOKEN_KEY = 'vowmirror-access-token';
-const GENERATION_TIMEOUT_MS = 60_000;
+const GENERATION_TIMEOUT_MS = 90_000;
+const GENERATION_PHASE_LABELS = Object.freeze({
+  reading_input: '已读取请求',
+  validating_request: '请求校验完成',
+  validating_images: '正在校验图片',
+  preparing_assets: '正在准备参考素材',
+  assembling_request: '正在组装模型请求',
+  connection_acquisition: '正在连接上游',
+  waiting_upstream_response: '等待上游响应',
+  connection_acquired: '上游连接已建立',
+  dns_lookup: '正在解析上游地址',
+  tcp_connect: '正在建立上游连接',
+  tls_handshake: '正在协商加密连接',
+  request_upload: '正在上传参考素材',
+  first_response_byte: '已收到上游首字节',
+  provider_response_headers: '已收到上游响应头',
+  reading_provider_response: '正在读取上游响应',
+  validating_provider_result: '正在校验上游结果',
+  validating_result: '正在校验结果图片',
+  upstream_request_failed: '上游请求失败',
+});
+const GENERATION_OUTCOME_LABELS = Object.freeze({ timeout: '已超时', cancelled: '已取消', failed: '生成失败' });
 const form = document.querySelector('#generation-form');
 const imageInput = document.querySelector('#couple-image');
 const photoPreview = document.querySelector('#photo-preview');
@@ -254,7 +276,45 @@ function buildSnapshot() {
   });
 }
 
-function displayResult(data, snapshot) {
+function waitForGeneration(promise, request) {
+  const { signal } = request.controller;
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener('abort', abort, { once: true });
+    Promise.resolve(promise).then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+  });
+}
+
+function checkGeneration(request) {
+  if (performance.now() - request.startedAt >= GENERATION_TIMEOUT_MS) {
+    request.timedOut = true;
+    request.controller.abort();
+  }
+  request.controller.signal.throwIfAborted();
+  if (operation !== request) throw new DOMException('Generation superseded', 'AbortError');
+}
+
+function generationErrorMessage(error, request) {
+  if (request.timedOut) return '生成超过 90 秒，已停止请求。你可以手动重试。';
+  if (request.controller.signal.aborted) return getAPIError({ status: 408 }, { data: { error_code: 'GENERATION_CANCELLED' } }).text;
+  if (error?.code === 'STREAM_INTERRUPTED') return '生成连接中断，未收到最终结果。你可以手动重试。';
+  return error.message;
+}
+
+function updateGenerationStatus(status, request) {
+  checkGeneration(request);
+  const label = status.phase === 'connection_acquired'
+    ? status.connection_reused ? '复用上游连接' : '已建立新的上游连接'
+    : GENERATION_PHASE_LABELS[status.phase];
+  if (!label) throw new Error(`生成事件包含未知阶段：${status.phase}`);
+  if (request.lastPhase !== status.phase) {
+    resultStatus.textContent = label;
+    request.lastPhase = status.phase;
+  }
+}
+
+async function displayResult(data, snapshot, request) {
   const info = resolveResultImageInfo(data?.image, data?.mime_type);
   if (info.mime !== normalizeImageMime(data?.mime_type)) throw new Error('生成结果的图片格式与声明不一致。');
   const binary = atob(info.b64);
@@ -262,17 +322,32 @@ function displayResult(data, snapshot) {
   releaseResultURL();
   resultURL = URL.createObjectURL(new Blob([bytes], { type: info.mime }));
   resultImage.src = resultURL;
-  downloadLink.href = resultURL;
-  downloadLink.download = `vowmirror-wedding.${imageExtensionForMime(info.mime)}`;
-  resultMeta.textContent = `${snapshot.outfit_name} · 婚纱在画面${snapshot.dress_side === 'left' ? '左侧' : '右侧'} · ${info.mime}`;
+  resultStatus.textContent = '正在解码生成图片…';
+  try {
+    await waitForGeneration(resultImage.decode(), request);
+  } catch (error) {
+    if (request.controller.signal.aborted) throw error;
+    throw new Error('生成结果图片无法解码，请手动重试。');
+  }
+  checkGeneration(request);
+  if (resultImage.naturalWidth !== data.width || resultImage.naturalHeight !== data.height) throw new Error('生成结果图片尺寸与声明不一致。');
   resultEmpty.hidden = true;
   resultWrap.hidden = false;
+  // Let the decoded image reach a rendered frame before stopping the clock.
+  await waitForGeneration(new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))), request);
+  checkGeneration(request);
+  const durationMs = Math.ceil(performance.now() - request.startedAt);
+  downloadLink.href = resultURL;
+  downloadLink.download = `vowmirror-wedding.${imageExtensionForMime(info.mime)}`;
+  const providerModel = data.provider_model ? `${data.provider_model}${data.provider_model === data.model ? '（未提供日期快照）' : ''}` : '未提供版本信息（未提供日期快照）';
+  resultMeta.textContent = `${snapshot.outfit_name} · 婚纱在画面${snapshot.dress_side === 'left' ? '左侧' : '右侧'} · ${info.mime} · 可查看耗时 ${durationMs} ms · 请求型号 ${data.model} · 供应商型号 ${providerModel} · 请求 ${data.request_id}${data.provider_request_id ? ` · 供应商请求 ${data.provider_request_id}` : ''}`;
   resultStatus.hidden = true;
   resultState.textContent = '生成完成';
 }
 
 async function generate() {
   if (operation.kind !== 'idle') return;
+  const startedAt = performance.now();
   clearFormError();
   let snapshot;
   try {
@@ -281,7 +356,7 @@ async function generate() {
     showFormError(error.message);
     return;
   }
-  const request = { kind: 'generation', controller: new AbortController(), timedOut: false, timer: 0 };
+  const request = { kind: 'generation', controller: new AbortController(), timedOut: false, timer: 0, startedAt, lastPhase: '' };
   setOperation(request);
   clearResult();
   resultEmpty.hidden = true;
@@ -292,23 +367,40 @@ async function generate() {
   request.timer = window.setTimeout(() => {
     request.timedOut = true;
     request.controller.abort();
-  }, GENERATION_TIMEOUT_MS);
+  }, Math.max(0, GENERATION_TIMEOUT_MS - (performance.now() - startedAt)));
   try {
-    const response = await fetch('/api/tryon/couple', {
+    checkGeneration(request);
+    const response = await waitForGeneration(fetch('/api/tryon/couple', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${snapshot.token}` },
       body: JSON.stringify({ couple_image: snapshot.couple_image, outfit_id: snapshot.outfit_id, dress_side: snapshot.dress_side, scene: snapshot.scene }),
       cache: 'no-store', redirect: 'error', signal: request.controller.signal,
-    });
-    const body = await parseAPIResponse(response);
+    }), request);
+    const body = await waitForGeneration((async () => {
+      if (!response.ok) return parseAPIResponse(response);
+      const terminal = await consumeSSE(response, {
+        signal: request.controller.signal,
+        onStatus: status => updateGenerationStatus(status, request),
+      });
+      if (terminal.type === 'error') {
+        const failure = new Error(getAPIError({ status: terminal.payload.data.http_status }, terminal.payload).text);
+        failure.code = terminal.payload.data.error_code;
+        throw failure;
+      }
+      return terminal.payload;
+    })(), request);
     if (!response.ok || body.code !== 0) throw new Error(getAPIError(response, body).text);
-    if (operation !== request || request.controller.signal.aborted) return;
-    displayResult(body.data, snapshot);
+    checkGeneration(request);
+    await displayResult(body.data, snapshot, request);
   } catch (error) {
     if (operation !== request) return;
-    const message = request.timedOut ? '生成超过 60 秒，已停止请求。你可以手动重试。' : request.controller.signal.aborted ? '生成已取消。你可以手动重试。' : error.message;
+    clearResult();
+    const timedOut = request.timedOut || error?.code === 'GENERATION_TIMEOUT';
+    const cancelled = !timedOut && (request.controller.signal.aborted || error?.code === 'GENERATION_CANCELLED');
+    const message = generationErrorMessage(error, request);
+    if (!request.controller.signal.aborted) request.controller.abort(error);
     resultStatus.textContent = message;
-    resultState.textContent = request.timedOut ? '已超时' : request.controller.signal.aborted ? '已取消' : '生成失败';
+    resultState.textContent = timedOut ? GENERATION_OUTCOME_LABELS.timeout : cancelled ? GENERATION_OUTCOME_LABELS.cancelled : GENERATION_OUTCOME_LABELS.failed;
     resultStatus.hidden = false;
     resultEmpty.hidden = true;
     showFormError(message, false);
@@ -351,7 +443,8 @@ loadOutfitsButton.addEventListener('click', loadOutfits);
 tokenInput.addEventListener('change', persistToken);
 saveToken.addEventListener('change', persistToken);
 sideInputs.forEach(input => input.addEventListener('change', () => {
-  sidePreview.textContent = input.value === 'left' ? '画面左侧的人穿婚纱，另一位穿男装。' : '画面右侧的人穿婚纱，另一位穿男装。';
+  const side = input.value === 'left' ? '左侧' : '右侧';
+  sidePreview.textContent = `原合照${side}的人穿婚纱，另一位穿男装；生成后保留两人左右站位，服装选择不受性别影响。`;
 }));
 form.addEventListener('submit', event => { event.preventDefault(); generate(); });
 cancelButton.addEventListener('click', () => {

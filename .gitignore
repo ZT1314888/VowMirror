@@ -26,6 +26,8 @@ config.yaml
 # Local development data and tools; never enter Docker build contexts.
 .local/
 .playwright-mcp/
+.claude/
+/.markdownlint.json
 node_modules/
 backend/main
 backend/main.exe

@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -47,6 +48,10 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	priorLogger := slog.Default()
+	diagnosticLogs := &synchronizedLog{}
+	slog.SetDefault(slog.New(slog.NewTextHandler(diagnosticLogs, nil)))
+	t.Cleanup(func() { slog.SetDefault(priorLogger) })
 	for _, scenario := range []struct {
 		name, code string
 		status     int
@@ -63,7 +68,7 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 			upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				defer close(stopped)
 				calls.Add(1)
-				if r.Header.Get("x-goog-api-key") != marker || r.URL.RawQuery != "" {
+				if r.Header.Get("Authorization") != "Bearer "+marker || r.URL.RawQuery != "" {
 					t.Error("unexpected credential transport")
 				}
 				if _, err := io.Copy(io.Discard, r.Body); err != nil {
@@ -77,12 +82,12 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 					w.WriteHeader(http.StatusTooManyRequests)
 					_, _ = io.WriteString(w, marker)
 				default:
-					_, _ = io.WriteString(w, `{"candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"`+marker+`"}]}}]}`)
+					_, _ = io.WriteString(w, `{"data":[],"message":"`+marker+`"}`)
 				}
 			}))
 			defer upstream.Close()
 			factory := func() (tryon.ImageGenerator, error) {
-				return tryon.NewGenerator(tryon.ModelConfig{Provider: "gemini", Model: tryon.GeminiModel, APIKey: marker, BaseURL: upstream.URL}, upstream.Client().Transport)
+				return tryon.NewGenerator(tryon.ModelConfig{Provider: "chuanapi", Model: tryon.GPTImageModel, APIKey: marker, BaseURL: upstream.URL + "/v1"}, upstream.Client().Transport)
 			}
 			var reader tryon.OutfitReader = apiOutfits{image: img}
 			if scenario.name == "missing asset" {
@@ -104,7 +109,7 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 				group.Middleware(middleware.RequestID, middleware.NewAuthMiddleware(store).Handler)
 				group.POST("/tryon/couple", func(r *ghttp.Request) {
 					if scenario.name == "deadline" {
-						// A shorter parent deadline verifies propagation without a 55s unit test.
+						// A shorter parent deadline verifies propagation without an 85s unit test.
 						ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
 						defer cancel()
 						r.Request = r.Request.WithContext(ctx)
@@ -136,17 +141,22 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			frames, err := decodeTestSSE(body)
+			if err != nil || len(frames) == 0 || frames[len(frames)-1].Event != "error" {
+				t.Fatalf("expected one terminal SSE error: %v %s", err, body)
+			}
 			var payload struct {
 				Data struct {
-					Code      string `json:"error_code"`
-					RequestID string `json:"request_id"`
+					Code       string `json:"error_code"`
+					RequestID  string `json:"request_id"`
+					HTTPStatus int    `json:"http_status"`
 				} `json:"data"`
 			}
-			if err := json.Unmarshal(body, &payload); err != nil {
+			if err := json.Unmarshal(frames[len(frames)-1].Data, &payload); err != nil {
 				t.Fatal(err)
 			}
-			if response.StatusCode != scenario.status || payload.Data.Code != scenario.code || calls.Load() != scenario.calls {
-				t.Fatalf("unexpected status/code/attempts: %d %s %d", response.StatusCode, payload.Data.Code, calls.Load())
+			if response.StatusCode != http.StatusOK || payload.Data.HTTPStatus != scenario.status || payload.Data.Code != scenario.code || calls.Load() != scenario.calls {
+				t.Fatalf("unexpected status/code/attempts: %d %d %s %d", response.StatusCode, payload.Data.HTTPStatus, payload.Data.Code, calls.Load())
 			}
 			if payload.Data.RequestID == "" || payload.Data.RequestID != response.Header.Get("X-Request-ID") || response.Header.Get("Cache-Control") != "no-store" {
 				t.Fatal("missing correlation or cache boundary")
@@ -159,8 +169,13 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 				}
 			}
 			for _, secret := range []string{token, marker, encoded, upstream.URL} {
-				if strings.Contains(string(body)+response.Header.Get("X-Request-ID")+logs.String(), secret) {
+				if strings.Contains(string(body)+response.Header.Get("X-Request-ID")+logs.String()+diagnosticLogs.String(), secret) {
 					t.Fatal("sensitive data entered HTTP response or application logs")
+				}
+			}
+			for _, field := range []string{"stage_elapsed_ms", "api_http_status", "upstream_http_status", "error_category", "input_bytes", "upstream_request_bytes", "upstream_response_bytes"} {
+				if !strings.Contains(diagnosticLogs.String(), field) {
+					t.Errorf("structured generation diagnostic is missing %s", field)
 				}
 			}
 			release, ok := admission.Acquire("acceptance-next-request")
