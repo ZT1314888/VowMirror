@@ -23,7 +23,6 @@ security:
     requestsPerMinute: 10
     burst: 3
     limiterIdleMinutes: 30
-    dailyRequestsPerPrincipal: 100
   concurrency:
     global: 2
     perPrincipal: 1

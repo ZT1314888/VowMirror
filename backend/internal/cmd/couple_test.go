@@ -29,7 +29,7 @@ import (
 )
 
 func TestCoupleStrictJSON(t *testing.T) {
-	good := `{"couple_image":"image","outfit_id":"W001","dress_side":"left","scene":{"mode":"original"}}`
+	good := `{"couple_image":"image","outfit_id":"W001","scene":{"mode":"original"}}`
 	if _, err := decodeCouple(strings.NewReader(good)); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestCoupleStrictJSON(t *testing.T) {
 			t.Errorf("invalid contract accepted: %s", bad)
 		}
 	}
-	for _, field := range []string{"model", "base_url", "api_key", "dress_path", "garment_image", "left_portrait", "scene_id"} {
+	for _, field := range []string{"model", "base_url", "api_key", "dress_path", "garment_image", "dress_side", "left_portrait", "scene_id"} {
 		bad := strings.TrimSuffix(good, "}") + `,"` + field + `":"private-marker"}`
 		if _, err := decodeCouple(strings.NewReader(bad)); err == nil {
 			t.Errorf("forbidden field accepted: %s", field)
@@ -65,7 +65,10 @@ type apiGenerator struct {
 }
 
 func (g apiGenerator) Model() string { return tryon.GPTImageModel }
-func (g apiGenerator) Generate(context.Context, tryon.GenerationRequest) (*tryon.GenerationResult, error) {
+func (g apiGenerator) Generate(ctx context.Context, request tryon.GenerationRequest) (*tryon.GenerationResult, error) {
+	if err := request.BeforeSend(ctx); err != nil {
+		return nil, err
+	}
 	g.calls.Add(1)
 	return &tryon.GenerationResult{Image: g.output, ProviderModel: tryon.GPTImageModel, ProviderRequestID: "synthetic-upstream-id"}, nil
 }
@@ -160,7 +163,10 @@ type blockingAPIGenerator struct {
 }
 
 func (g blockingAPIGenerator) Model() string { return tryon.GPTImageModel }
-func (g blockingAPIGenerator) Generate(ctx context.Context, _ tryon.GenerationRequest) (*tryon.GenerationResult, error) {
+func (g blockingAPIGenerator) Generate(ctx context.Context, request tryon.GenerationRequest) (*tryon.GenerationResult, error) {
+	if err := request.BeforeSend(ctx); err != nil {
+		return nil, err
+	}
 	close(g.started)
 	<-ctx.Done()
 	close(g.stopped)
@@ -191,7 +197,7 @@ func TestCoupleHTTPBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	var calls atomic.Int32
-	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return apiGenerator{calls: &calls, output: result}, nil }, apiOutfits{image: img}, security.NewConcurrencyManager(1, 1))
+	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return apiGenerator{calls: &calls, output: result}, nil }, apiOutfits{image: img}, security.NewConcurrencyManager(1, 1), usageFor(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +218,7 @@ func TestCoupleHTTPBoundary(t *testing.T) {
 	})
 	endpoint := "http://127.0.0.1:" + strconv.Itoa(s.GetListenedPort()) + "/tryon/couple"
 	client := &http.Client{Timeout: 2 * time.Second}
-	good, _ := json.Marshal(tryon.CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(data), OutfitID: "W001", DressSide: "left", Scene: tryon.Scene{Mode: "original"}})
+	good, _ := json.Marshal(tryon.CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(data), OutfitID: "W001", Scene: tryon.Scene{Mode: "original"}})
 	request := func(body io.Reader, access, media string, length int64) (int, http.Header, []byte) {
 		t.Helper()
 		req, err := http.NewRequest("POST", endpoint, body)
@@ -301,7 +307,7 @@ func TestSSEHeartbeatsKeepStreamWithoutClaimingProgressAndDisconnectCancelsUpstr
 	generator := blockingAPIGenerator{started: make(chan struct{}), stopped: make(chan struct{})}
 	handlerStopped := make(chan struct{})
 	admission := security.NewConcurrencyManager(1, 1)
-	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return generator, nil }, apiOutfits{image: img}, admission)
+	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return generator, nil }, apiOutfits{image: img}, admission, usageFor(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +330,7 @@ func TestSSEHeartbeatsKeepStreamWithoutClaimingProgressAndDisconnectCancelsUpstr
 			t.Error(err)
 		}
 	})
-	input, _ := json.Marshal(tryon.CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(data), OutfitID: "W001", DressSide: "left", Scene: tryon.Scene{Mode: "original"}})
+	input, _ := json.Marshal(tryon.CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(data), OutfitID: "W001", Scene: tryon.Scene{Mode: "original"}})
 	ctx, cancel := context.WithCancel(context.Background())
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://127.0.0.1:"+strconv.Itoa(s.GetListenedPort())+"/tryon/couple", bytes.NewReader(input))
 	if err != nil {
@@ -397,7 +403,7 @@ func TestSSEHeartbeatsKeepStreamWithoutClaimingProgressAndDisconnectCancelsUpstr
 func TestProductionCoupleRouteRejectsUnconfiguredModel(t *testing.T) {
 	inBackendRoot(t)
 	const token = "synthetic-runtime-token-0000000000000000"
-	t.Setenv("TRYON_API_KEYS", token)
+	t.Setenv("TRYON_API_KEYS", token+"-0-false,"+token+"-0-true,"+token+"-9437184-false,"+token+"-9437184-true")
 	for _, name := range []string{"MODEL_PROVIDER", "MODEL_NAME", "MODEL_API_KEY", "MODEL_BASE_URL"} {
 		t.Setenv(name, "")
 	}
@@ -417,7 +423,7 @@ func TestProductionCoupleRouteRejectsUnconfiguredModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, _ := json.Marshal(tryon.CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(data), OutfitID: "W001", DressSide: "left", Scene: tryon.Scene{Mode: "original"}})
+	input, _ := json.Marshal(tryon.CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(data), OutfitID: "W001", Scene: tryon.Scene{Mode: "original"}})
 	client := &http.Client{Timeout: 2 * time.Second}
 	// Valid JSON above GoFrame's default 8 MiB must reach the model configuration check.
 	for _, padding := range []int{0, 9 << 20} {
@@ -430,7 +436,7 @@ func TestProductionCoupleRouteRejectsUnconfiguredModel(t *testing.T) {
 			if chunked {
 				req.ContentLength = -1
 			}
-			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("Authorization", "Bearer "+token+"-"+strconv.Itoa(padding)+"-"+strconv.FormatBool(chunked))
 			req.Header.Set("Content-Type", "application/json")
 			response, err := client.Do(req)
 			if err != nil {
@@ -486,7 +492,7 @@ func TestHTTPCancellationReachesTLSUpstreamAndReleasesSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	admission := security.NewConcurrencyManager(1, 1)
-	service, err := tryon.NewCoupleService(factory, apiOutfits{image: img}, admission)
+	service, err := tryon.NewCoupleService(factory, apiOutfits{image: img}, admission, usageFor(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -511,7 +517,7 @@ func TestHTTPCancellationReachesTLSUpstreamAndReleasesSlot(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	input, _ := json.Marshal(tryon.CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(data), OutfitID: "W001", DressSide: "left", Scene: tryon.Scene{Mode: "original"}})
+	input, _ := json.Marshal(tryon.CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(data), OutfitID: "W001", Scene: tryon.Scene{Mode: "original"}})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "POST", "http://127.0.0.1:"+strconv.Itoa(s.GetListenedPort())+"/tryon/couple", bytes.NewReader(input))

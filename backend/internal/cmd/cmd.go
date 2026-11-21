@@ -66,7 +66,6 @@ func newServer(ctx context.Context, name string, loadManifest func() (*catalog.M
 			r.Response.WriteJson(g.Map{"code": 0, "message": "", "data": g.Map{"status": "ok"}})
 		})
 		group.Group("/catalog", func(catalogGroup *ghttp.RouterGroup) {
-			catalogGroup.Middleware(middleware.NewAuthMiddleware(securityService.TokenStore).Handler)
 			catalogGroup.GET("/outfits", func(r *ghttp.Request) {
 				r.Response.Header().Set("Cache-Control", "no-store")
 				manifest, loadErr := loadManifest()
@@ -75,12 +74,14 @@ func newServer(ctx context.Context, name string, loadManifest func() (*catalog.M
 					r.Response.WriteJson(g.Map{"code": 50001, "message": "婚礼素材清单不可用", "data": g.Map{"request_id": middleware.GetRequestID(r)}})
 					return
 				}
-				r.Response.WriteJson(g.Map{"code": 0, "message": "", "data": manifest})
+				r.Response.WriteJson(g.Map{"code": 0, "message": "", "data": catalog.ExposePublicDirectory(manifest)})
 			})
 		})
 		group.Group("/tryon", func(generationGroup *ghttp.RouterGroup) {
 			generationGroup.Middleware(middleware.NewAuthMiddleware(securityService.TokenStore).Handler)
+			generationGroup.Middleware(middleware.NewRateLimitMiddleware(securityService.RateLimiter).Handler)
 			generationGroup.Middleware(middleware.NewBodyLimitMiddleware(tryon.MaxBodyBytes).Handler)
+			generationGroup.POST("/authorize", authorizeHandler(securityService.Usage))
 			generationGroup.POST("/couple", coupleHandler(coupleService))
 		})
 	})

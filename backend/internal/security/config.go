@@ -17,10 +17,9 @@ type SecurityConfig struct {
 }
 
 type RateLimitConfig struct {
-	RequestsPerMinute         int `json:"requestsPerMinute"`
-	Burst                     int `json:"burst"`
-	LimiterIdleMinutes        int `json:"limiterIdleMinutes"`
-	DailyRequestsPerPrincipal int `json:"dailyRequestsPerPrincipal"`
+	RequestsPerMinute  int `json:"requestsPerMinute"`
+	Burst              int `json:"burst"`
+	LimiterIdleMinutes int `json:"limiterIdleMinutes"`
 }
 
 type ConcurrencyConfig struct {
@@ -38,10 +37,9 @@ func DefaultSecurityConfig() *SecurityConfig {
 		},
 		AllowPrivateNetwork: false,
 		RateLimit: RateLimitConfig{
-			RequestsPerMinute:         10,
-			Burst:                     3,
-			LimiterIdleMinutes:        30,
-			DailyRequestsPerPrincipal: 100,
+			RequestsPerMinute:  10,
+			Burst:              3,
+			LimiterIdleMinutes: 30,
 		},
 		Concurrency: ConcurrencyConfig{
 			Global:       2,
@@ -81,9 +79,6 @@ func LoadSecurityConfig(ctx context.Context) (*SecurityConfig, error) {
 	}
 	if cfg.RateLimit.LimiterIdleMinutes <= 0 {
 		cfg.RateLimit.LimiterIdleMinutes = 30
-	}
-	if cfg.RateLimit.DailyRequestsPerPrincipal <= 0 {
-		cfg.RateLimit.DailyRequestsPerPrincipal = 100
 	}
 	if cfg.Concurrency.Global <= 0 {
 		cfg.Concurrency.Global = 2

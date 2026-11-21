@@ -23,7 +23,7 @@ func modelFromEnvironment() (tryon.ImageGenerator, error) {
 }
 
 func generationService(loadManifest func() (*catalog.Manifest, error), securityService *security.Service) (*tryon.CoupleService, error) {
-	return tryon.NewCoupleService(modelFromEnvironment, &catalog.Reader{Directory: "/assets/wedding", LoadManifest: loadManifest}, securityService.ConcurrencyManager)
+	return tryon.NewCoupleService(modelFromEnvironment, &catalog.Reader{Directory: "/assets/wedding", LoadManifest: loadManifest}, securityService.ConcurrencyManager, securityService.Usage)
 }
 
 type countedReader struct {
@@ -125,12 +125,12 @@ func coupleHandlerWithHeartbeat(service *tryon.CoupleService, interval time.Dura
 }
 
 func decodeCouple(body io.Reader) (tryon.CoupleRequest, error) {
-	fields, err := strictObject(json.NewDecoder(body), "couple_image", "outfit_id", "dress_side", "scene")
+	fields, err := strictObject(json.NewDecoder(body), "couple_image", "outfit_id", "scene")
 	if err != nil {
 		return tryon.CoupleRequest{}, err
 	}
 	var input tryon.CoupleRequest
-	for key, target := range map[string]*string{"couple_image": &input.CoupleImage, "outfit_id": &input.OutfitID, "dress_side": &input.DressSide} {
+	for key, target := range map[string]*string{"couple_image": &input.CoupleImage, "outfit_id": &input.OutfitID} {
 		if len(fields[key]) == 0 || string(fields[key]) == "null" {
 			return input, errors.New("missing string")
 		}

@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "file": "wedding-example.jpg",
+      "role": "example-only",
+      "creator": "Scott Webb",
+      "source": "https://commons.wikimedia.org/wiki/File:Wedding_couple_on_a_footbridge_(Unsplash).jpg",
+      "download": "https://images.unsplash.com/photo-1430806746135-4c9775bfea07?fm=jpg&fit=crop&w=1400&q=85",
+      "originalPublished": "2015-05-05",
+      "license": "CC0-1.0",
+      "licenseURL": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified": "2026-11-19",
+      "transformation": "Resize to same-origin JPEG; strip EXIF, IPTC and comments; CSS crop for display.",
+      "sha256": "333bb6a72e2d33aa27acb5e5aad82d90b60f3558f619917f6cefcb1789ed1d33"
+    },
+    {
+      "file": "florals.jpg",
+      "role": "decorative-background",
+      "creator": "Shardayyy Photography",
+      "source": "https://commons.wikimedia.org/wiki/File:Aisle_for_a_Wedding_(Unsplash).jpg",
+      "download": "https://images.unsplash.com/photo-1469371670807-013ccf25f16a?fm=jpg&fit=crop&w=1600&q=85",
+      "originalPublished": "2016-07-24",
+      "license": "CC0-1.0",
+      "licenseURL": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified": "2026-11-19",
+      "transformation": "Resize to same-origin JPEG; strip EXIF, IPTC and comments; CSS crop for display.",
+      "sha256": "bfac73d7ec717f9b5b1d22ec3fd85d6bf716589de32c8394db4eae2f98fff187"
+    }
+  ],
+  "fonts": [
+    {
+      "file": "fonts/cg-var-latin.woff2",
+      "family": "Cormorant Garamond",
+      "role": "latin-display-serif (variable, wght 300-700)",
+      "creator": "Christian Thalmann (Catharsis Fonts)",
+      "source": "https://github.com/google/fonts/tree/main/ofl/cormorantgaramond",
+      "license": "OFL-1.1",
+      "licenseURL": "https://openfontlicense.org/open-font-license-official-site/",
+      "licenseFile": "fonts/OFL-cormorant-garamond.txt",
+      "verified": "2026-11-21",
+      "transformation": "Google Fonts latin unicode-range subset served as woff2-variations; repackaged unchanged for same-origin hosting.",
+      "sha256": "d80df8ff5aecd299a61549f9e29ab1ed0b9b05f4ea71d50fe978e07d5240b235"
+    },
+    {
+      "file": "fonts/cg-italic-latin.woff2",
+      "family": "Cormorant Garamond",
+      "role": "latin-display-serif italic 400",
+      "creator": "Christian Thalmann (Catharsis Fonts)",
+      "source": "https://github.com/google/fonts/tree/main/ofl/cormorantgaramond",
+      "license": "OFL-1.1",
+      "licenseURL": "https://openfontlicense.org/open-font-license-official-site/",
+      "licenseFile": "fonts/OFL-cormorant-garamond.txt",
+      "verified": "2026-11-21",
+      "transformation": "Google Fonts latin unicode-range subset woff2; repackaged unchanged for same-origin hosting.",
+      "sha256": "e48e58027030df56869b795ca6f19b7012158275f7ad7cde1900b4a0b68d02e2"
+    },
+    {
+      "file": "fonts/noto-serif-sc-400.woff2",
+      "family": "Noto Serif SC",
+      "role": "chinese-display-serif 400",
+      "creator": "Google / Adobe (Source Han Serif)",
+      "source": "https://github.com/google/fonts/tree/main/ofl/notoserifsc",
+      "license": "OFL-1.1",
+      "licenseURL": "https://openfontlicense.org/open-font-license-official-site/",
+      "licenseFile": "fonts/OFL-noto-serif-sc.txt",
+      "verified": "2026-11-21",
+      "transformation": "Variable font instanced to wght=400, subset via pyftsubset to GB2312 level-1 hanzi + symbol rows + project copy (4540 chars); woff2.",
+      "sha256": "135439f3f713f4b9a97ae1dc90c6a03e726734284beb0c44b805ca7fb6e478d7"
+    },
+    {
+      "file": "fonts/noto-serif-sc-600.woff2",
+      "family": "Noto Serif SC",
+      "role": "chinese-display-serif 600",
+      "creator": "Google / Adobe (Source Han Serif)",
+      "source": "https://github.com/google/fonts/tree/main/ofl/notoserifsc",
+      "license": "OFL-1.1",
+      "licenseURL": "https://openfontlicense.org/open-font-license-official-site/",
+      "licenseFile": "fonts/OFL-noto-serif-sc.txt",
+      "verified": "2026-11-21",
+      "transformation": "Variable font instanced to wght=600, subset via pyftsubset to GB2312 level-1 hanzi + symbol rows + project copy (4540 chars); woff2.",
+      "sha256": "a137c267667aa7223bfc3489565385cd4ef2fd4bf3da5792b77691bbae8ceeaf"
+    }
+  ],
+  "outfitThumbnails": []
+}

@@ -1,4 +1,5 @@
 FROM golang:1.25-bookworm
+ARG GOPROXY=https://proxy.golang.org
 WORKDIR /opt/dependencies
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download

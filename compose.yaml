@@ -24,6 +24,7 @@ services:
       dockerfile: backend/manifest/docker/Dockerfile
     environment:
       TRYON_API_KEYS: ${TRYON_API_KEYS:-}
+      TRYON_DAILY_ATTEMPT_LIMIT: ${TRYON_DAILY_ATTEMPT_LIMIT:-10}
       MODEL_PROVIDER: ${MODEL_PROVIDER:-}
       MODEL_NAME: ${MODEL_NAME:-}
       MODEL_BASE_URL: ${MODEL_BASE_URL:-}
@@ -31,6 +32,7 @@ services:
     # Fresh checkouts get empty directories; missing images explicitly fail generation.
     # Only fixed outfits are mounted; private intake and poses remain invisible.
     volumes:
+      - usage:/var/lib/vowmirror
       - ./assets/wedding/W001:/assets/wedding/W001:ro
       - ./assets/wedding/W002:/assets/wedding/W002:ro
       - ./assets/wedding/W003:/assets/wedding/W003:ro
@@ -72,7 +74,7 @@ services:
       dockerfile: docker/tools-go.Dockerfile
     working_dir: /workspace/backend
     volumes:
-      - .:/workspace:ro
+      - .:/workspace:${VOWMIRROR_SOURCE_MODE:-ro}
       - go-mod:/go/pkg/mod
       - go-build:/root/.cache/go-build
     command: ["/tools/check-go.sh"]
@@ -95,13 +97,15 @@ services:
     working_dir: /workspace
     volumes:
       - .:/workspace:ro
+      - ${VOWMIRROR_EVIDENCE_DIR:-./.local/browser}:/evidence
     environment:
       SMOKE_BASE_URL: http://web:8080
+      SMOKE_EVIDENCE_DIR: /evidence
       TRYON_API_KEYS: ${TRYON_API_KEYS:-}
     networks:
       - app
     shm_size: 256mb
-    command: ["node", "tests/smoke.mjs", "--stage", "phase7"]
+    command: ["node", "tests/smoke.mjs", "--stage", "phase8"]
 
 networks:
   app:
@@ -110,6 +114,7 @@ networks:
     internal: ${VOWMIRROR_ACCEPTANCE_OFFLINE:-false}
 
 volumes:
+  usage:
   go-mod:
     name: ${VOWMIRROR_GO_MOD_VOLUME:-vowmirror-foundation-go-mod}
   go-build:

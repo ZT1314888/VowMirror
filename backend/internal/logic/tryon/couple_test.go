@@ -87,6 +87,11 @@ type testGenerator struct {
 }
 
 func (g testGenerator) Generate(ctx context.Context, r GenerationRequest) (*GenerationResult, error) {
+	if r.BeforeSend != nil {
+		if err := r.BeforeSend(ctx); err != nil {
+			return nil, err
+		}
+	}
 	image, err := g.run(ctx, r)
 	return &GenerationResult{Image: image}, err
 }
@@ -115,39 +120,35 @@ func outfitImages(t *testing.T) catalog.OutfitImages {
 	return catalog.OutfitImages{Dress: imgs[0], Menswear: imgs[1], Shoes: imgs[2]}
 }
 func coupleInput(t *testing.T) CoupleRequest {
-	return CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(fixture(t, "jpg")), OutfitID: "W001", DressSide: "left", Scene: Scene{Mode: "original"}}
+	return CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(fixture(t, "jpg")), OutfitID: "W001", Scene: Scene{Mode: "original"}}
 }
 
-func TestCouplePromptMapsSelectedSideIndependentOfGender(t *testing.T) {
-	for _, side := range []string{"left", "right"} {
-		prompt := couplePrompt(side, false)
-		for _, phrase := range []string{
-			"Reference 1 defines each person's identity and viewer-left/viewer-right position",
-			"Preserve both identities",
-			"original left/right positions",
-			"Assign clothing by the selected side only, regardless of gender or conventional wedding roles",
-			"person on the viewer's " + side + " in reference 1 must wear only the wedding dress",
-			"other person must wear only the menswear",
-			"may intentionally put a man in the wedding dress or a woman in menswear",
-			"Do not infer clothing from gender or the original outfits",
-		} {
-			if !strings.Contains(prompt, phrase) {
-				t.Errorf("%s prompt missing mapping rule %q", side, phrase)
-			}
+func TestCouplePromptLetsModelDecideDressWearer(t *testing.T) {
+	prompt := couplePrompt(false)
+	for _, phrase := range []string{
+		"Preserve both identities",
+		"original left/right positions",
+		"do not swap or move the people across sides",
+		"Decide from reference 1 which person should wear the wedding dress",
+		"judging only by what the photo shows",
+		"wedding dress from reference 2",
+		"other person must wear only the menswear",
+		"Do not mix garments",
+	} {
+		if !strings.Contains(prompt, phrase) {
+			t.Errorf("prompt missing rule %q", phrase)
 		}
-		otherSide := "left"
-		if side == otherSide {
-			otherSide = "right"
-		}
-		if strings.Contains(prompt, "person on the viewer's "+otherSide+" in reference 1 must wear only the wedding dress") {
-			t.Errorf("%s prompt assigns the dress to the opposite side", side)
+	}
+	for _, banned := range []string{"Assign clothing by the selected side", "regardless of gender", "viewer's left", "viewer's right", "may intentionally put a man", "Do not infer clothing from gender"} {
+		if strings.Contains(prompt, banned) {
+			t.Errorf("prompt retains side-assignment rule %q", banned)
 		}
 	}
 }
 
 func serviceFor(t *testing.T, generator ImageGenerator, reader OutfitReader, admission Admission) *CoupleService {
 	t.Helper()
-	service, err := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission)
+	service, err := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission, usageFor(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +180,7 @@ func TestCoupleServiceContract(t *testing.T) {
 			if len(r.References) != want || r.References[0].MIME != "image/jpeg" || r.References[2].MIME != "image/webp" {
 				t.Error("invalid generation contract")
 			}
-			for _, phrase := range []string{"viewer's right in reference 1", "identities", "faces", "natural proportions", "head to toe", "without cropping", "mix garments", "shoes_detail"} {
+			for _, phrase := range []string{"Decide from reference 1 which person should wear the wedding dress", "identities", "faces", "natural proportions", "head to toe", "without cropping", "mix garments", "shoes_detail"} {
 				if !strings.Contains(r.Prompt, phrase) {
 					t.Errorf("missing prompt rule %s", phrase)
 				}
@@ -203,7 +204,6 @@ func TestCoupleServiceContract(t *testing.T) {
 		}}
 		service := serviceFor(t, generator, reader, security.NewConcurrencyManager(1, 1))
 		input := coupleInput(t)
-		input.DressSide = "right"
 		if scene {
 			input.Scene = Scene{Mode: "upload", Image: base64.StdEncoding.EncodeToString(fixture(t, "png"))}
 		}
@@ -223,7 +223,7 @@ func TestCoupleInvalidInputsNeverInvokeGenerator(t *testing.T) {
 	admission := security.NewConcurrencyManager(1, 1)
 	service := serviceFor(t, generator, reader, admission)
 	for _, modify := range []func(*CoupleRequest){
-		func(r *CoupleRequest) { r.CoupleImage = "" }, func(r *CoupleRequest) { r.DressSide = "Left" }, func(r *CoupleRequest) { r.OutfitID = "" },
+		func(r *CoupleRequest) { r.CoupleImage = "" }, func(r *CoupleRequest) { r.OutfitID = "" },
 		func(r *CoupleRequest) { r.Scene = Scene{Mode: "venue"} }, func(r *CoupleRequest) { r.Scene.Image = "private-marker" },
 		func(r *CoupleRequest) { r.Scene.Mode = "upload" }, func(r *CoupleRequest) { r.CoupleImage = "data:image/png;base64," + r.CoupleImage },
 	} {
@@ -282,10 +282,23 @@ func TestCoupleFailureAlwaysReleasesAdmission(t *testing.T) {
 				}
 				return outfitImages(t), nil
 			}}
-			service := serviceFor(t, generator, reader, admission)
+			ledger, ledgerErr := security.OpenUsageLedger(filepath.Join(t.TempDir(), "failure.sqlite"), 1)
+			if ledgerErr != nil {
+				t.Fatal(ledgerErr)
+			}
+			defer ledger.Close()
+			service, serviceErr := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission, ledger)
+			if serviceErr != nil {
+				t.Fatal(serviceErr)
+			}
 			want := map[string]string{"upstream": "MODEL_REQUEST_FAILED", "result": "INVALID_MODEL_RESULT", "asset": "OUTFIT_UNAVAILABLE", "unknown": "UNKNOWN_OUTFIT", "nil asset": "OUTFIT_UNAVAILABLE", "timeout": "GENERATION_TIMEOUT", "cancel": "GENERATION_CANCELLED"}[scenario]
 			if _, err := service.Generate(ctx, "p", RequestTrace{RequestID: "id"}, coupleInput(t)); err == nil || err.ErrorCode != want || strings.Contains(err.Error(), "private-marker") {
 				t.Fatalf("expected %s, got %v", want, err)
+			}
+			remaining, quotaError := ledger.Check(context.Background(), "p")
+			sent := scenario == "upstream" || scenario == "result" || scenario == "timeout" || scenario == "cancel"
+			if remaining != 5 || (sent && quotaError != security.ErrDailyQuotaExceeded) || (!sent && quotaError != nil) {
+				t.Fatalf("failure accounting: remaining=%d, error=%v", remaining, quotaError)
 			}
 			release, ok := admission.Acquire("p")
 			if !ok {
@@ -359,7 +372,7 @@ func TestBusyRequestsDoNotAllocateImagePixels(t *testing.T) {
 	if image, err := imagevalidate.ValidateImage(encoded, imagevalidate.DefaultImageLimits()); err != nil || image.Width != 4000 || image.Height != 5000 {
 		t.Fatalf("pixel-allocation fixture must be a valid 20 MP image: %v", err)
 	}
-	input := CoupleRequest{CoupleImage: encoded, OutfitID: "W001", DressSide: "left", Scene: Scene{Mode: "upload", Image: encoded}}
+	input := CoupleRequest{CoupleImage: encoded, OutfitID: "W001", Scene: Scene{Mode: "upload", Image: encoded}}
 	for _, scenario := range []struct {
 		name, occupiedBy string
 		globalLimit      int
@@ -380,7 +393,7 @@ func TestBusyRequestsDoNotAllocateImagePixels(t *testing.T) {
 			}, testOutfits{run: func(context.Context, string) (catalog.OutfitImages, error) {
 				t.Fatal("busy request read outfit assets")
 				return catalog.OutfitImages{}, nil
-			}}, admission)
+			}}, admission, usageFor(t))
 			if err != nil {
 				t.Fatal(err)
 			}

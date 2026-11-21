@@ -50,6 +50,14 @@ func (g *GPTImage) Generate(ctx context.Context, input GenerationRequest) (*Gene
 	input.Trace.RecordObservation(StageObservation{Phase: "assembling_request", RequestBytes: int64(len(body))}, assemblyStarted)
 	started := time.Now()
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), modelClientTrace(input.Trace, started)))
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if input.BeforeSend != nil {
+		if err := input.BeforeSend(ctx); err != nil {
+			return nil, err
+		}
+	}
 	resp, err := g.client.Do(req)
 	if err != nil {
 		category := "transport_failure"

@@ -26,7 +26,7 @@ func TestTokenStoreValidation(t *testing.T) {
 		t.Fatal("expected token1 to be valid")
 	}
 	expectedHash1 := sha256.Sum256([]byte(token1))
-	expectedPID1 := hex.EncodeToString(expectedHash1[:8])
+	expectedPID1 := hex.EncodeToString(expectedHash1[:])
 	if pid1 != expectedPID1 {
 		t.Fatalf("expected principal_id %s, got %s", expectedPID1, pid1)
 	}
@@ -37,7 +37,7 @@ func TestTokenStoreValidation(t *testing.T) {
 		t.Fatal("expected trimmed token2 to be valid")
 	}
 	expectedHash2 := sha256.Sum256([]byte(token2))
-	expectedPID2 := hex.EncodeToString(expectedHash2[:8])
+	expectedPID2 := hex.EncodeToString(expectedHash2[:])
 	if pid2 != expectedPID2 {
 		t.Fatalf("expected principal_id %s, got %s", expectedPID2, pid2)
 	}
@@ -89,26 +89,6 @@ func TestRateLimiter(t *testing.T) {
 	}
 	if retryAfter <= 0 {
 		t.Fatalf("expected positive retryAfter, got %d", retryAfter)
-	}
-}
-
-func TestDailyQuota(t *testing.T) {
-	quota := NewDailyQuotaTracker(2)
-	pid := "user-1"
-
-	if !quota.CheckAndDeduct(pid) {
-		t.Fatal("first quota check should pass")
-	}
-	if !quota.CheckAndDeduct(pid) {
-		t.Fatal("second quota check should pass")
-	}
-	if quota.CheckAndDeduct(pid) {
-		t.Fatal("third quota check should fail because limit is 2")
-	}
-
-	// 另一个用户独立计算
-	if !quota.CheckAndDeduct("user-2") {
-		t.Fatal("user-2 quota should pass")
 	}
 }
 

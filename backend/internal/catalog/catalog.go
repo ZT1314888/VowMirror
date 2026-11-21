@@ -22,6 +22,32 @@ type Manifest struct {
 	Venues  []Venue  `json:"venues"`
 }
 
+type PublicDirectory struct {
+	Version int              `json:"version"`
+	Outfits []DirectoryEntry `json:"outfits"`
+	Venues  []DirectoryEntry `json:"venues"`
+}
+
+type DirectoryEntry struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+func ExposePublicDirectory(manifest *Manifest) PublicDirectory {
+	public := PublicDirectory{
+		Version: manifest.Version,
+		Outfits: make([]DirectoryEntry, 0, len(manifest.Outfits)),
+		Venues:  make([]DirectoryEntry, 0, len(manifest.Venues)),
+	}
+	for _, outfit := range manifest.Outfits {
+		public.Outfits = append(public.Outfits, DirectoryEntry{ID: outfit.ID, Name: outfit.Name})
+	}
+	for _, venue := range manifest.Venues {
+		public.Venues = append(public.Venues, DirectoryEntry{ID: venue.ID, Name: venue.Name})
+	}
+	return public
+}
+
 type Venue struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`

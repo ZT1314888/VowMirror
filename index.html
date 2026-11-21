@@ -2,104 +2,115 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light">
-  <title>VowMirror · 双人婚礼造型</title>
+  <meta name="theme-color" content="#faf8f5">
+  <title>VowMirror · 提前看见你们的婚礼模样</title>
   <link rel="icon" href="data:,">
+  <link rel="preload" href="/web/public/fonts/cg-var-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/web/public/fonts/noto-serif-sc-400.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/web/foundation.css">
   <script type="module" src="/web/app.mjs"></script>
 </head>
 <body>
-  <main>
-    <header class="page-header">
-      <a class="wordmark" href="/" aria-label="VowMirror 首页">VowMirror</a>
-      <div class="service-state"><span class="state-dot" aria-hidden="true"></span><span id="health-status" role="status" aria-live="polite">正在检查服务</span></div>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="icon-heart" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/><path d="m8 10 4 4 4-4"/></symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M7 17H5a4 4 0 0 1-.5-8A7.5 7.5 0 0 1 19 8.2a4.5 4.5 0 0 1 0 8.8h-2M12 20V10m-4 4 4-4 4 4"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/></symbol>
+    <symbol id="icon-sparkles" viewBox="0 0 24 24"><path d="m12 3 2.7 6.3L21 12l-6.3 2.7L12 21l-2.7-6.3L3 12l6.3-2.7ZM21 2v5m-2.5-2.5h5"/></symbol>
+    <symbol id="icon-shield" viewBox="0 0 24 24"><path d="m12 2 8 4v6c0 5-8 10-8 10S4 17 4 12V6Z"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M5 15a8 8 0 0 0 13 3"/></symbol>
+    <symbol id="icon-compare" viewBox="0 0 24 24"><path d="M12 3v18M8 8l-4 4 4 4M16 8l4 4-4 4"/></symbol>
+  </defs></svg>
+
+  <!-- 全屏环境背景：双缓冲交叉淡入 + 象牙薄纱 + 胶片颗粒 -->
+  <div class="ambient-layer" aria-hidden="true">
+    <img id="ambient-bg-a" class="ambient-img" alt="">
+    <img id="ambient-bg-b" class="ambient-img is-on" alt="">
+  </div>
+  <div class="ambient-scrim" aria-hidden="true"></div>
+  <div class="film-grain" aria-hidden="true"></div>
+
+  <!-- 隐藏的文件选择入口 -->
+  <input id="couple-image" name="couple-image" type="file" accept="image/png,image/jpeg,image/webp" class="file-input-proxy" tabindex="-1" aria-hidden="true">
+  <input id="scene-image" name="scene-image" type="file" accept="image/png,image/jpeg,image/webp" class="file-input-proxy" tabindex="-1" aria-hidden="true">
+
+  <main id="invitation-screen" class="invitation-screen" aria-labelledby="invitation-title">
+    <div class="invitation-content">
+      <p class="invitation-kicker">A LITTLE INVITATION</p>
+      <h1 id="invitation-title">为你们珍藏的，一份婚礼灵感</h1>
+      <div class="envelope-art">
+        <div class="envelope-back" aria-hidden="true"></div>
+        <div class="letter-paper" aria-hidden="true"><span>VowMirror</span><i>FOR YOUR FOREVER</i></div>
+        <div class="envelope-flap" aria-hidden="true"></div>
+        <div class="envelope-front" aria-hidden="true"><span>V</span></div>
+        <button id="open-invitation" class="wax-seal" type="button" aria-label="轻启请柬，进入婚礼照片创作"><svg class="icon" aria-hidden="true"><use href="#icon-heart"/></svg><span>轻启请柬</span></button>
+      </div>
+      <p class="invitation-hint">点击火漆，开启你们的婚礼灵感</p>
+      <span class="invitation-ornament" aria-hidden="true">❋</span>
+    </div>
+  </main>
+
+  <main id="experience" class="experience-gallery" hidden>
+    <header class="gallery-header">
+      <button id="gallery-wordmark" class="wordmark" type="button" aria-label="回到第一步">VowMirror</button>
+      <nav id="header-stepper" class="header-stepper" aria-label="创作步骤"></nav>
+      <div class="header-actions">
+        <div class="service-state" data-state="pending"><span class="state-dot" aria-hidden="true"></span><span id="health-status" class="sr-only" role="status" aria-live="polite">正在检查服务</span></div>
+      </div>
     </header>
 
-    <section class="intro" aria-labelledby="page-title">
-      <p class="eyebrow">双人婚礼造型</p>
-      <h1 id="page-title">把这一刻，换成婚礼模样</h1>
-      <p>上传一张两人全身合照，选择造型后生成一张婚礼合影。</p>
-    </section>
+    <div id="form-alert" class="form-alert" role="alert" tabindex="-1" hidden></div>
 
-    <div class="workspace">
-      <form id="generation-form" novalidate>
-        <section class="form-section" aria-labelledby="photo-title">
-          <div class="section-heading"><span class="step-number">01</span><div><h2 id="photo-title">选择合照</h2><p>请使用清晰、能看见两人全身与鞋履的照片。</p></div></div>
-          <label class="upload-area" for="couple-image">
-            <input id="couple-image" name="couple-image" type="file" accept="image/png,image/jpeg,image/webp" required>
-            <span class="upload-mark" aria-hidden="true">＋</span>
-            <span class="upload-title">选择一张合照</span>
-            <span class="upload-hint">PNG、JPG 或 WebP，最大 8 MiB</span>
-          </label>
-          <div id="photo-preview-wrap" class="photo-preview-wrap" hidden>
-            <img id="photo-preview" alt="已选择的双人合照预览">
-            <button id="clear-photo" class="text-button" type="button">移除照片</button>
+    <div id="gallery-viewport" class="gallery-viewport">
+      <div id="gallery-track" class="gallery-track">
+        <section id="room-photo" class="gallery-room" aria-label="01 合照">
+          <h2 class="room-title sr-only" id="room-photo-title" tabindex="-1">01 合照</h2>
+          <div id="photo-frame" class="hero-frame">
+            <div id="room-photo-content" class="room-fill"></div>
+            <div id="photo-scan-beam" class="scan-beam" aria-hidden="true"></div>
           </div>
-          <p id="photo-error" class="field-error" role="alert" hidden></p>
         </section>
-
-        <section class="form-section" aria-labelledby="look-title">
-          <div class="section-heading"><span class="step-number">02</span><div><h2 id="look-title">选择婚礼造型</h2><p>造型名称来自当前可用目录。</p></div></div>
-          <div class="field-row">
-            <label for="outfit">套装</label>
-            <div class="catalog-control"><select id="outfit" name="outfit" required disabled><option value="">先加载可用套装</option></select><button id="load-outfits" class="secondary-button" type="button">加载套装</button></div>
+        <section id="room-outfit" class="gallery-room" aria-label="02 造型">
+          <h2 class="room-title sr-only" id="room-outfit-title" tabindex="-1">02 造型</h2>
+          <div class="hero-frame">
+            <div id="outfit-hero-a" class="hero-layer"></div>
+            <div id="outfit-hero-b" class="hero-layer is-front"></div>
+            <canvas id="outfit-particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
           </div>
-          <p id="catalog-status" class="field-note" role="status" aria-live="polite">输入访问 Token 后加载套装。</p>
-          <fieldset class="side-fieldset">
-            <legend>原合照哪一侧的人穿婚纱？</legend>
-            <div class="side-options">
-              <label><input type="radio" name="dress-side" value="left" checked><span>画面左侧</span></label>
-              <label><input type="radio" name="dress-side" value="right"><span>画面右侧</span></label>
-            </div>
-            <p id="side-preview" class="field-note side-preview">按原合照位置分配服装，并保留两人左右站位；服装选择不受性别影响。</p>
-          </fieldset>
-          <fieldset class="scene-fieldset">
-            <legend>场地参考（可选）</legend>
-            <div class="scene-options">
-              <label><input type="radio" name="scene-mode" value="original" checked><span>保留原背景</span></label>
-              <label><input type="radio" name="scene-mode" value="upload"><span>上传场地照片</span></label>
-              <label id="venue-mode-option" hidden><input type="radio" name="scene-mode" value="venue"><span>固定场馆</span></label>
-            </div>
-            <p id="scene-preview" class="field-note" role="status" aria-live="polite">生成时保留合照中的原有背景。</p>
-            <div id="venue-select-wrap" class="field-row" hidden><label for="venue">场馆</label><select id="venue"><option value="">选择场馆</option></select></div>
-            <label id="scene-upload-area" class="upload-area scene-upload-area" for="scene-image" hidden>
-              <input id="scene-image" name="scene-image" type="file" accept="image/png,image/jpeg,image/webp">
-              <span class="upload-mark" aria-hidden="true">＋</span>
-              <span class="upload-title">选择一张场地照片</span>
-              <span class="upload-hint">PNG、JPG 或 WebP，最大 8 MiB</span>
-            </label>
-            <div id="scene-image-preview-wrap" class="photo-preview-wrap" hidden>
-              <img id="scene-image-preview" alt="已选择的场地照片预览">
-              <button id="clear-scene" class="text-button" type="button">移除场地照片</button>
-            </div>
-            <p id="scene-error" class="field-error" role="alert" hidden></p>
-          </fieldset>
         </section>
-
-        <section class="form-section" aria-labelledby="access-title">
-          <div class="section-heading"><span class="step-number">03</span><div><h2 id="access-title">访问设置</h2><p>Token 仅用于请求后端。</p></div></div>
-          <label class="field-label" for="access-token">后端访问 Token</label>
-          <input id="access-token" name="access-token" type="password" autocomplete="current-password" spellcheck="false" placeholder="粘贴访问 Token" required>
-          <label class="save-token"><input id="save-token" type="checkbox"><span>在此设备保存 Token</span></label>
-          <p class="field-note">照片和生成结果不会保存；刷新页面后需要重新选择照片。</p>
+        <section id="room-scene" class="gallery-room" aria-label="03 场景">
+          <h2 class="room-title sr-only" id="room-scene-title" tabindex="-1">03 场景</h2>
+          <div class="hero-frame">
+            <div id="scene-hero-a" class="hero-layer"></div>
+            <div id="scene-hero-b" class="hero-layer is-front"></div>
+            <canvas id="scene-particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
+          </div>
         </section>
-
-        <div id="form-error" class="form-error" role="alert" tabindex="-1" hidden></div>
-        <div class="form-actions">
-          <button id="generate" class="primary-button" type="submit">生成婚礼合影</button>
-          <button id="cancel-generation" class="secondary-button" type="button" hidden>取消生成</button>
-        </div>
-      </form>
-
-      <section id="result-section" class="result-section" aria-labelledby="result-title">
-        <div class="result-heading"><div><p class="eyebrow">预览</p><h2 id="result-title">生成结果</h2></div><span id="result-state" class="result-state">等待生成</span></div>
-        <div id="result-empty" class="result-empty"><span class="result-placeholder" aria-hidden="true">VM</span><p>完成左侧设置后，生成结果会显示在这里。</p></div>
-        <p id="generation-status" class="generation-status" role="status" aria-live="polite" aria-atomic="true" hidden></p>
-        <div id="result-image-wrap" class="result-image-wrap" hidden><img id="result-image" alt="生成的双人婚礼合影"><p id="result-meta" class="result-meta"></p><a id="download-result" class="download-button" download>下载合影</a></div>
-      </section>
+        <section id="room-result" class="gallery-room" aria-label="04 成片">
+          <h2 class="room-title sr-only" id="room-result-title" tabindex="-1">04 成片</h2>
+          <div id="result-slot" class="room-fill"></div>
+        </section>
+      </div>
     </div>
-    <footer><span>VowMirror</span><button id="check-health" class="text-button" type="button">重新检查连接</button></footer>
+
+    <div id="floating-dock" class="floating-dock"></div>
+
+    <div id="aperture-overlay" class="aperture-overlay" hidden>
+      <div class="aperture-inner">
+        <div class="aperture-rule" aria-hidden="true"></div>
+        <span class="aperture-wordmark">VowMirror</span>
+        <div class="aperture-rule" aria-hidden="true"></div>
+        <p id="generation-status" class="aperture-status" role="status" aria-live="polite" aria-atomic="true"></p>
+        <button id="cancel-generation" class="ivory-pill" type="button" hidden>取消生成</button>
+      </div>
+    </div>
   </main>
+
+  <dialog id="access-dialog" class="access-dialog" aria-labelledby="access-title"><form id="access-form" class="access-form" novalidate>
+    <p class="eyebrow">属于你们的婚礼灵感</p><h2 id="access-title">输入生成码</h2><p>每个生成码累计可成功生成 5 张合影。点击「生成成片」时核验，通过后才调用图像服务。每次生成都需输入，重复使用同一码将沿用剩余额度。</p>
+    <label class="field-label" for="access-token">生成码</label><input id="access-token" name="generation-code" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="粘贴你的生成码" aria-describedby="access-hint access-error" required>
+    <p id="access-error" class="field-error" role="alert" hidden></p><p id="access-hint" class="field-note">先核验生成码，通过后才上传照片。生成码仅用于本次请求，使用后清空。</p><div class="dialog-actions"><button id="cancel-access" class="ivory-pill" type="button">暂不生成</button><button id="confirm-access" class="charcoal-pill" type="submit">确认并生成</button></div>
+  </form></dialog>
 </body>
 </html>

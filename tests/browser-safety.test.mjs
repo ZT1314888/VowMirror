@@ -31,6 +31,7 @@ test('generic smoke sends zero generation requests; an uncontrolled request is b
         return;
       }
       const result = await fetch(url, {
+        method: request.method,
         redirect: 'error', signal: AbortSignal.timeout(15_000),
         headers: request.headers.authorization ? {
           Authorization: request.headers.authorization === `Bearer ${syntheticToken}` ? `Bearer ${backendToken}` : request.headers.authorization,

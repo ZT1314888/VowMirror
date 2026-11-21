@@ -4,7 +4,7 @@ Docker Desktop 使用 Linux 引擎；根 `compose.yaml` 是唯一入口。Go、G
 
 ## 首次启动
 
-复制根 `.env.example` 为 `.env`，填入随机后端访问 Token（32–512 字符）。模型字段保持空。本地文件已被 Git 和 Docker 忽略；不存在第二份 backend 环境模板或真实 config.yaml
+复制根 `.env.example` 为 `.env`，用密码学随机源生成 256 位生成码并配置 `TRYON_API_KEYS`；管理员在线下发放，多个码用逗号分隔。模型字段保持空。本地文件已被 Git 和 Docker 忽略；不存在第二份 backend 环境模板或真实 config.yaml
 加载路径。
 
 PowerShell 可用以下命令建立开发 Token，仅在 `.env` 不存在时执行，不输出 Token：
@@ -57,7 +57,7 @@ docker compose run --rm -T tools-browser
 ```
 
 `tools-node` 通过 `sh` 执行只读挂载的当前工作树脚本，无需因脚本变更重建镜像，也不依赖检出文件的执行位；CI 与本地运行同一脚本。Go 脚本先准备依赖和编译，再执行外层硬期限测试、gofmt 检查、vet、
-`/tmp/vowmirror` 构建。全量测试终止上限 60 秒，源码挂载只读；依赖和编译缓存分别在 `vowmirror-foundation-go-mod`、`vowmirror-foundation-go-build` 命名卷，
+`/tmp/vowmirror` 构建。全量测试终止上限 60 秒，默认源码挂载只读；只有依赖编辑和格式化任务临时设置 `VOWMIRROR_SOURCE_MODE=rw`，完成后恢复默认。依赖和编译缓存分别在 `vowmirror-foundation-go-mod`、`vowmirror-foundation-go-build` 命名卷，
 工具退出后不丢缓存。
 
 `tools-go` 镜像只将只读源码挂载根 `/workspace` 声明为 Git 可信目录，保留 Go 的 VCS 信息采集。这样 Linux 宿主机与容器的 UID 不同时仍可读取仓库状态；其他目录继续使用 Git 默认的所有权校验。修改源码挂载位置时，应同步调整这个唯一可信路径。
@@ -75,7 +75,7 @@ docker compose run --rm -T tools-go go build -o /tmp/vowmirror .
 
 普通 `tools-browser` 不发送真实生成接口请求：首次导航前安装默认拦截，未受控请求中止并使检查失败；具体交互由各场景响应接管。控制台在导航前监听全部级别，从同一集合派生预期 error 检查，并扫描访问 Token、照片、场地图和结果夹具；泄露错误只报告类别。
 
-完整验收与 CI 均运行 `pwsh -NoProfile -File scripts/verify-phase6.ps1 -ColdBuild`。脚本确认后端四项模型字段为空、两个网络均为 internal 后，运行
+Phase 6 完整验收运行 `pwsh -NoProfile -File scripts/verify-phase6.ps1 -ColdBuild`；Phase 7 和 Phase 8 分别传入 `-Stage phase7`、`-Stage phase8`。脚本确认后端四项模型字段为空、两个网络均为 internal 后，运行
 `tests/browser-safety.test.mjs`、`tests/http-acceptance.mjs` 和默认烟测；HTTP 模块包含真实生成接口的超限、鉴权、空配置和输入错误探针，不应单独对日常服务运行。
 边界回归通过本地计数代理执行完整烟测，代理拒绝转发生成；另向页面注入未受控请求，要求烟测失败且代理生成计数仍为零。真实 Chromium 逐级验证 log／info／warn／error／debug 的敏感检查与普通诊断日志。
 
@@ -104,7 +104,7 @@ docker compose run --rm -T tools-go go build -o /tmp/vowmirror .
 代理不执行图片或模型校验。单图 8 MiB、256–8192 边长、2000 万像素；四／五图原始字节合计上限 14 MiB，序列化后完整模型请求不得超过 20,000,000 字节。这两个总量是本地内存边界，不是 GPT Image 官方上限。请求使用 multipart、各文件真实 MIME 和 Bearer Key；输出仅接受一张完整解码的 `1536×1024` PNG；上游 JSON 上限 12 MiB，结果图片仍受单图限制。无自动重试或切模型；只接收内联结果，URL
 结果明确失败，不发额外下载请求。
 
-请求上下文和模型 HTTP 请求最多 85 秒，覆盖输入读取、图片校验、素材准备和上游调用；服务端写入与 Nginx 代理读取期限为 95 秒。浏览器从提交准备计时，图片成功解码并进入可见渲染帧后才完成，90 秒硬期限覆盖全部过程；阶段状态以真实观测更新，心跳不代表进度也不延长期限。取消／超时释放结果 URL 和并发资源，迟到结果不能恢复。真实供应商时延留在后续单独授权实测。所有准入后退出均释放并发；未接入额度扣减或费用拦截。
+请求上下文和模型 HTTP 请求最多 85 秒，覆盖输入读取、图片校验、素材准备和上游调用；服务端写入与 Nginx 代理读取期限为 95 秒。浏览器从提交准备计时，图片成功解码并进入可见渲染帧后才完成，90 秒硬期限覆盖全部过程；阶段状态以真实观测更新，心跳不代表进度也不延长期限。取消／超时释放结果 URL 和并发资源，迟到结果不能恢复。真实供应商时延留在后续单独授权实测。所有准入后退出均释放并发。每码最多五次成功；唯一 SQLite 账本记录完整码哈希与成功／每日尝试计数，写账失败明确失败。模型提交前记录每日尝试，默认每码每天 10 次、按 UTC 换日；`TRYON_DAILY_ATTEMPT_LIMIT` 可按预算调整。确认成功前取消或超时不扣成功数，确认并写账后断线仍计数。
 
 Node 与 Go 使用同一组素材清单契约用例；数组允许重排，但必须完整覆盖 30 套服装与 30 个 `unverified` 姿势，`venues` 为必填数组且当前为空。Phase 5 浏览器烟测覆盖场地上传真实三格式解码、
 尺寸／非空校验、预览替换清除、场地切换、迟到解码隔离、生成编辑锁定与刷新不恢复。Node 标准检查校验 fixture 和真实清单的结构，不要求私有图片进入 CI。已有本地素材时，另运行文件检查：
@@ -113,7 +113,7 @@ Node 与 Go 使用同一组素材清单契约用例；数组允许重排，但�
 docker compose run --rm -T tools-node node scripts/verify-wedding-assets.mjs assets/wedding/manifest.json --check-files
 ```
 
-目录 `GET /api/catalog/outfits` 无 Token／错误 Token 返回 401，有效 Token 返回 200 且仅返回清单元数据。浏览器烟测缺少 Token 时显式失败，并检查素材文件不对外暴露。
+目录 `GET /api/catalog/outfits` 公开返回版本、套装编号／名称和场馆编号／名称，不含素材路径、姿势清单或服装映射；无 Token、错误 Token 均可读取。生成 `POST /api/tryon/couple` 仍以有效 Token 鉴权，浏览器烟测验证无／错误 Token 均为 401，并检查素材文件不对外暴露。
 每次修改后端或打包清单，先重建 web/backend 镜像、重新创建容器，再运行烟测，避免旧镜像造成假通过。
 
 本地另有两张合照与九张场地图时，通过同一 Node 工具执行完整解码、真实格式／尺寸、字节数和 SHA-256 检查：
@@ -137,14 +137,21 @@ docker compose down
 ```
 
 无法连接 Linux daemon 时先启动 Docker Desktop；Token 配置错误按启动错误修正 `.env` 并重新创建 backend。页面连接失败会显示原因，可重新检查；不自动模拟成功。
-停止不会删除源码或命名缓存卷。`tools-browser` 只有真实页面和健康调用通过才算烟测，应用启动不代表验收。
+停止和回滚必须保留后端 `usage` 命名卷，不能对日常项目执行 `docker compose down --volumes`；该卷是生成码余额的唯一来源。隔离验收拥有独立项目名，其清理只删除本轮专用卷。`tools-browser` 只有真实页面和健康调用通过才算烟测，应用启动不代表验收。
 
 本轮验证与阶段门槛见 [长期计划](plan/2026-11-05-wedding-project-roadmap.md)。
 
 ## Phase 7 无付费回归与实测边界
 
-复用唯一隔离入口：`pwsh -NoProfile -File scripts/verify-phase6.ps1 -Stage phase7 -ColdBuild`；不带 Stage 时仍运行历史 Phase 6 范围。CI 使用 Phase 7 参数。空模型配置、独立 internal 网络和非人物夹具保持不变。Phase 7 浏览器新增解码失败、等待解码时取消／超时、迟到解码与一次完整 90 秒实际等待；完整入口清理成功才记录摘要。
+Phase 7 回归可运行 `pwsh -NoProfile -File scripts/verify-phase6.ps1 -Stage phase7 -ColdBuild`；不带 Stage 时仍运行历史 Phase 6 范围。当前 CI 使用 Phase 8 参数。空模型配置、独立 internal 网络和非人物夹具保持不变。Phase 7 浏览器新增解码失败、等待解码时取消／超时、迟到解码与一次完整 90 秒实际等待；完整入口清理成功才记录摘要。
+
+## Phase 8 正式界面无付费验收
+
+运行 `pwsh -NoProfile -File scripts/verify-phase6.ps1 -Stage phase8 -ColdBuild`。此阶段验证请柬键盘入口、减少动态效果、公开目录字段范围、四步必填定位、每次生成码预检、错误码零照片上传、弹窗键盘焦点／关闭／重复确认、取消预检后的迟到响应隔离、图片预览和生成状态；生成请求由浏览器受控响应接管，本地 TLS 上游测试验证真实 HTTP 与账本，不调用真实模型。375／768／1024／1440 截图写入本轮 `screenshots/`。证据写入忽略的 `.local/phase8/`，具体结果见 [Phase 8 验收记录](plan/2026-11-19-phase8-ui.md)。
 
 供应商回包若包含 `model`，仅允许请求别名或其合法日期快照；缺失时不捏造版本。`X-Request-ID`／回包 `request_id` 为可选供应商标识，冲突或非法标识明确失败；API 原有 `model`／`request_id` 始终表示请求型号／应用请求标识。额外返回字段为可选 `provider_model`／`provider_request_id`。仅接受 `data[0].b64_json`，URL、不完整四／五图协议、声明其他模型或固定输出不符均明确失败，不自动重试、切模型或切出口。
 
 真实五组与取消专项须逐次取得指令；本轮隔离验证不读取真实 `.env`、不发模型请求。详见 [Phase 7 执行说明](plan/2026-11-18-phase7-gpt-image.md)。
+
+
+构建默认使用官方 Go 代理；若网络返回明确下载错误，可以显式设置进程变量 `GOPROXY=https://goproxy.cn` 后运行完整验收，脚本会通过构建参数传入，不会静默改用其他来源。应用运行不读取此变量。截图通过工具容器唯一可写的 `/evidence` 挂载写入；源码仍默认只读，公开样例必须通过精确文件清单、来源、SHA-256 与 JPEG 元数据检查。

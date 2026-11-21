@@ -27,7 +27,9 @@ config.yaml
 .local/
 .playwright-mcp/
 .claude/
+.zcode/
 /.markdownlint.json
+/.codex/hooks.json
 node_modules/
 backend/main
 backend/main.exe

@@ -44,7 +44,7 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 		t.Fatal(err)
 	}
 	encoded := base64.StdEncoding.EncodeToString(data)
-	input, err := json.Marshal(tryon.CoupleRequest{CoupleImage: encoded, OutfitID: "W001", DressSide: "left", Scene: tryon.Scene{Mode: "original"}})
+	input, err := json.Marshal(tryon.CoupleRequest{CoupleImage: encoded, OutfitID: "W001", Scene: tryon.Scene{Mode: "original"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 				}}
 			}
 			admission := security.NewConcurrencyManager(1, 1)
-			service, err := tryon.NewCoupleService(factory, reader, admission)
+			service, err := tryon.NewCoupleService(factory, reader, admission, usageFor(t))
 			if err != nil {
 				t.Fatal(err)
 			}

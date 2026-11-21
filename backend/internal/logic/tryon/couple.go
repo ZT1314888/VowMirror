@@ -15,7 +15,6 @@ import (
 type CoupleRequest struct {
 	CoupleImage string `json:"couple_image"`
 	OutfitID    string `json:"outfit_id"`
-	DressSide   string `json:"dress_side"`
 	Scene       Scene  `json:"scene"`
 }
 
@@ -43,17 +42,24 @@ type OutfitReader interface {
 type Admission interface{ Acquire(string) (func(), bool) }
 type GeneratorFactory func() (ImageGenerator, error)
 
+type Usage interface {
+	Check(context.Context, string) (int, *security.APIError)
+	RecordAttempt(context.Context, string) *security.APIError
+	RecordSuccess(context.Context, string) *security.APIError
+}
+
 type CoupleService struct {
 	newGenerator GeneratorFactory
 	outfits      OutfitReader
 	admission    Admission
+	usage        Usage
 }
 
-func NewCoupleService(factory GeneratorFactory, outfits OutfitReader, admission Admission) (*CoupleService, error) {
-	if factory == nil || outfits == nil || admission == nil {
+func NewCoupleService(factory GeneratorFactory, outfits OutfitReader, admission Admission, usage Usage) (*CoupleService, error) {
+	if factory == nil || outfits == nil || admission == nil || usage == nil {
 		return nil, errors.New("缺少婚礼生成依赖")
 	}
-	return &CoupleService{newGenerator: factory, outfits: outfits, admission: admission}, nil
+	return &CoupleService{newGenerator: factory, outfits: outfits, admission: admission, usage: usage}, nil
 }
 
 func (s *CoupleService) Generate(ctx context.Context, principal string, trace RequestTrace, input CoupleRequest) (*CoupleResponse, *security.APIError) {
@@ -63,7 +69,7 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 		return nil, contextError(ctx)
 	}
 	validationStarted := time.Now()
-	if input.OutfitID == "" || (input.DressSide != "left" && input.DressSide != "right") {
+	if input.OutfitID == "" {
 		trace.Record("validating_request", validationStarted)
 		return nil, invalidRequest()
 	}
@@ -81,6 +87,13 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 		return nil, security.ErrConcurrencyLimited
 	}
 	defer release()
+	_, quotaError := s.usage.Check(ctx, principal)
+	if ctx.Err() != nil {
+		return nil, contextError(ctx)
+	}
+	if quotaError != nil {
+		return nil, quotaError
+	}
 	imageValidationStarted := time.Now()
 	trace.Mark(StageObservation{Phase: "validating_images"})
 	couple, err := imagevalidate.ValidateImage(input.CoupleImage, imagevalidate.DefaultImageLimits())
@@ -152,12 +165,29 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 	if ctx.Err() != nil {
 		return nil, contextError(ctx)
 	}
-	result, err := generator.Generate(ctx, GenerationRequest{References: refs, Prompt: couplePrompt(input.DressSide, scene != nil), Trace: trace})
+	submitted := false
+	result, err := generator.Generate(ctx, GenerationRequest{References: refs, Prompt: couplePrompt(scene != nil), Trace: trace, BeforeSend: func(sendCtx context.Context) error {
+		if submitted {
+			return errors.New("模型请求不得重复发送")
+		}
+		if apiError := s.usage.RecordAttempt(sendCtx, principal); apiError != nil {
+			return apiError
+		}
+		submitted = true
+		return nil
+	}})
 	if ctx.Err() != nil {
 		return nil, contextError(ctx)
 	}
 	if err != nil || result == nil || result.Image == nil {
+		var apiError *security.APIError
+		if errors.As(err, &apiError) {
+			return nil, apiError
+		}
 		return nil, generationError(err)
+	}
+	if !submitted {
+		return nil, generationError(ErrUpstream)
 	}
 	// Validate at the service boundary as well: injected generators cannot bypass the result contract.
 	resultValidationStarted := time.Now()
@@ -170,6 +200,12 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 	response := &CoupleResponse{Image: base64.StdEncoding.EncodeToString(image.Data), MIME: image.MIME, Width: image.Width, Height: image.Height, Model: generator.Model(), RequestID: trace.RequestID, ProviderModel: result.ProviderModel, ProviderRequestID: result.ProviderRequestID}
 	if ctx.Err() != nil {
 		return nil, contextError(ctx)
+	}
+	if apiError := s.usage.RecordSuccess(ctx, principal); apiError != nil {
+		if ctx.Err() != nil {
+			return nil, contextError(ctx)
+		}
+		return nil, apiError
 	}
 	return response, nil
 }
@@ -187,16 +223,16 @@ func validScene(scene Scene) bool {
 	}
 }
 
-func couplePrompt(side string, scene bool) string {
+func couplePrompt(scene bool) string {
 	background := "Preserve the original background from reference 1."
 	if scene {
 		background = "Use reference 5 only for the venue; preserve its architecture, stage and decorations without replacing the people."
 	}
-	return fmt.Sprintf("Create exactly one landscape full-body wedding photograph of the same two people from reference 1 (couple). Reference 1 defines each person's identity and viewer-left/viewer-right position. Preserve both identities, faces, natural proportions, and original left/right positions; do not swap or move the people across sides. Assign clothing by the selected side only, regardless of gender or conventional wedding roles: the person on the viewer's %s in reference 1 must wear only the wedding dress from reference 2 (dress). The other person must wear only the menswear, including shoes, from reference 3 (menswear), with shoe details from reference 4 (shoes_detail). This assignment may intentionally put a man in the wedding dress or a woman in menswear. Do not infer clothing from gender or the original outfits, and do not mix garments. Show both people from head to toe, including complete shoes, without cropping. %s", side, background)
+	return fmt.Sprintf("Create exactly one landscape full-body wedding photograph of the same two people from reference 1 (couple). Preserve both identities, faces, natural proportions, and original left/right positions; do not swap or move the people across sides. Decide from reference 1 which person should wear the wedding dress, judging only by what the photo shows. That person must wear only the wedding dress from reference 2 (dress). The other person must wear only the menswear, including shoes, from reference 3 (menswear), with shoe details from reference 4 (shoes_detail). Do not mix garments. Show both people from head to toe, including complete shoes, without cropping. %s", background)
 }
 
 func invalidRequest() *security.APIError {
-	return security.NewAPIError(422, 42200, "INVALID_REQUEST", "请提供合照、套装、婚纱画面左右及互斥场地模式")
+	return security.NewAPIError(422, 42200, "INVALID_REQUEST", "请提供合照、套装及互斥场地模式")
 }
 func imageError(err error) *security.APIError {
 	var apiError *security.APIError

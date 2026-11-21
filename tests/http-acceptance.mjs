@@ -8,12 +8,23 @@ const accessToken = process.env.TRYON_API_KEYS?.split(',').map(token => token.tr
 assert.ok(accessToken, 'HTTP acceptance requires a synthetic access token');
 
 async function post({ headers = {}, data }) {
-  const response = await fetch(base + '/api/tryon/couple', {
+  let response = await fetch(base + '/api/tryon/couple', {
     method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15_000),
     headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(data),
   });
+  if (response.status === 429 && response.headers.has('retry-after')) {
+    const delay = Number(response.headers.get('retry-after'));
+    assert.ok(Number.isInteger(delay) && delay > 0 && delay <= 60, 'bounded explicit rate-limit delay');
+    assert.equal((await response.json()).data.error_code, 'RATE_LIMITED');
+    await new Promise(resolve => setTimeout(resolve, delay * 1000));
+    response = await fetch(base + '/api/tryon/couple', {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15_000),
+      headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(data),
+    });
+  }
   return response;
 }
+
 
 async function terminalEvent(response) {
   assert.match(response.headers.get('content-type') ?? '', /^text\/event-stream\b/);
@@ -71,17 +82,38 @@ async function verifyBodyLimit() {
 }
 
 await verifyBodyLimit();
+for (const headers of [{}, { Authorization: 'Bearer synthetic-invalid-catalog-token' }]) {
+  const directoryResponse = await fetch(base + '/api/catalog/outfits', { headers, cache: 'no-store', redirect: 'error' });
+  assert.equal(directoryResponse.status, 200, 'public catalog does not require generation authorization');
+  assert.equal(directoryResponse.headers.get('cache-control'), 'no-store');
+  const directory = await directoryResponse.json();
+  assert.deepEqual(Object.keys(directory.data).sort(), ['outfits', 'venues', 'version']);
+  assert.ok(directory.data.outfits.length > 0);
+  assert.ok(directory.data.outfits.every(entry => Object.keys(entry).sort().join(',') === 'id,name'));
+  assert.ok(directory.data.venues.every(entry => Object.keys(entry).sort().join(',') === 'id,name'));
+  assert.deepEqual(directory.data.venues, []);
+}
+for (const [token, status] of [['', 401], ['synthetic-invalid-code', 401], [accessToken, 200]]) {
+  const response = await fetch(base + '/api/tryon/authorize', {
+    method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'error',
+  });
+  assert.equal(response.status, status);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const body = await response.json();
+  if (status === 200) assert.deepEqual(body, { code: 0, message: '', data: { remaining: 5 } });
+  else assert.match(body.data.error_code, /^AUTH_/);
+}
 const validCouple = readFileSync(new URL('../backend/internal/imagevalidate/testdata/checker.png', import.meta.url)).toString('base64');
 for (const token of ['', 'synthetic-invalid-generation-token']) {
   const response = await post({
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    data: { couple_image: validCouple, outfit_id: 'W001', dress_side: 'left', scene: { mode: 'original' } },
+    data: { couple_image: validCouple, outfit_id: 'W001', scene: { mode: 'original' } },
   });
   assert.equal(response.status, 401);
 }
 const unconfigured = await post({
   headers: { Authorization: `Bearer ${accessToken}` },
-  data: { couple_image: validCouple, outfit_id: 'W001', dress_side: 'left', scene: { mode: 'original' } },
+  data: { couple_image: validCouple, outfit_id: 'W001', scene: { mode: 'original' } },
 });
 assert.equal(unconfigured.status, 200, 'accepted generation requests establish an SSE stream');
 const unconfiguredTerminal = await terminalEvent(unconfigured);
@@ -95,7 +127,7 @@ for (const [scene, code, streamed] of [
   [{ mode: 'venue', venue_id: 'V999' }, 'UNKNOWN_VENUE', true],
   [{ mode: 'venue', venue_id: '../private/intake.json' }, 'UNKNOWN_VENUE', true],
 ]) {
-  const response = await post({ headers: { Authorization: `Bearer ${accessToken}` }, data: { couple_image: validCouple, outfit_id: 'W001', dress_side: 'left', scene } });
+  const response = await post({ headers: { Authorization: `Bearer ${accessToken}` }, data: { couple_image: validCouple, outfit_id: 'W001', scene } });
   if (!streamed) {
     assert.equal(response.status, 422);
     assert.equal((await response.json()).data.error_code, code);
@@ -108,3 +140,14 @@ for (const [scene, code, streamed] of [
   }
 }
 console.log('Isolated HTTP acceptance: auth, empty model configuration and invalid inputs passed');
+
+let remaining = await fetch(base + '/api/tryon/authorize', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` } });
+if (remaining.status === 429) {
+  const delay = Number(remaining.headers.get('retry-after'));
+  assert.ok(Number.isInteger(delay) && delay > 0 && delay <= 60);
+  assert.equal((await remaining.json()).data.error_code, 'RATE_LIMITED');
+  await new Promise(resolve => setTimeout(resolve, delay * 1000));
+  remaining = await fetch(base + '/api/tryon/authorize', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` } });
+}
+assert.equal(remaining.status, 200);
+assert.equal((await remaining.json()).data.remaining, 5, 'preflight and pre-send failures preserve all successes');

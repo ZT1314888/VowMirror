@@ -1,6 +1,8 @@
 const ERROR_MESSAGES = {
-  AUTH_REQUIRED: '请输入后端访问 Token',
-  AUTH_INVALID: '后端访问 Token 无效',
+  AUTH_REQUIRED: '请输入生成码后再继续',
+  AUTH_INVALID: '生成码无效，请检查后重试',
+  SUCCESS_QUOTA_EXCEEDED: '此生成码的五次成功额度已用完',
+  USAGE_UNAVAILABLE: '生成额度存储不可用，请稍后重试',
   ORIGIN_NOT_ALLOWED: '当前页面来源不允许访问后端',
   REQUEST_TOO_LARGE: '请求超过大小限制',
   INVALID_IMAGE_BASE64: '图片编码无效',
@@ -9,7 +11,7 @@ const ERROR_MESSAGES = {
   IMAGE_DIMENSIONS_INVALID: '图片尺寸不符合要求',
   IMAGE_PIXEL_LIMIT_EXCEEDED: '图片像素超过限制',
   RATE_LIMITED: '请求过于频繁，请稍后再试',
-  DAILY_QUOTA_EXCEEDED: '今日生成尝试额度已用完',
+  DAILY_QUOTA_EXCEEDED: '此生成码今日模型尝试次数已用完，请在 UTC 次日重试',
   CONCURRENCY_LIMITED: '当前已有生成请求，请稍后再试',
 };
 

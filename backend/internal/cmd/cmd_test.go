@@ -21,6 +21,7 @@ import (
 
 func inBackendRoot(t *testing.T) {
 	t.Helper()
+	t.Setenv("TRYON_USAGE_DB", filepath.Join(t.TempDir(), "usage.sqlite"))
 	previous, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -87,12 +88,6 @@ func TestCatalogRoutes(t *testing.T) {
 		}
 		return response.StatusCode, response.Header, body
 	}
-	for _, accessToken := range []string{"", "incorrect-catalog-token-0000000000000"} {
-		status, _, body := request(t, "/catalog/outfits", accessToken)
-		if status != http.StatusUnauthorized {
-			t.Fatalf("expected 401, got %d: %s", status, body)
-		}
-	}
 	status, _, _ := request(t, "/health", "")
 	if status != http.StatusOK || loads.Load() != 0 {
 		t.Fatal("health and rejected authentication must not read the manifest")
@@ -134,30 +129,38 @@ func TestCatalogRoutes(t *testing.T) {
 	if err := os.WriteFile(path, fixture, 0600); err != nil {
 		t.Fatal(err)
 	}
-	status, header, body := request(t, "/catalog/outfits", token)
-	if status != http.StatusOK || header.Get("Cache-Control") != "no-store" {
-		t.Fatalf("unexpected catalog response: %d, %s", status, body)
-	}
-	var envelope struct {
-		Code    int             `json:"code"`
-		Message string          `json:"message"`
-		Data    json.RawMessage `json:"data"`
-	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
+	wantManifest, err := catalog.ParseManifest(fixture)
+	if err != nil {
 		t.Fatal(err)
 	}
-	var got, want any
-	if err := json.Unmarshal(envelope.Data, &got); err != nil {
-		t.Fatal(err)
+	want := catalog.ExposePublicDirectory(wantManifest)
+	for _, accessToken := range []string{"", "incorrect-catalog-token-0000000"} {
+		status, header, body := request(t, "/catalog/outfits", accessToken)
+		if status != http.StatusOK || header.Get("Cache-Control") != "no-store" {
+			t.Fatalf("unexpected public catalog response: %d, %s", status, body)
+		}
+		var envelope struct {
+			Code    int                     `json:"code"`
+			Message string                  `json:"message"`
+			Data    catalog.PublicDirectory `json:"data"`
+		}
+		if err := json.Unmarshal(body, &envelope); err != nil {
+			t.Fatal(err)
+		}
+		if envelope.Code != 0 || envelope.Message != "" || !reflect.DeepEqual(envelope.Data, want) {
+			t.Fatalf("unexpected public catalog fields: %s", body)
+		}
+		for _, privateField := range []string{`"path"`, `"poses"`, `"dress"`, `"menswear"`, `"shoes_detail"`} {
+			if strings.Contains(string(body), privateField) {
+				t.Fatalf("public catalog exposed %s", privateField)
+			}
+		}
+		if strings.Contains(string(body), token) {
+			t.Fatal("public catalog exposed a credential")
+		}
 	}
-	if err := json.Unmarshal(fixture, &want); err != nil {
-		t.Fatal(err)
-	}
-	if envelope.Code != 0 || envelope.Message != "" || !reflect.DeepEqual(got, want) {
-		t.Fatal("response must contain exactly the manifest metadata")
-	}
-	if strings.Contains(string(body), token) || loads.Load() != 4 {
-		t.Fatal("unexpected credential exposure or manifest load count")
+	if loads.Load() != 5 {
+		t.Fatalf("unexpected manifest load count: %d", loads.Load())
 	}
 }
 
@@ -235,17 +238,5 @@ func TestFoundationRoutes(t *testing.T) {
 		if res.StatusCode != 404 {
 			t.Fatalf("%s %s should be 404, got %d", route.method, route.path, res.StatusCode)
 		}
-	}
-	request, err := http.NewRequest(http.MethodGet, base+"/catalog/outfits", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, err := client.Do(request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res.Body.Close()
-	if res.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("catalog without token should be 401, got %d", res.StatusCode)
 	}
 }

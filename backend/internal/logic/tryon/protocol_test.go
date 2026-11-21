@@ -271,6 +271,7 @@ func TestProviderHeadersAreObservedBeforeStatusOrBodyFailures(t *testing.T) {
 
 func TestGPTImageRejectsInvalidReferencesBeforeNetwork(t *testing.T) {
 	var calls atomic.Int32
+	var attempts atomic.Int32
 	gen, _ := tlsGenerator(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
 	for _, modify := range []func(*GenerationRequest){
 		func(r *GenerationRequest) { r.References = r.References[:3] },
@@ -286,13 +287,28 @@ func TestGPTImageRejectsInvalidReferencesBeforeNetwork(t *testing.T) {
 		func(r *GenerationRequest) { r.References = append(r.References, r.References[0]) },
 	} {
 		input := generationInput(t, true)
+		input.BeforeSend = func(context.Context) error { attempts.Add(1); return nil }
 		modify(&input)
 		if _, err := gen.Generate(context.Background(), input); !errors.Is(err, ErrReferences) {
 			t.Fatalf("invalid reference accepted: %v", err)
 		}
 	}
-	if calls.Load() != 0 {
+	if calls.Load() != 0 || attempts.Load() != 0 {
 		t.Fatal("invalid input reached network")
+	}
+}
+
+func TestGPTImageAccountingRefusalPreventsTransport(t *testing.T) {
+	var calls atomic.Int32
+	gen, _ := tlsGenerator(t, func(http.ResponseWriter, *http.Request) { calls.Add(1) })
+	input := generationInput(t, false)
+	refused := errors.New("usage database unavailable")
+	input.BeforeSend = func(context.Context) error { return refused }
+	if _, err := gen.Generate(context.Background(), input); !errors.Is(err, refused) {
+		t.Fatalf("accounting error lost: %v", err)
+	}
+	if calls.Load() != 0 {
+		t.Fatal("refused accounting still reached transport")
 	}
 }
 

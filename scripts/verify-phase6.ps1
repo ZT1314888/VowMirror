@@ -1,4 +1,4 @@
-param([switch]$ColdBuild, [ValidateSet('phase6', 'phase7')][string]$Stage = 'phase6')
+param([switch]$ColdBuild, [ValidateSet('phase6', 'phase7', 'phase8')][string]$Stage = 'phase6')
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -14,6 +14,7 @@ $token = 'synthetic-' + $runID
 $settings = @{
     COMPOSE_PROJECT_NAME = $runID
     TRYON_API_KEYS = $token
+    TRYON_DAILY_ATTEMPT_LIMIT = '10'
     MODEL_PROVIDER = ''
     MODEL_NAME = ''
     MODEL_BASE_URL = ''
@@ -22,6 +23,8 @@ $settings = @{
     VOWMIRROR_GO_MOD_VOLUME = $runID + '-mod'
     VOWMIRROR_GO_BUILD_VOLUME = $runID + '-build'
     VOWMIRROR_ACCEPTANCE_OFFLINE = 'true'
+    VOWMIRROR_SOURCE_MODE = 'ro'
+    VOWMIRROR_EVIDENCE_DIR = ($evidence -replace '\\', '/') + '/screenshots'
 }
 $previous = @{}
 foreach ($name in $settings.Keys) {
@@ -58,6 +61,7 @@ try {
     Invoke-Compose @('config', '--quiet')
     $build = @('build')
     if ($ColdBuild) { $build += '--no-cache' }
+    if ($env:GOPROXY) { $build += @('--build-arg', ('GOPROXY=' + $env:GOPROXY)) }
     Invoke-Compose ($build + @('tools-go', 'tools-node', 'tools-browser', 'web', 'backend'))
 
     # The rebuilt image supplies freshly downloaded modules to the new named volume.
@@ -66,10 +70,12 @@ try {
     Invoke-Compose @('run', '--rm', '-T', 'tools-go')
     Invoke-Compose @('run', '--rm', '-T', 'tools-node')
 
-    $tracked = & git ls-files
+    $tracked = & git ls-files --cached --others --exclude-standard
     if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect tracked source files' }
     $images = @($tracked | Where-Object { $_ -match '\.(png|jpe?g|webp)$' })
     $expected = @('backend/internal/imagevalidate/testdata/checker.jpg', 'backend/internal/imagevalidate/testdata/checker.png', 'backend/internal/imagevalidate/testdata/checker.webp')
+    $publicAssets = Get-Content -LiteralPath 'web/public/manifest.json' -Raw | ConvertFrom-Json
+    $expected += @($publicAssets.assets | ForEach-Object { 'web/public/' + $_.file })
     if (Compare-Object ($images | Sort-Object) ($expected | Sort-Object)) { throw 'Unexpected tracked image' }
     if ($tracked | Where-Object { $_ -match '(^|/)(\.env|config\.yaml|private/|node_modules/|go-build/)|\.(exe|log|test)$' -and $_ -ne '.env.example' }) {
         throw 'Private input or build artifact entered tracked source'
@@ -91,6 +97,9 @@ try {
     Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', '--test', 'tests/browser-safety.test.mjs')
     Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/http-acceptance.mjs')
     Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/smoke.mjs', '--stage', $Stage)
+    Invoke-Compose @('restart', 'backend')
+    Invoke-Compose @('up', '-d', '--wait', 'web', 'backend')
+    Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/restart-acceptance.mjs')
     Invoke-Compose @('logs', '--no-color', 'web', 'backend')
     $markers = @($token, 'synthetic-body-limit-client-marker', 'synthetic-acceptance-private-marker', [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $root 'backend/internal/imagevalidate/testdata/checker.png'))))
     foreach ($log in Get-ChildItem -LiteralPath $evidence -Filter '*.log') {

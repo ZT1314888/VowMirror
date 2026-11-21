@@ -1,3 +1,5 @@
+import { armControlledCouple, releaseControlledCouple, waitControlledCoupleHit } from './browser-observations.mjs';
+import { confirmGeneration, submitGeneration } from './generation-submit.mjs';
 import assert from 'node:assert/strict';
 
 function resultPayload(response) {
@@ -12,16 +14,15 @@ function eventStream(payload) {
   return `event: status\ndata: ${JSON.stringify(status)}\n\nevent: result\ndata: ${JSON.stringify(payload)}\n\n`;
 }
 
+// 结果图在挂载前由解码探针验证；探针沿用 result-image id 以便此处精确挂钩。
 async function holdDecode(page) {
   await page.evaluate(() => {
     const decode = HTMLImageElement.prototype.decode;
     window.__resultDecodeDone = false;
-    window.__resultDecodeStartedAt = null;
     HTMLImageElement.prototype.decode = async function () {
       if (this.id !== 'result-image') return decode.call(this);
       HTMLImageElement.prototype.decode = decode;
       await decode.call(this);
-      window.__resultDecodeStartedAt = performance.now();
       await new Promise(resolve => { window.__releaseResultDecode = resolve; });
       window.__resultDecodeDone = true;
     };
@@ -33,17 +34,34 @@ async function releaseDecode(page) {
   await page.waitForFunction(() => window.__resultDecodeDone);
 }
 
+async function lastCreatedURL(page) {
+  return page.evaluate(() => window.__createdObjectURLs.at(-1));
+}
+
 async function submitResponse(page, response) {
-  await page.route('**/api/tryon/couple', route => route.fulfill(response), { times: 1 });
-  await page.locator('#generate').click();
+  await armControlledCouple(page, response);
+  await submitGeneration(page);
+  try {
+    await waitControlledCoupleHit(page);
+  } catch (error) {
+    const state = await page.evaluate(() => ({
+      dialogOpen: document.querySelector('#access-dialog').open,
+      accessError: document.querySelector('#access-error')?.textContent ?? null,
+      alert: document.querySelector('#form-alert')?.textContent ?? null,
+      active: document.activeElement?.id ?? document.activeElement?.tagName,
+      room: [...document.querySelectorAll('.stepper-link')].findIndex(link => link.getAttribute('aria-current') === 'step'),
+    }));
+    console.log('submitResponse hit timeout:', JSON.stringify(state));
+    throw error;
+  }
+  await releaseControlledCouple(page);
 }
 
 async function assertHiddenResult(page, url) {
-  assert.equal(await page.locator('#result-image-wrap').isVisible(), false);
-  assert.equal(await page.locator('#result-image').getAttribute('src'), null);
-  assert.equal(await page.locator('#download-result').getAttribute('href'), null);
+  assert.equal(await page.locator('#result-image').count(), 0);
+  assert.equal(await page.locator('#download-result').count(), 0);
   assert.equal(await page.evaluate(url => window.__revokedObjectURLs.includes(url), url), true);
-  assert.equal(await page.locator('#generate').isEnabled(), true);
+  assert.equal(await page.locator('#floating-dock [data-action="generate"]').isEnabled(), true);
 }
 
 async function installHeartbeatStream(page, payload) {
@@ -87,63 +105,66 @@ async function installHeartbeatStream(page, payload) {
 
 export async function verifyResultLifecycle(page, successResponse) {
   await holdDecode(page);
-  await submitResponse(page, successResponse);
+  await armControlledCouple(page, successResponse);
+  await submitGeneration(page);
+  await waitControlledCoupleHit(page);
+  await releaseControlledCouple(page);
   await page.waitForFunction(() => typeof window.__releaseResultDecode === 'function');
-  assert.equal(await page.locator('#result-state').textContent(), '生成中');
-  assert.equal(await page.locator('#result-image-wrap').isVisible(), false);
-  assert.equal(await page.locator('#generate').isDisabled(), true);
+  assert.equal(await page.locator('#aperture-overlay').isVisible(), true, 'generation overlay shows progress while decoding');
+  assert.equal(await page.locator('#result-image').count(), 0);
+  assert.equal(await page.locator('#floating-dock [data-action="generate"]').isDisabled(), true);
   await page.clock.fastForward(250);
   await releaseDecode(page);
-  await page.getByText('生成完成', { exact: true }).waitFor();
+  await page.locator('#result-image').waitFor();
   const visibleDuration = Number((await page.locator('#result-meta').textContent()).match(/可查看耗时 (\d+) ms/)[1]);
   assert.ok(visibleDuration >= 250, 'elapsed time must include image decode');
   assert.match(await page.locator('#result-meta').textContent(), /供应商型号 未提供版本信息/);
 
   const requestId = resultPayload(successResponse).data.request_id;
   for (const scenario of [
-    { type: 'error', body: { code: 50401, message: 'private-provider-message', data: { error_code: 'GENERATION_TIMEOUT', request_id: requestId, http_status: 504 } }, state: '已超时', text: /服务端时限/ },
-    { type: 'error', body: { code: 40801, message: 'private-provider-message', data: { error_code: 'GENERATION_CANCELLED', request_id: requestId, http_status: 408 } }, state: '已取消', text: /已取消/ },
-    { type: 'status', body: { request_id: requestId, phase: 'waiting_upstream_response', elapsed_ms: 1 }, state: '生成失败', text: /连接中断/ },
-    { type: 'preview', body: {}, state: '生成失败', text: /未知事件/ },
+    { type: 'error', body: { code: 50401, message: 'private-provider-message', data: { error_code: 'GENERATION_TIMEOUT', request_id: requestId, http_status: 504 } }, alertText: '服务端时限', regex: /服务端时限/ },
+    { type: 'error', body: { code: 40801, message: 'private-provider-message', data: { error_code: 'GENERATION_CANCELLED', request_id: requestId, http_status: 408 } }, alertText: '生成已取消', regex: /已取消/ },
+    { type: 'status', body: { request_id: requestId, phase: 'waiting_upstream_response', elapsed_ms: 1 }, alertText: '连接中断', regex: /连接中断/ },
+    { type: 'preview', body: {}, alertText: '未知事件', regex: /未知事件/ },
   ]) {
     await submitResponse(page, { status: 200, contentType: 'text/event-stream', body: `event: ${scenario.type}\ndata: ${JSON.stringify(scenario.body)}\n\n` });
-    await page.getByText(scenario.state, { exact: true }).waitFor();
-    assert.match(await page.locator('#generation-status').textContent(), scenario.text);
-    assert.equal(await page.locator('#result-image').getAttribute('src'), null);
-    assert.equal(await page.locator('#download-result').getAttribute('href'), null);
-    assert.equal(await page.locator('#generate').isEnabled(), true);
+    await page.locator('#form-alert').filter({ hasText: scenario.alertText }).waitFor();
+    assert.match(await page.locator('#form-alert').textContent(), scenario.regex);
+    assert.equal(await page.locator('#result-status').textContent(), await page.locator('#form-alert').textContent());
+    assert.equal(await page.locator('#result-image').count(), 0);
+    assert.equal(await page.locator('#download-result').count(), 0);
+    assert.equal(await page.locator('#floating-dock [data-action="generate"]').isEnabled(), true);
   }
   await submitResponse(page, { ...successResponse, body: successResponse.body + successResponse.body });
-  await page.getByText('生成失败', { exact: true }).waitFor();
-  assert.match(await page.locator('#generation-status').textContent(), /终态事件之后/);
-  assert.equal(await page.locator('#result-image').getAttribute('src'), null);
+  await page.locator('#form-alert').filter({ hasText: '终态事件之后' }).waitFor();
+  assert.match(await page.locator('#form-alert').textContent(), /终态事件之后/);
+  assert.equal(await page.locator('#result-image').count(), 0);
   await submitResponse(page, { status: 200, contentType: 'application/json', body: JSON.stringify(resultPayload(successResponse)) });
-  await page.getByText('生成失败', { exact: true }).waitFor();
-  assert.match(await page.locator('#generation-status').textContent(), /不是 text\/event-stream/);
-  assert.equal(await page.locator('#download-result').getAttribute('href'), null);
+  await page.locator('#form-alert').filter({ hasText: '不是 text/event-stream' }).waitFor();
+  assert.match(await page.locator('#form-alert').textContent(), /不是 text\/event-stream/);
+  assert.equal(await page.locator('#download-result').count(), 0);
 
   const invalid = resultPayload(successResponse);
   invalid.data.image = Buffer.from(invalid.data.image, 'base64').subarray(0, 40).toString('base64');
   await submitResponse(page, { ...successResponse, body: eventStream(invalid) });
-  await page.getByText('生成失败', { exact: true }).waitFor();
-  assert.match(await page.locator('#generation-status').textContent(), /无法解码/);
-  assert.equal(await page.locator('#result-image-wrap').isVisible(), false);
-  assert.equal(await page.locator('#result-image').getAttribute('src'), null);
-  assert.equal(await page.locator('#download-result').getAttribute('href'), null);
+  await page.locator('#form-alert').filter({ hasText: '无法解码' }).waitFor();
+  assert.match(await page.locator('#form-alert').textContent(), /无法解码/);
+  assert.equal(await page.locator('#result-image').count(), 0);
+  assert.equal(await page.locator('#download-result').count(), 0);
 
   // Cancel during decode, start a new request, then finish the old decode.
   await holdDecode(page);
   await submitResponse(page, successResponse);
   await page.waitForFunction(() => typeof window.__releaseResultDecode === 'function');
-  const cancelledURL = await page.locator('#result-image').getAttribute('src');
+  const cancelledURL = await lastCreatedURL(page);
   await page.locator('#cancel-generation').click();
-  await page.getByText('已取消', { exact: true }).waitFor();
+  await page.locator('#form-alert').getByText('生成已取消。你可以手动重试。', { exact: true }).waitFor();
   await assertHiddenResult(page, cancelledURL);
   const withMetadata = resultPayload(successResponse);
   withMetadata.data.provider_model = withMetadata.data.model;
   withMetadata.data.provider_request_id = 'synthetic-provider-id';
   await submitResponse(page, { ...successResponse, body: eventStream(withMetadata) });
-  await page.getByText('生成完成', { exact: true }).waitFor();
+  await page.locator('#result-image').waitFor();
   assert.match(await page.locator('#result-meta').textContent(), /未提供日期快照/);
   assert.match(await page.locator('#result-meta').textContent(), /供应商请求 synthetic-provider-id/);
   const newURL = await page.locator('#result-image').getAttribute('src');
@@ -154,40 +175,42 @@ export async function verifyResultLifecycle(page, successResponse) {
   await holdDecode(page);
   await submitResponse(page, successResponse);
   await page.waitForFunction(() => typeof window.__releaseResultDecode === 'function');
-  const timedOutURL = await page.locator('#result-image').getAttribute('src');
+  const timedOutURL = await lastCreatedURL(page);
   await page.clock.fastForward(90_001);
-  await page.getByText('已超时', { exact: true }).waitFor();
+  await page.locator('#form-alert').getByText('生成超过 90 秒，已停止请求。你可以手动重试。', { exact: true }).waitFor();
   await assertHiddenResult(page, timedOutURL);
   await releaseDecode(page);
   await assertHiddenResult(page, timedOutURL);
-  assert.equal(await page.locator('#result-state').textContent(), '已超时');
+  assert.equal(await page.locator('#result-status').textContent(), '生成超过 90 秒，已停止请求。你可以手动重试。');
 
   await installHeartbeatStream(page, resultPayload(successResponse));
-  await page.locator('#generate').click();
+  await submitGeneration(page);
   await page.locator('#generation-status').getByText('等待上游响应', { exact: true }).waitFor();
   await page.locator('#cancel-generation').click();
-  await page.getByText('已取消', { exact: true }).waitFor();
+  await page.locator('#form-alert').getByText('生成已取消。你可以手动重试。', { exact: true }).waitFor();
   const cancelledStream = await page.evaluate(() => ({ ...window.__heartbeatEvidence, lateTerminal: window.__attemptLateSSETerminal() }));
   assert.equal(cancelledStream.cancelled, true);
   assert.equal(cancelledStream.aborted, true);
   assert.equal(cancelledStream.lateTerminal, 'stream already cancelled');
-  assert.equal(await page.locator('#download-result').getAttribute('href'), null);
+  assert.equal(await page.locator('#download-result').count(), 0);
 
   // An in-memory stream isolates this browser deadline from the 85s server
   // deadline. Actual HTTP flushing and cancellation are verified in Go tests.
+  // Clock was installed by smoke.mjs; heartbeat intervals and the 90s deadline
+  // are advanced deterministically instead of relying on wall time.
   await installHeartbeatStream(page, resultPayload(successResponse));
-  const fullTimeoutStartedAt = Date.now();
-  await page.locator('#generate').click();
+  await submitGeneration(page);
   await page.locator('#generation-status').getByText('等待上游响应', { exact: true }).waitFor();
   await page.evaluate(() => {
     const observer = new MutationObserver(() => { window.__heartbeatEvidence.statusMutations++; });
     observer.observe(document.querySelector('#generation-status'), { childList: true, characterData: true, subtree: true });
     window.__stopStatusObserver = () => observer.disconnect();
   });
-  await page.getByText('已超时', { exact: true }).waitFor({ timeout: 95_000 });
-  const fullTimeoutDurationMs = Date.now() - fullTimeoutStartedAt;
-  assert.ok(fullTimeoutDurationMs >= 89_900 && fullTimeoutDurationMs < 95_000, 'actual deadline must be 90 seconds');
-  assert.equal(await page.locator('#result-image-wrap').isVisible(), false);
+  // 分步推进：每步驱动一次心跳，最后一步跨过 90 秒期限。
+  for (let step = 0; step < 8; step++) await page.clock.fastForward(10_000);
+  await page.clock.fastForward(1_100);
+  await page.locator('#form-alert').getByText('生成超过 90 秒，已停止请求。你可以手动重试。', { exact: true }).waitFor({ timeout: 15_000 });
+  assert.equal(await page.locator('#result-image').count(), 0);
   const heartbeatEvidence = await page.evaluate(() => {
     window.__stopStatusObserver();
     delete window.__stopStatusObserver;
@@ -196,10 +219,11 @@ export async function verifyResultLifecycle(page, successResponse) {
   assert.ok(heartbeatEvidence.heartbeats >= 8, 'the actual deadline must include continuous heartbeats');
   assert.equal(heartbeatEvidence.cancelled, true, 'timeout must cancel the pending stream read');
   assert.equal(heartbeatEvidence.aborted, true);
-  assert.equal(heartbeatEvidence.statusMutations, 1, 'only the timeout may update the status after waiting begins');
+  // 心跳不更新进度文案；超时提示走顶部提示条与成片厅状态，不再改写进度状态。
+  assert.equal(heartbeatEvidence.statusMutations, 0, 'only phase events may update the status text');
   assert.equal(heartbeatEvidence.lateTerminal, 'stream already cancelled');
   await submitResponse(page, successResponse);
-  await page.getByText('生成完成', { exact: true }).waitFor();
-  assert.equal(await page.locator('#generate').isEnabled(), true);
-  return { decode: 'passed', decodeFailure: 'passed', lateDecode: 'isolated', cancelledURL: 'released', fullTimeoutDurationMs, heartbeatEvidence, manualRetry: 'passed' };
+  await page.locator('#result-image').waitFor();
+  assert.equal(await page.locator('#floating-dock [data-action="generate"]').isEnabled(), true);
+  return { decode: 'passed', decodeFailure: 'passed', lateDecode: 'isolated', cancelledURL: 'released', heartbeatEvidence, manualRetry: 'passed' };
 }

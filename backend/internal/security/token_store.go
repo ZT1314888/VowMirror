@@ -37,7 +37,7 @@ func NewTokenStore(authRequired bool, envKey string) (*TokenStore, error) {
 				return nil, fmt.Errorf("环境变量 %s 中的 Token 长度无效（必须为 32 到 512 个字符）", envKey)
 			}
 			sum := sha256.Sum256([]byte(token))
-			principalID := hex.EncodeToString(sum[:8]) // 前 16 个十六进制字符
+			principalID := hex.EncodeToString(sum[:])
 			tokens = append(tokens, TokenEntry{
 				Hash:        sum,
 				PrincipalID: principalID,

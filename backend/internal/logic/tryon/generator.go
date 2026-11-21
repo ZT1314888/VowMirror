@@ -52,6 +52,7 @@ type GenerationRequest struct {
 	References []Reference
 	Prompt     string
 	Trace      RequestTrace
+	BeforeSend func(context.Context) error
 }
 type GenerationResult struct {
 	Image             *imagevalidate.ValidatedImage

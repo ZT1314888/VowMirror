@@ -23,13 +23,15 @@ func NewAPIError(httpStatus, bizCode int, errCode, message string) *APIError {
 }
 
 var (
-	ErrAuthRequired = NewAPIError(401, 40101, "AUTH_REQUIRED", "请在设置中心填写后端访问 Token")
-	ErrAuthInvalid  = NewAPIError(401, 40102, "AUTH_INVALID", "后端访问 Token 无效")
+	ErrAuthRequired         = NewAPIError(401, 40101, "AUTH_REQUIRED", "请输入生成码后再继续")
+	ErrAuthInvalid          = NewAPIError(401, 40102, "AUTH_INVALID", "生成码无效，请检查后重试")
+	ErrSuccessQuotaExceeded = NewAPIError(403, 40302, "SUCCESS_QUOTA_EXCEEDED", "此生成码的五次成功额度已用完")
+	ErrUsageUnavailable     = NewAPIError(503, 50305, "USAGE_UNAVAILABLE", "生成额度存储不可用，请稍后重试")
 
 	ErrOriginNotAllowed = NewAPIError(403, 40301, "ORIGIN_NOT_ALLOWED", "当前页面来源不允许访问后端")
 
 	ErrRateLimited        = NewAPIError(429, 42901, "RATE_LIMITED", "请求过于频繁，请稍后重试")
-	ErrDailyQuotaExceeded = NewAPIError(429, 42902, "DAILY_QUOTA_EXCEEDED", "今日生成额度已用完")
+	ErrDailyQuotaExceeded = NewAPIError(429, 42902, "DAILY_QUOTA_EXCEEDED", "此生成码今日模型尝试次数已用完，请在 UTC 次日重试")
 	ErrConcurrencyLimited = NewAPIError(429, 42903, "CONCURRENCY_LIMITED", "当前生成任务较多，请稍后重试")
 
 	ErrRequestTooLarge         = NewAPIError(413, 41301, "REQUEST_TOO_LARGE", "上传内容过大，请压缩图片后重试")

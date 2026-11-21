@@ -34,6 +34,7 @@ func GenerateRequestID() string {
 func WriteAPIError(r *ghttp.Request, err *security.APIError) {
 	reqID := GetRequestID(r)
 	r.Response.Header().Set("Content-Type", "application/json; charset=utf-8")
+	r.Response.Header().Set("Cache-Control", "no-store")
 	if reqID != "" {
 		r.Response.Header().Set("X-Request-ID", reqID)
 	}
