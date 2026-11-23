@@ -21,6 +21,46 @@
     <symbol id="icon-shield" viewBox="0 0 24 24"><path d="m12 2 8 4v6c0 5-8 10-8 10S4 17 4 12V6Z"/><path d="m8 12 3 3 5-6"/></symbol>
     <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M5 15a8 8 0 0 0 13 3"/></symbol>
     <symbol id="icon-compare" viewBox="0 0 24 24"><path d="M12 3v18M8 8l-4 4 4 4M16 8l4 4-4 4"/></symbol>
+    <!-- 干花装饰：五瓣小花 / 花枝 / 信笺花饰，currentColor 随容器着色；宿主 svg 自带 viewBox 缩放 -->
+    <g id="deco-flower">
+      <g fill="currentColor" opacity=".85">
+        <ellipse cx="0" cy="-5" rx="2.5" ry="4.6"/>
+        <ellipse cx="0" cy="-5" rx="2.5" ry="4.6" transform="rotate(72)"/>
+        <ellipse cx="0" cy="-5" rx="2.5" ry="4.6" transform="rotate(144)"/>
+        <ellipse cx="0" cy="-5" rx="2.5" ry="4.6" transform="rotate(216)"/>
+        <ellipse cx="0" cy="-5" rx="2.5" ry="4.6" transform="rotate(288)"/>
+      </g>
+      <circle r="1.7" fill="#c5a880"/>
+    </g>
+    <g id="deco-branch">
+      <g fill="none" stroke="currentColor" stroke-linecap="round">
+        <path d="M62 168 C58 132 56 100 46 66 C38 40 26 18 10 4" stroke-width="1.5"/>
+        <path d="M50 92 C60 86 70 76 76 62" stroke-width="1.2"/>
+        <path d="M30 28 C38 24 46 18 52 10" stroke-width="1.2"/>
+      </g>
+      <g fill="currentColor" opacity=".7">
+        <path d="M57 138 C64 132 72 130 80 132 C74 140 66 142 57 138 Z"/>
+        <path d="M52 110 C45 104 37 102 29 104 C34 112 43 114 52 110 Z"/>
+        <path d="M47 74 C54 68 62 66 70 68 C64 76 55 78 47 74 Z"/>
+        <path d="M40 52 C33 46 25 44 17 46 C22 54 31 56 40 52 Z"/>
+        <path d="M76 62 C80 56 86 52 92 52 C90 60 84 64 76 62 Z"/>
+        <path d="M52 10 C56 6 62 3 68 3 C66 10 60 13 52 10 Z"/>
+      </g>
+      <use href="#deco-flower" transform="translate(10 4)"/>
+      <use href="#deco-flower" transform="translate(76 62) scale(.85)"/>
+      <circle cx="46" cy="66" r="2.6" fill="currentColor" opacity=".8"/>
+    </g>
+    <g id="deco-sprig">
+      <g fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+        <path d="M40 13 C30 18 20 25 8 33"/>
+        <path d="M40 13 C50 18 60 25 72 33"/>
+      </g>
+      <g fill="currentColor" opacity=".65">
+        <path d="M24 22 C20 18 15 16 10 17 C13 22 18 24 24 22 Z"/>
+        <path d="M56 22 C60 18 65 16 70 17 C67 22 62 24 56 22 Z"/>
+      </g>
+      <use href="#deco-flower" transform="translate(40 10)"/>
+    </g>
   </defs></svg>
 
   <!-- 全屏环境背景：双缓冲交叉淡入 + 象牙薄纱 + 胶片颗粒 -->
@@ -36,12 +76,16 @@
   <input id="scene-image" name="scene-image" type="file" accept="image/png,image/jpeg,image/webp" class="file-input-proxy" tabindex="-1" aria-hidden="true">
 
   <main id="invitation-screen" class="invitation-screen" aria-labelledby="invitation-title">
+    <svg class="floral-ambient is-tl" viewBox="0 0 120 170" aria-hidden="true"><use href="#deco-branch"/></svg>
+    <svg class="floral-ambient is-br" viewBox="0 0 120 170" aria-hidden="true"><use href="#deco-branch"/></svg>
     <div class="invitation-content">
       <p class="invitation-kicker">A LITTLE INVITATION</p>
       <h1 id="invitation-title">为你们珍藏的，一份婚礼灵感</h1>
       <div class="envelope-art">
+        <svg class="floral-tuck is-left" viewBox="0 0 120 170" aria-hidden="true"><use href="#deco-branch"/></svg>
+        <svg class="floral-tuck is-right" viewBox="0 0 120 170" aria-hidden="true"><use href="#deco-branch"/></svg>
         <div class="envelope-back" aria-hidden="true"></div>
-        <div class="letter-paper" aria-hidden="true"><span>VowMirror</span><i>FOR YOUR FOREVER</i></div>
+        <div class="letter-paper" aria-hidden="true"><svg class="letter-crest" viewBox="0 0 80 36" aria-hidden="true"><use href="#deco-sprig"/></svg><span>VowMirror</span><i>For Your Forever</i></div>
         <div class="envelope-flap" aria-hidden="true"></div>
         <div class="envelope-front" aria-hidden="true"><span>V</span></div>
         <button id="open-invitation" class="wax-seal" type="button" aria-label="轻启请柬，进入婚礼照片创作"><svg class="icon" aria-hidden="true"><use href="#icon-heart"/></svg><span>轻启请柬</span></button>
@@ -106,6 +150,9 @@
       </div>
     </div>
   </main>
+
+  <!-- 花瓣飘落画布：火漆开启瞬间触发，固定全屏、不拦截交互 -->
+  <canvas id="petal-canvas" class="petal-canvas" aria-hidden="true"></canvas>
 
   <dialog id="access-dialog" class="access-dialog" aria-labelledby="access-title"><form id="access-form" class="access-form" novalidate>
     <p class="eyebrow">属于你们的婚礼灵感</p><h2 id="access-title">输入生成码</h2><p>每个生成码累计可成功生成 5 张合影。点击「生成成片」时核验，通过后才调用图像服务。每次生成都需输入，重复使用同一码将沿用剩余额度。</p>

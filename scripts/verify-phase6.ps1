@@ -13,7 +13,7 @@ New-Item -ItemType Directory -Path $evidence | Out-Null
 $token = 'synthetic-' + $runID
 $settings = @{
     COMPOSE_PROJECT_NAME = $runID
-    TRYON_API_KEYS = $token
+    TRYON_API_KEYS = "$token,$token-retry"
     TRYON_DAILY_ATTEMPT_LIMIT = '10'
     MODEL_PROVIDER = ''
     MODEL_NAME = ''
@@ -67,6 +67,8 @@ try {
     # The rebuilt image supplies freshly downloaded modules to the new named volume.
     # Compile test binaries before the hard test deadline, including on a cold cache.
     Invoke-Compose @('run', '--rm', '-T', 'tools-go', 'sh', '-ec', 'for package in $(go list ./...); do go test -c -o /tmp/phase6-test $package; done')
+    Invoke-Compose @('run', '--rm', '-T', 'tools-go', 'timeout', '-s', 'TERM', '-k', '2s', '58s', 'go', 'test', '-count=1', '-timeout=55s', '-v', './internal/facedetect')
+    Invoke-Compose @('run', '--rm', '-T', 'tools-go', 'timeout', '-s', 'TERM', '-k', '2s', '58s', 'go', 'test', '-count=1', '-timeout=55s', '-run', 'TestFaceGateStopsBeforeAssetsAndAccounting|TestAcceptanceHTTPErrorsDoNotLeakSensitiveData|TestProductionCoupleRouteRejectsUnconfiguredModel', './internal/logic/tryon', './internal/cmd')
     Invoke-Compose @('run', '--rm', '-T', 'tools-go')
     Invoke-Compose @('run', '--rm', '-T', 'tools-node')
 
@@ -74,6 +76,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect tracked source files' }
     $images = @($tracked | Where-Object { $_ -match '\.(png|jpe?g|webp)$' })
     $expected = @('backend/internal/imagevalidate/testdata/checker.jpg', 'backend/internal/imagevalidate/testdata/checker.png', 'backend/internal/imagevalidate/testdata/checker.webp')
+    $faceFixtures = @('one.jpg', 'two.jpg', 'three.jpg', 'two-exif6.jpg') | ForEach-Object { 'backend/internal/facedetect/testdata/' + $_ }
+    $expected += $faceFixtures
     $publicAssets = Get-Content -LiteralPath 'web/public/manifest.json' -Raw | ConvertFrom-Json
     $expected += @($publicAssets.assets | ForEach-Object { 'web/public/' + $_.file })
     if (Compare-Object ($images | Sort-Object) ($expected | Sort-Object)) { throw 'Unexpected tracked image' }
@@ -100,8 +104,10 @@ try {
     Invoke-Compose @('restart', 'backend')
     Invoke-Compose @('up', '-d', '--wait', 'web', 'backend')
     Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/restart-acceptance.mjs')
+    Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/face-gate-browser.mjs')
     Invoke-Compose @('logs', '--no-color', 'web', 'backend')
     $markers = @($token, 'synthetic-body-limit-client-marker', 'synthetic-acceptance-private-marker', [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $root 'backend/internal/imagevalidate/testdata/checker.png'))))
+    $markers += $faceFixtures | ForEach-Object { [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $root $_))) }
     foreach ($log in Get-ChildItem -LiteralPath $evidence -Filter '*.log') {
         foreach ($marker in $markers) {
             if ([IO.File]::ReadAllText($log.FullName).Contains($marker)) { throw 'Runtime sensitive marker entered evidence logs' }

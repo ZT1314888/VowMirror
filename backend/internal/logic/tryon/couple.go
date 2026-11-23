@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"image"
 	"time"
 
 	"backend/internal/catalog"
@@ -41,6 +42,9 @@ type OutfitReader interface {
 }
 type Admission interface{ Acquire(string) (func(), bool) }
 type GeneratorFactory func() (ImageGenerator, error)
+type FaceCounter func(context.Context, image.Image, []byte) (int, error)
+
+const minimumCoupleFaces = 2
 
 type Usage interface {
 	Check(context.Context, string) (int, *security.APIError)
@@ -53,13 +57,14 @@ type CoupleService struct {
 	outfits      OutfitReader
 	admission    Admission
 	usage        Usage
+	countFaces   FaceCounter
 }
 
-func NewCoupleService(factory GeneratorFactory, outfits OutfitReader, admission Admission, usage Usage) (*CoupleService, error) {
-	if factory == nil || outfits == nil || admission == nil || usage == nil {
+func NewCoupleService(factory GeneratorFactory, outfits OutfitReader, admission Admission, usage Usage, countFaces FaceCounter) (*CoupleService, error) {
+	if factory == nil || outfits == nil || admission == nil || usage == nil || countFaces == nil {
 		return nil, errors.New("缺少婚礼生成依赖")
 	}
-	return &CoupleService{newGenerator: factory, outfits: outfits, admission: admission, usage: usage}, nil
+	return &CoupleService{newGenerator: factory, outfits: outfits, admission: admission, usage: usage, countFaces: countFaces}, nil
 }
 
 func (s *CoupleService) Generate(ctx context.Context, principal string, trace RequestTrace, input CoupleRequest) (*CoupleResponse, *security.APIError) {
@@ -96,13 +101,14 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 	}
 	imageValidationStarted := time.Now()
 	trace.Mark(StageObservation{Phase: "validating_images"})
-	couple, err := imagevalidate.ValidateImage(input.CoupleImage, imagevalidate.DefaultImageLimits())
-	if err != nil {
+	couple, apiErr := s.validateCouple(ctx, input.CoupleImage)
+	if apiErr != nil {
 		trace.Record("validating_images", imageValidationStarted)
-		return nil, imageError(err)
+		return nil, apiErr
 	}
 	refs := []Reference{{Role: RoleCouple, Data: couple.Data, MIME: couple.MIME}}
 	var scene *imagevalidate.ValidatedImage
+	var err error
 	if input.Scene.Mode == "upload" {
 		scene, err = imagevalidate.ValidateImage(input.Scene.Image, imagevalidate.DefaultImageLimits())
 		if err != nil {
@@ -208,6 +214,24 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 		return nil, apiError
 	}
 	return response, nil
+}
+
+func (s *CoupleService) validateCouple(ctx context.Context, input string) (*imagevalidate.ValidatedImage, *security.APIError) {
+	couple, pixels, err := imagevalidate.DecodeImage(input, imagevalidate.DefaultImageLimits())
+	if err != nil {
+		return nil, imageError(err)
+	}
+	count, err := s.countFaces(ctx, pixels, couple.Data)
+	if ctx.Err() != nil {
+		return nil, contextError(ctx)
+	}
+	if err != nil {
+		return nil, security.ErrFaceDetectionUnavailable
+	}
+	if count < minimumCoupleFaces {
+		return nil, security.ErrNotCouple
+	}
+	return couple, nil
 }
 
 func validScene(scene Scene) bool {

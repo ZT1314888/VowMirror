@@ -5,6 +5,7 @@ import { verifyAuthorizationFlow, verifyMobileForm } from './authorization-flow.
 import { createRequire } from 'node:module';
 import { armControlledCouple, blockUncontrolledGeneration, controlledCaptures, installControlledCouple, observeConsole, releaseControlledCouple, waitControlledCoupleHit } from './browser-observations.mjs';
 import { verifyResultLifecycle } from './result-lifecycle.mjs';
+import { verifyInvitationFlow, waitForInvitationReady } from './invitation-flow.mjs';
 
 const require = createRequire('/opt/browser/package.json');
 const { chromium } = require('playwright');
@@ -42,6 +43,7 @@ async function currentRoom(page) {
 }
 
 async function waitForCatalog(page) {
+  await waitForInvitationReady(page);
   await page.waitForFunction(() => {
     const links = [...document.querySelectorAll('.stepper-link')];
     return links.length === 4 && links.every(link => !link.disabled);
@@ -71,6 +73,7 @@ try {
   page.on('request', request => requested.push(request.url()));
   // 「上传场地照片」瓦片会打开文件选择器：全局即时消费，避免模态阻塞后续点击。
   page.on('filechooser', chooser => { chooser.setFiles([]).catch(() => {}); });
+  console.log(JSON.stringify({ invitationFlow: await verifyInvitationFlow(page, base) }));
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const width of [375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });

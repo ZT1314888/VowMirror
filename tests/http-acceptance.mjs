@@ -103,7 +103,9 @@ for (const [token, status] of [['', 401], ['synthetic-invalid-code', 401], [acce
   if (status === 200) assert.deepEqual(body, { code: 0, message: '', data: { remaining: 5 } });
   else assert.match(body.data.error_code, /^AUTH_/);
 }
-const validCouple = readFileSync(new URL('../backend/internal/imagevalidate/testdata/checker.png', import.meta.url)).toString('base64');
+const checker = readFileSync(new URL('../backend/internal/imagevalidate/testdata/checker.png', import.meta.url)).toString('base64');
+const single = readFileSync(new URL('../backend/internal/facedetect/testdata/one.jpg', import.meta.url)).toString('base64');
+const validCouple = readFileSync(new URL('../backend/internal/facedetect/testdata/two.jpg', import.meta.url)).toString('base64');
 for (const token of ['', 'synthetic-invalid-generation-token']) {
   const response = await post({
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -111,9 +113,22 @@ for (const token of ['', 'synthetic-invalid-generation-token']) {
   });
   assert.equal(response.status, 401);
 }
+for (const couple_image of [checker, single]) {
+  const response = await post({
+    headers: { Authorization: `Bearer ${accessToken}` },
+    data: { couple_image, outfit_id: 'W001', scene: { mode: 'original' } },
+  });
+  assert.equal(response.status, 200);
+  const terminal = await terminalEvent(response);
+  assert.equal(terminal.event, 'error');
+  assert.equal(terminal.payload.code, 42210);
+  assert.equal(terminal.payload.data.error_code, 'COUPLE_IMAGE_NOT_COUPLE');
+  assert.equal(terminal.payload.data.http_status, 422);
+  assert.equal(terminal.payload.message, '未检测到两张清晰的人脸，请换一张两人面部清楚的合照。');
+}
 const unconfigured = await post({
   headers: { Authorization: `Bearer ${accessToken}` },
-  data: { couple_image: validCouple, outfit_id: 'W001', scene: { mode: 'original' } },
+  data: { couple_image: validCouple, outfit_id: 'W001', scene: { mode: 'upload', image: checker } },
 });
 assert.equal(unconfigured.status, 200, 'accepted generation requests establish an SSE stream');
 const unconfiguredTerminal = await terminalEvent(unconfigured);

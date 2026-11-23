@@ -146,9 +146,11 @@ func TestCouplePromptLetsModelDecideDressWearer(t *testing.T) {
 	}
 }
 
+func twoFaces(context.Context, image.Image, []byte) (int, error) { return 2, nil }
+
 func serviceFor(t *testing.T, generator ImageGenerator, reader OutfitReader, admission Admission) *CoupleService {
 	t.Helper()
-	service, err := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission, usageFor(t))
+	service, err := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission, usageFor(t), twoFaces)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,13 +248,32 @@ func TestCoupleInvalidInputsNeverInvokeGenerator(t *testing.T) {
 	}
 	release()
 }
+
+// Signal a deadline at a known execution boundary without racing setup or IO.
+type triggeredDeadlineContext struct {
+	context.Context
+	done chan struct{}
+}
+
+func (c *triggeredDeadlineContext) Done() <-chan struct{} { return c.done }
+func (c *triggeredDeadlineContext) Err() error {
+	select {
+	case <-c.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
+}
+
 func TestCoupleFailureAlwaysReleasesAdmission(t *testing.T) {
 	for _, scenario := range []string{"upstream", "result", "asset", "unknown", "nil asset", "timeout", "cancel"} {
 		t.Run(scenario, func(t *testing.T) {
 			admission := security.NewConcurrencyManager(1, 1)
 			ctx, cancel := context.WithCancel(context.Background())
+			var deadline *triggeredDeadlineContext
 			if scenario == "timeout" {
-				ctx, cancel = context.WithTimeout(ctx, 50*time.Millisecond)
+				deadline = &triggeredDeadlineContext{Context: context.Background(), done: make(chan struct{})}
+				ctx = deadline
 			}
 			defer cancel()
 			generator := testGenerator{run: func(ctx context.Context, r GenerationRequest) (*imagevalidate.ValidatedImage, error) {
@@ -262,6 +283,8 @@ func TestCoupleFailureAlwaysReleasesAdmission(t *testing.T) {
 				case "result":
 					return &imagevalidate.ValidatedImage{MIME: "image/png", Data: []byte("private-marker")}, nil
 				case "timeout":
+					// testGenerator invokes BeforeSend before entering this callback.
+					close(deadline.done)
 					<-ctx.Done()
 					return nil, ctx.Err()
 				case "cancel":
@@ -287,7 +310,7 @@ func TestCoupleFailureAlwaysReleasesAdmission(t *testing.T) {
 				t.Fatal(ledgerErr)
 			}
 			defer ledger.Close()
-			service, serviceErr := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission, ledger)
+			service, serviceErr := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission, ledger, twoFaces)
 			if serviceErr != nil {
 				t.Fatal(serviceErr)
 			}
@@ -393,7 +416,7 @@ func TestBusyRequestsDoNotAllocateImagePixels(t *testing.T) {
 			}, testOutfits{run: func(context.Context, string) (catalog.OutfitImages, error) {
 				t.Fatal("busy request read outfit assets")
 				return catalog.OutfitImages{}, nil
-			}}, admission, usageFor(t))
+			}}, admission, usageFor(t), twoFaces)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -1,4 +1,6 @@
 const ERROR_MESSAGES = {
+  COUPLE_IMAGE_NOT_COUPLE: '未检测到两张清晰的人脸，请换一张两人面部清楚的合照。',
+  FACE_DETECTION_UNAVAILABLE: '暂时无法检查合照，请稍后重试。',
   AUTH_REQUIRED: '请输入生成码后再继续',
   AUTH_INVALID: '生成码无效，请检查后重试',
   SUCCESS_QUOTA_EXCEEDED: '此生成码的五次成功额度已用完',

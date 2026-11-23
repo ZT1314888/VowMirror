@@ -23,10 +23,12 @@ func NewAPIError(httpStatus, bizCode int, errCode, message string) *APIError {
 }
 
 var (
-	ErrAuthRequired         = NewAPIError(401, 40101, "AUTH_REQUIRED", "请输入生成码后再继续")
-	ErrAuthInvalid          = NewAPIError(401, 40102, "AUTH_INVALID", "生成码无效，请检查后重试")
-	ErrSuccessQuotaExceeded = NewAPIError(403, 40302, "SUCCESS_QUOTA_EXCEEDED", "此生成码的五次成功额度已用完")
-	ErrUsageUnavailable     = NewAPIError(503, 50305, "USAGE_UNAVAILABLE", "生成额度存储不可用，请稍后重试")
+	ErrNotCouple                = NewAPIError(422, 42210, "COUPLE_IMAGE_NOT_COUPLE", "未检测到两张清晰的人脸，请换一张两人面部清楚的合照。")
+	ErrFaceDetectionUnavailable = NewAPIError(503, 50307, "FACE_DETECTION_UNAVAILABLE", "暂时无法检查合照，请稍后重试。")
+	ErrAuthRequired             = NewAPIError(401, 40101, "AUTH_REQUIRED", "请输入生成码后再继续")
+	ErrAuthInvalid              = NewAPIError(401, 40102, "AUTH_INVALID", "生成码无效，请检查后重试")
+	ErrSuccessQuotaExceeded     = NewAPIError(403, 40302, "SUCCESS_QUOTA_EXCEEDED", "此生成码的五次成功额度已用完")
+	ErrUsageUnavailable         = NewAPIError(503, 50305, "USAGE_UNAVAILABLE", "生成额度存储不可用，请稍后重试")
 
 	ErrOriginNotAllowed = NewAPIError(403, 40301, "ORIGIN_NOT_ALLOWED", "当前页面来源不允许访问后端")
 

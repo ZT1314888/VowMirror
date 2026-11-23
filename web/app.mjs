@@ -2,6 +2,7 @@ import { getAPIError, parseAPIResponse } from './response-core.mjs';
 import { imageExtensionForMime, normalizeImageMime, readImageFile, resolveResultImageInfo } from './image-core.mjs';
 import { consumeSSE } from './sse-core.mjs';
 import { cancelDissolve, dissolveTransition } from './particle-core.mjs';
+import { petalBurst } from './petal-core.mjs';
 
 const GENERATION_TIMEOUT_MS = 90_000;
 const GENERATION_PHASE_LABELS = Object.freeze({
@@ -50,6 +51,9 @@ const tokenInput = document.querySelector('#access-token');
 const accessDialog = document.querySelector('#access-dialog');
 const accessForm = document.querySelector('#access-form');
 const healthStatus = document.querySelector('#health-status');
+const invitationScreen = document.querySelector('#invitation-screen');
+const openInvitationButton = document.querySelector('#open-invitation');
+const petalCanvas = document.querySelector('#petal-canvas');
 
 const state = {
   room: 0,
@@ -970,20 +974,56 @@ accessDialog.addEventListener('keydown', event => {
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 });
-document.querySelector('#open-invitation').addEventListener('click', event => {
-  event.currentTarget.disabled = true;
-  const invitation = document.querySelector('#invitation-screen');
+// 请柬开启编排：火漆裂纹 → 掀盖露衬里 → 信纸升起放大 → 交叉过渡进画廊。
+let invitationOpenTimers = [];
+let invitationOpening = false;
+
+function clearInvitationOpenTimers() {
+  for (const timerId of invitationOpenTimers) window.clearTimeout(timerId);
+  invitationOpenTimers = [];
+}
+
+function finishInvitationOpening() {
+  if (!invitationOpening) return;
+  invitationOpening = false;
+  clearInvitationOpenTimers();
   const experience = document.querySelector('#experience');
-  invitation.classList.add('is-opening');
-  window.setTimeout(() => {
-    invitation.hidden = true;
-    experience.hidden = false;
-    goToRoom(0);
-    if (pendingAlertMessage) {
-      showAlert(pendingAlertMessage);
-      pendingAlertMessage = '';
-    }
-  }, prefersReducedMotion() ? 0 : 620);
+  invitationScreen.classList.add('is-fading');
+  experience.hidden = false;
+  experience.classList.add('is-revealing');
+  goToRoom(0);
+  if (pendingAlertMessage) {
+    showAlert(pendingAlertMessage);
+    pendingAlertMessage = '';
+  }
+  invitationOpenTimers.push(window.setTimeout(() => {
+    invitationScreen.hidden = true;
+    invitationScreen.classList.remove('is-opening', 'is-cracked', 'is-fading');
+    experience.classList.remove('is-revealing');
+  }, prefersReducedMotion() ? 0 : 420));
+}
+
+openInvitationButton.addEventListener('click', () => {
+  openInvitationButton.disabled = true;
+  invitationOpening = true;
+  invitationScreen.classList.add('is-cracked');
+  // 花瓣从火漆位置迸出飘落，余韵延续到画廊首屏；减少动态时模块内部直接跳过。
+  const sealRect = openInvitationButton.getBoundingClientRect();
+  petalBurst({ canvas: petalCanvas, origin: { x: sealRect.left + sealRect.width / 2, y: sealRect.top + sealRect.height / 2 } });
+  if (prefersReducedMotion()) {
+    finishInvitationOpening();
+    return;
+  }
+  invitationOpenTimers.push(window.setTimeout(() => invitationScreen.classList.add('is-opening'), 140));
+  invitationOpenTimers.push(window.setTimeout(finishInvitationOpening, 980));
+});
+
+// 动画期间在请柬页任意点击或按 Esc 可直接进入（BKE Studio 式跳过）。
+invitationScreen.addEventListener('pointerdown', () => {
+  if (invitationOpening) finishInvitationOpening();
+});
+document.addEventListener('keydown', event => {
+  if (invitationOpening && event.key === 'Escape') finishInvitationOpening();
 });
 
 // 同源图片加载失败时移除元素，露出渐变兜底；委托捕获避免 CSP 内联事件处理器。

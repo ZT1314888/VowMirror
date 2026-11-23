@@ -59,6 +59,8 @@ func TestCoupleStrictJSON(t *testing.T) {
 	}
 }
 
+func twoFaces(context.Context, image.Image, []byte) (int, error) { return 2, nil }
+
 type apiGenerator struct {
 	calls  *atomic.Int32
 	output *imagevalidate.ValidatedImage
@@ -197,7 +199,7 @@ func TestCoupleHTTPBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	var calls atomic.Int32
-	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return apiGenerator{calls: &calls, output: result}, nil }, apiOutfits{image: img}, security.NewConcurrencyManager(1, 1), usageFor(t))
+	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return apiGenerator{calls: &calls, output: result}, nil }, apiOutfits{image: img}, security.NewConcurrencyManager(1, 1), usageFor(t), twoFaces)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +309,7 @@ func TestSSEHeartbeatsKeepStreamWithoutClaimingProgressAndDisconnectCancelsUpstr
 	generator := blockingAPIGenerator{started: make(chan struct{}), stopped: make(chan struct{})}
 	handlerStopped := make(chan struct{})
 	admission := security.NewConcurrencyManager(1, 1)
-	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return generator, nil }, apiOutfits{image: img}, admission, usageFor(t))
+	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return generator, nil }, apiOutfits{image: img}, admission, usageFor(t), twoFaces)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,7 +421,7 @@ func TestProductionCoupleRouteRejectsUnconfiguredModel(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	data, err := os.ReadFile("internal/imagevalidate/testdata/checker.png")
+	data, err := os.ReadFile("internal/facedetect/testdata/two.jpg")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +494,7 @@ func TestHTTPCancellationReachesTLSUpstreamAndReleasesSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	admission := security.NewConcurrencyManager(1, 1)
-	service, err := tryon.NewCoupleService(factory, apiOutfits{image: img}, admission, usageFor(t))
+	service, err := tryon.NewCoupleService(factory, apiOutfits{image: img}, admission, usageFor(t), twoFaces)
 	if err != nil {
 		t.Fatal(err)
 	}

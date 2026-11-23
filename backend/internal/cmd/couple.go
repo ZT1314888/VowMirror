@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"backend/internal/catalog"
+	"backend/internal/facedetect"
 	"backend/internal/logic/tryon"
 	"backend/internal/middleware"
 	"backend/internal/security"
@@ -23,7 +24,11 @@ func modelFromEnvironment() (tryon.ImageGenerator, error) {
 }
 
 func generationService(loadManifest func() (*catalog.Manifest, error), securityService *security.Service) (*tryon.CoupleService, error) {
-	return tryon.NewCoupleService(modelFromEnvironment, &catalog.Reader{Directory: "/assets/wedding", LoadManifest: loadManifest}, securityService.ConcurrencyManager, securityService.Usage)
+	detector, err := facedetect.New()
+	if err != nil {
+		return nil, err
+	}
+	return tryon.NewCoupleService(modelFromEnvironment, &catalog.Reader{Directory: "/assets/wedding", LoadManifest: loadManifest}, securityService.ConcurrencyManager, securityService.Usage, detector.Count)
 }
 
 type countedReader struct {

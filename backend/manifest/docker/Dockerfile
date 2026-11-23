@@ -11,6 +11,7 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /out/vowmirror /app/vowmirror
+COPY backend/internal/facedetect/LICENSE-* /usr/share/doc/vowmirror/
 RUN mkdir -p /var/lib/vowmirror && chown 65532:65532 /var/lib/vowmirror
 COPY backend/manifest/config/config.example.yaml manifest/config/config.example.yaml
 COPY assets/wedding/manifest.json /assets/wedding/manifest.json

@@ -13,6 +13,8 @@
   --ink-muted: #9c948a; --champagne: #c5a880;
   --hairline: rgba(197, 168, 128, .35);
   --ease-apple: cubic-bezier(.22, 1, .36, 1);
+  /* 纸纹颗粒（暖棕极淡），叠加在信封与信纸底色之上 */
+  --paper-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cfilter id='paperGrain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.42 0 0 0 0 0.33 0 0 0 0 0.24 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paperGrain)'/%3E%3C/svg%3E");
   /* 字体（自托管，无 CDN）：西文展示衬线 + 中文宋体衬线 + 系统无衬线 */
   --font-display: "Cormorant Garamond", "Noto Serif SC", "Songti SC", SimSun, Georgia, serif;
   --font-label: "Segoe UI", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -80,24 +82,53 @@ a { color: inherit; }
 /* =========================================================================
    请柬首屏（保留原设计：信封 + 火漆启封）
    ========================================================================= */
-.invitation-screen { position: relative; z-index: 10; min-height: 100%; display: grid; place-items: center; overflow: hidden; background: radial-gradient(ellipse at 50% 40%, #fffdf8 0, #f5eee7 54%, #ece1d9 100%); }
+.invitation-screen { position: relative; z-index: 10; min-height: 100%; display: grid; place-items: center; overflow: hidden; background: radial-gradient(ellipse at 50% 40%, #fffdf8 0, #f5eee7 54%, #ece1d9 100%); transition: opacity 360ms ease; }
+.invitation-screen.is-fading { opacity: 0; }
+/* 花瓣飘落画布：固定全屏，开启瞬间触发，余韵可延续到画廊首屏；canvas 为替换元素，需显式尺寸 */
+.petal-canvas { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 60; pointer-events: none; }
+/* 页面两角的背景干花枝，极淡不抢戏 */
+.floral-ambient { position: absolute; z-index: 0; pointer-events: none; color: #b9887b; opacity: .3; }
+.floral-ambient.is-tl { top: -30px; left: 4%; width: 150px; height: 213px; transform: rotate(163deg); }
+.floral-ambient.is-br { bottom: -36px; right: 5%; width: 172px; height: 244px; transform: rotate(-16deg); color: #a89277; opacity: .28; }
 .invitation-content { text-align: center; padding: 56px 20px; }
-.invitation-kicker { margin: 0 0 12px; color: #9b7b6e; font: 11px var(--font-display), Georgia, serif; letter-spacing: .34em; }
+.invitation-kicker { display: inline-flex; align-items: center; gap: 14px; margin: 0 0 12px; color: #9b7b6e; font: 11px var(--font-display), Georgia, serif; letter-spacing: .34em; }
+.invitation-kicker::before, .invitation-kicker::after { content: ""; width: 26px; height: 1px; background: rgba(197, 168, 128, .7); }
 .invitation-content h1 { font-family: var(--font-display); font-size: clamp(19px, 3vw, 24px); font-weight: 400; letter-spacing: .16em; color: #796052; }
-.envelope-art { position: relative; width: min(76vw, 440px); aspect-ratio: 1.53; margin: 68px auto 55px; perspective: 1000px; filter: drop-shadow(0 26px 19px #573a2322); transform: rotate(-5deg); transition: transform 500ms ease; }
-.envelope-back { position: absolute; inset: 0; background: #e8d9c8; border: 1px solid #dac7b2; border-radius: 5px; }
-.letter-paper { position: absolute; z-index: 1; left: 9%; top: 6%; width: 82%; height: 88%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px; background: #fffaf0; border: 1px solid #e4d3bd; box-shadow: 0 0 12px #5b402217; color: #8d635a; transition: transform 600ms ease; }
-.letter-paper span { font: 31px var(--font-display), Georgia, serif; }
-.letter-paper i { font: 9px var(--font-label), Georgia, serif; letter-spacing: .2em; }
-.envelope-front { position: absolute; z-index: 3; inset: 0; display: grid; place-items: end center; padding-bottom: 22px; background: linear-gradient(30deg, #eedfca, #f7ebdb); clip-path: polygon(0 0, 50% 53%, 100% 0, 100% 100%, 0 100%); border-radius: 4px; }
+.envelope-art { position: relative; width: min(76vw, 440px); aspect-ratio: 1.53; margin: 68px auto 55px; perspective: 1000px; filter: drop-shadow(0 26px 19px #573a2322) drop-shadow(0 6px 8px #573a2318); transform: rotate(-5deg); transition: transform 500ms ease; }
+/* 信封金线边框：印刷在封面上，开启时随封面一起隐去 */
+.envelope-art::after { content: ""; position: absolute; inset: 6px; z-index: 4; border: 1px solid rgba(197, 168, 128, .5); border-radius: 6px; pointer-events: none; transition: opacity 300ms ease; }
+/* 信封两角探出的干花枝，压在信封之后 */
+.floral-tuck { position: absolute; z-index: 0; pointer-events: none; }
+.floral-tuck.is-left { left: -36px; bottom: -34px; width: 112px; height: 159px; transform: rotate(36deg); color: #b98a76; opacity: .9; }
+.floral-tuck.is-right { right: -32px; top: -28px; width: 98px; height: 139px; transform: rotate(-144deg); color: #97a284; opacity: .82; }
+.envelope-back { position: absolute; inset: 0; background: var(--paper-noise) 0 0 / 120px 120px repeat, #e8d9c8; border: 1px solid #dac7b2; border-radius: 5px; }
+.letter-paper { position: absolute; z-index: 1; left: 9%; top: 6%; width: 82%; height: 88%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; background: var(--paper-noise) 0 0 / 120px 120px repeat, #fffaf0; border: 1px solid #e4d3bd; box-shadow: 0 0 12px #5b402217; color: #8d635a; transition: transform 600ms ease; }
+/* 请柬卡双线内框 */
+.letter-paper::before { content: ""; position: absolute; inset: 7px; border: 1px solid rgba(197, 168, 128, .55); pointer-events: none; }
+.letter-paper::after { content: ""; position: absolute; inset: 10px; border: 1px solid rgba(197, 168, 128, .3); pointer-events: none; }
+.letter-crest { width: 76px; height: 34px; flex: 0 0 auto; color: #c98d7f; }
+.letter-paper span { font: 30px var(--font-display), Georgia, serif; }
+.letter-paper i { font: italic 400 10px var(--font-display), Georgia, serif; letter-spacing: .3em; color: #a3806f; }
+.envelope-front { position: absolute; z-index: 3; inset: 0; display: grid; place-items: end center; padding-bottom: 22px; background: var(--paper-noise) 0 0 / 120px 120px repeat, linear-gradient(30deg, #eedfca, #f7ebdb); clip-path: polygon(0 0, 50% 53%, 100% 0, 100% 100%, 0 100%); border-radius: 4px; }
 .envelope-front span { color: #c3a98d; font: 24px var(--font-display), Georgia, serif; }
-.envelope-flap { position: absolute; z-index: 4; inset: 0 0 auto; height: 57%; background: linear-gradient(#f7ebd8, #e9d8c1); clip-path: polygon(0 0, 100% 0, 50% 100%); transform-origin: top; transition: transform 450ms ease, z-index 1ms 220ms; }
-.wax-seal { position: absolute; z-index: 5; top: 50%; left: 50%; width: 82px; height: 82px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; transform: translate(-50%,-50%); border: 1px solid #a25956; border-radius: 48% 52% 46% 53%; background: radial-gradient(circle at 35% 25%, #bc7d72, #8f4d48 80%); color: #fbe7d0; box-shadow: inset 0 0 0 4px #e2ab8e55, inset 0 0 0 6px #7a363844, 0 6px 12px #573a2340; transition: transform 180ms ease; }
+.envelope-flap { position: absolute; z-index: 4; inset: 0 0 auto; height: 57%; background: var(--paper-noise) 0 0 / 120px 120px repeat, linear-gradient(#f7ebd8, #e9d8c1); clip-path: polygon(0 0, 100% 0, 50% 100%); transform-origin: top; transition: transform 450ms ease, z-index 1ms 220ms; }
+/* Paperless Post 式封盖衬里：掀盖时内面浮现花纹 */
+.envelope-flap::after { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity 320ms ease 150ms; background: linear-gradient(rgba(248,238,224,.84), rgba(235,219,197,.82)), url("/web/public/florals.jpg") center / cover; }
+.wax-seal { position: absolute; z-index: 5; top: 50%; left: 50%; width: 82px; height: 82px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; transform: translate(-50%,-50%); border: 1px solid #a25956; border-radius: 48% 52% 46% 53%; background: radial-gradient(circle at 35% 25%, #c07f74, #a35a52 55%, #8f4d48 82%); color: #fbe7d0; box-shadow: inset 0 0 0 4px #e2ab8e55, inset 0 0 0 6px #7a363844, 0 10px 22px #573a2348, 0 2px 5px #573a2340; transition: transform 180ms ease; }
+/* 火漆釉面高光与底部沉影，增强立体感 */
+.wax-seal::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(circle at 32% 24%, rgba(255, 232, 214, .5), rgba(255, 232, 214, 0) 44%), radial-gradient(circle at 70% 84%, rgba(84, 26, 24, .38), rgba(84, 26, 24, 0) 48%); }
 .wax-seal span { font-size: 11px; letter-spacing: .09em; }
 .wax-seal:hover { transform: translate(-50%,-50%) scale(1.06); }
+/* Power Invitation Pro 式手感：按下下陷，点击瞬间火漆裂开 */
+.wax-seal:active { transform: translate(-50%,-50%) scale(.92); }
+.wax-seal::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 82 82'%3E%3Cpath d='M42 3 37 21 45 33 36 49 44 64 39 79' fill='none' stroke='%23602e2b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M37 21 28 30M45 33 53 41M36 49 27 56' fill='none' stroke='%23602e2b' stroke-width='1.4' stroke-linecap='round' opacity='.8'/%3E%3Cpath d='M43 4 38 22 46 34 37 50 45 65' fill='none' stroke='%23f3d3ba' stroke-width='.8' stroke-linecap='round' opacity='.45'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
+.is-cracked .wax-seal::before { opacity: 1; transition: opacity 130ms ease; }
+/* 开启编排：裂纹 → 掀盖露衬里 → 信纸升起放大 → 交叉过渡进画廊 */
 .is-opening .envelope-art { transform: rotate(0); }
+.is-opening .envelope-art::after { opacity: 0; }
 .is-opening .envelope-flap { transform: rotateX(180deg); z-index: 0; }
-.is-opening .letter-paper { transform: translateY(-32%); }
+.is-opening .envelope-flap::after { opacity: 1; }
+.is-opening .letter-paper { transform: translateY(-58%) scale(1.15); transition: transform 520ms var(--ease-apple) 400ms; }
 .is-opening .wax-seal { transform: translate(-50%,-50%) scale(.85); opacity: 0; transition: opacity 280ms, transform 280ms; }
 .invitation-hint { color: #8f7564; font-size: 12px; letter-spacing: .12em; }
 .invitation-ornament { display: block; margin-top: 26px; color: #bba187; font-size: 26px; }
@@ -106,6 +137,8 @@ a { color: inherit; }
    画廊骨架：顶栏 + 400vw 横向轨道 + 每厅 100vw × 100dvh
    ========================================================================= */
 .experience-gallery { position: relative; z-index: 10; height: 100%; }
+.experience-gallery.is-revealing { animation: galleryReveal 280ms var(--ease-apple) both; }
+@keyframes galleryReveal { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
 .gallery-header {
   position: fixed; z-index: 40; top: 0; left: 0; right: 0; height: 76px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
@@ -128,10 +161,14 @@ a { color: inherit; }
 .gallery-viewport { position: absolute; inset: 0; overflow: hidden; }
 .gallery-track {
   position: relative; z-index: 10; display: flex; width: 400vw; height: 100%;
+  counter-reset: room;
   transform: translate3d(0, 0, 0); transition: transform .75s var(--ease-apple);
   will-change: transform;
 }
-.gallery-room { width: 100vw; height: 100%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 0; }
+.gallery-room { position: relative; width: 100vw; height: 100%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 0; counter-increment: room; }
+/* 画廊装裱：双线金内框 + 房间编号水印，如画册版面 */
+.gallery-room::after { content: ""; position: absolute; inset: 12px; z-index: 3; border: 1px solid rgba(197, 168, 128, .42); outline: 1px solid rgba(197, 168, 128, .2); outline-offset: -5px; pointer-events: none; }
+.gallery-room::before { content: "0" counter(room); position: absolute; z-index: 3; right: 30px; bottom: 18px; pointer-events: none; color: rgba(197, 168, 128, .2); font: italic 400 clamp(58px, 7vw, 96px)/1 var(--font-display), Georgia, serif; letter-spacing: .05em; }
 .room-fill { width: 100%; height: 100%; }
 
 /* =========================================================================
@@ -259,6 +296,8 @@ input[type="password"]:focus-visible { outline-offset: 2px; }
    响应式
    ========================================================================= */
 @media (max-width: 800px) {
+  .gallery-room::after { inset: 10px; }
+  .gallery-room::before { right: 20px; bottom: 12px; }
   .gallery-header { padding: 0 16px 8px; }
   .header-stepper { gap: 12px; }
   .stepper-link { font-size: 12px; gap: 4px; }

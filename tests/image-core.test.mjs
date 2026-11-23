@@ -61,5 +61,6 @@ test('error mapping does not display raw upstream messages', () => {
   assert.equal(getAPIError({ status: 401 }, { data: { error_code: 'AUTH_INVALID' } }).code, 'AUTH_INVALID');
   assert.match(getAPIError({ status: 200 }, { data: { error_code: 'GENERATION_TIMEOUT' } }).text, /服务端时限/);
   assert.match(getAPIError({ status: 200 }, { data: { error_code: 'GENERATION_CANCELLED' } }).text, /已取消/);
+  assert.equal(getAPIError({ status: 503 }, { data: { error_code: 'FACE_DETECTION_UNAVAILABLE' } }).text, '暂时无法检查合照，请稍后重试。');
   assert.doesNotMatch(getAPIError({ status: 502 }, { message: 'private-marker' }).text, /private-marker/);
 });

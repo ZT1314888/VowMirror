@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"backend/internal/catalog"
+	"backend/internal/facedetect"
 	"backend/internal/imagevalidate"
 	"backend/internal/logic/tryon"
 	"backend/internal/middleware"
@@ -10,6 +11,8 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"image"
 	"io"
 	"log/slog"
 	"net/http"
@@ -26,7 +29,7 @@ import (
 )
 
 // Exercise the real HTTP handler, service, reader and TLS adapter together.
-// Only the loopback upstream and non-person fixture supply test data.
+// The only upstream is a loopback TLS server; all photos are public fixtures.
 func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 	const token = "synthetic-acceptance-access-token-00000000"
 	const marker = "synthetic-acceptance-private-marker"
@@ -43,8 +46,11 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded := base64.StdEncoding.EncodeToString(data)
-	input, err := json.Marshal(tryon.CoupleRequest{CoupleImage: encoded, OutfitID: "W001", Scene: tryon.Scene{Mode: "original"}})
+	original, err := os.ReadFile("../facedetect/testdata/two-exif6.jpg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	detector, err := facedetect.New()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,12 +64,31 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 		calls      int32
 	}{
 		{"missing asset", "OUTFIT_UNAVAILABLE", 503, 0},
+		{"no faces", "COUPLE_IMAGE_NOT_COUPLE", 422, 0},
+		{"detector fault", "FACE_DETECTION_UNAVAILABLE", 503, 0},
 		{"upstream", "MODEL_REQUEST_FAILED", 502, 1},
 		{"invalid result", "INVALID_MODEL_RESULT", 502, 1},
 		{"deadline", "GENERATION_TIMEOUT", 504, 1},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			var calls atomic.Int32
+			couple := original
+			count := detector.Count
+			switch scenario.name {
+			case "no faces":
+				couple = data
+			case "detector fault":
+				count = func(context.Context, image.Image, []byte) (int, error) { return 0, errors.New(marker) }
+			case "deadline":
+				// This case times the upstream cancellation, not the detector's CPU work.
+				count = twoFaces
+			}
+			encoded := base64.StdEncoding.EncodeToString(couple)
+			scene := tryon.Scene{Mode: "upload", Image: base64.StdEncoding.EncodeToString(data)}
+			input, err := json.Marshal(tryon.CoupleRequest{CoupleImage: encoded, OutfitID: "W001", Scene: scene})
+			if err != nil {
+				t.Fatal(err)
+			}
 			stopped := make(chan struct{})
 			upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				defer close(stopped)
@@ -71,9 +96,26 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 				if r.Header.Get("Authorization") != "Bearer "+marker || r.URL.RawQuery != "" {
 					t.Error("unexpected credential transport")
 				}
-				if _, err := io.Copy(io.Discard, r.Body); err != nil {
+				if err := r.ParseMultipartForm(4 << 20); err != nil {
 					t.Error(err)
 					return
+				}
+				files := r.MultipartForm.File["image[]"]
+				if len(files) != 5 {
+					t.Errorf("expected five upstream images, got %d", len(files))
+					return
+				}
+				for index, want := range map[int][]byte{0: original, 4: data} {
+					f, err := files[index].Open()
+					if err != nil {
+						t.Error(err)
+						return
+					}
+					got, err := io.ReadAll(f)
+					f.Close()
+					if err != nil || !bytes.Equal(got, want) {
+						t.Errorf("upstream reference %d changed", index)
+					}
 				}
 				switch scenario.name {
 				case "deadline":
@@ -96,7 +138,7 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 				}}
 			}
 			admission := security.NewConcurrencyManager(1, 1)
-			service, err := tryon.NewCoupleService(factory, reader, admission, usageFor(t))
+			service, err := tryon.NewCoupleService(factory, reader, admission, usageFor(t), count)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -146,7 +188,9 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 				t.Fatalf("expected one terminal SSE error: %v %s", err, body)
 			}
 			var payload struct {
-				Data struct {
+				Code    int    `json:"code"`
+				Message string `json:"message"`
+				Data    struct {
 					Code       string `json:"error_code"`
 					RequestID  string `json:"request_id"`
 					HTTPStatus int    `json:"http_status"`
@@ -157,6 +201,21 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 			}
 			if response.StatusCode != http.StatusOK || payload.Data.HTTPStatus != scenario.status || payload.Data.Code != scenario.code || calls.Load() != scenario.calls {
 				t.Fatalf("unexpected status/code/attempts: %d %d %s %d", response.StatusCode, payload.Data.HTTPStatus, payload.Data.Code, calls.Load())
+			}
+			for _, frame := range frames[:len(frames)-1] {
+				if frame.Event == "error" || frame.Event == "result" {
+					t.Fatal("more than one terminal SSE event")
+				}
+			}
+			switch scenario.name {
+			case "no faces":
+				if payload.Code != 42210 || payload.Message != "未检测到两张清晰的人脸，请换一张两人面部清楚的合照。" {
+					t.Fatalf("wrong face count error: %d %s", payload.Code, payload.Message)
+				}
+			case "detector fault":
+				if payload.Code != 50307 || payload.Message != "暂时无法检查合照，请稍后重试。" {
+					t.Fatalf("wrong detector error: %d %s", payload.Code, payload.Message)
+				}
 			}
 			if payload.Data.RequestID == "" || payload.Data.RequestID != response.Header.Get("X-Request-ID") || response.Header.Get("Cache-Control") != "no-store" {
 				t.Fatal("missing correlation or cache boundary")

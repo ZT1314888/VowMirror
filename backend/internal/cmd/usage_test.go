@@ -97,7 +97,7 @@ func newUsageHTTP(t *testing.T, dailyLimit int) *usageHTTP {
 	factory := func() (tryon.ImageGenerator, error) {
 		return tryon.NewGenerator(tryon.ModelConfig{Provider: "chuanapi", Model: tryon.GPTImageModel, BaseURL: upstream.URL + "/v1", APIKey: "synthetic-model-key"}, upstream.Client().Transport)
 	}
-	service, err := tryon.NewCoupleService(factory, apiOutfits{image: img}, security.NewConcurrencyManager(2, 1), h.ledger)
+	service, err := tryon.NewCoupleService(factory, apiOutfits{image: img}, security.NewConcurrencyManager(2, 1), h.ledger, twoFaces)
 	if err != nil {
 		t.Fatal(err)
 	}
