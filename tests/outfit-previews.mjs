@@ -54,9 +54,10 @@ try {
     return { file: spec.file, size };
   }))), [...manifest.outfitPreviews, ...manifest.venuePreviews]);
   assert.equal(decoded.length, 74);
+  const venueDisplay = new Map(manifest.venuePreviews.map(entry => [entry.id, [entry.display.width, entry.display.height]]));
   for (const entry of decoded) {
-    const expected = entry.file.includes('-thumb') ? [320, 240] : entry.file.startsWith('venues/') ? [2400, 1600] : [2400, 1040];
-    assert.deepEqual(entry.size, expected);
+    if (entry.file.startsWith('venues/') && !entry.file.includes('-thumb')) assert.deepEqual(entry.size, venueDisplay.get(entry.file.slice(7, 11)));
+    else assert.deepEqual(entry.size, entry.file.includes('-thumb') ? [320, 240] : [2400, 1040]);
   }
   for (const path of ['/web/public/outfits/', '/web/public/outfits/W000.webp', '/web/public/outfits/W031.webp', '/web/public/outfits/W001.png', '/web/public/outfits/other.webp', '/web/public/venues/', '/web/public/venues/V000.webp', '/web/public/venues/V008.webp', '/web/public/venues/V001.png', '/web/public/fonts/OFL-noto-serif-sc.txt', '/assets/wedding/W001/dress.jpg', '/assets/wedding/venues/V001/scene.jpg', '/assets/wedding/private/intake.json', '/.env', '/web/public/manifest.json.bak']) {
     assert.equal((await page.request.get(base + path)).status(), 404, path);
@@ -194,7 +195,8 @@ try {
   await page.locator('#scene-image').setInputFiles({ name: 'checker.png', mimeType: 'image/png', buffer: fixture });
   await page.waitForFunction(() => document.querySelector('#room-scene .is-front img')?.src.startsWith('blob:') && !document.querySelector('#scene-reference').hidden);
   await page.waitForFunction(() => window.__previewDraws.length >= 2);
-  // Fixed venue previews use the same cover + focus frame and particle dissolve as outfit previews.
+  // Fixed venue previews now display the full image with contain inside the same
+  // frameless preset layout, so the dissolved old photo keeps its own contain sampling.
   await Promise.all([
     page.waitForRequest(request => request.url().endsWith('/web/public/venues/V001.webp')),
     page.locator('[data-action="select-venue"][data-arg="V001"]').evaluate(element => element.click()),
@@ -202,16 +204,13 @@ try {
   await page.waitForFunction(() => document.querySelector('#room-scene .is-front img')?.dataset.venueId === 'V001');
   assert.equal(await page.locator('#scene-preview-label').isHidden(), true);
   assert.equal(await page.locator('#scene-preview-status').textContent(), '');
-  // Entering the venue preset flips the frame size, so the outgoing upload photo dissolves
-  // into the settled frame by the forced cover fit instead of a centered contain strip.
   await page.waitForFunction(() => window.__previewDraws.length >= 3);
-  // Switching back to original dissolves from the cover+focus venue image while restoring full contain framing.
+  // Switching back to original still samples the venue photo by its own contain fit.
   await page.locator('[data-action="set-scene-mode"][data-arg="original"]').click();
   await page.waitForFunction(photoURL => document.querySelector('#room-scene .is-front img')?.src === photoURL, photoURL);
   await page.waitForFunction(() => window.__previewDraws.length >= 4);
   assert.equal(await page.locator('#room-scene .is-front img').evaluate(img => getComputedStyle(img).objectFit), 'contain');
-  // One sampled dissolve per transition, in order. The source's own CSS fit no longer predicts
-  // the destination: crossing into the preset frame forces cover sampling of the old photo.
+  // One sampled dissolve per transition, in order; every sample follows the source's own CSS fit.
   const draws = await page.evaluate(() => window.__previewDraws);
   assert.equal(draws.length, 4, `expected exactly four sampled dissolves: ${JSON.stringify(draws)}`);
   const expectDraw = ({ canvas: [w, h], size: [sw, sh], focus: [fx, fy], args }, fit) => {
@@ -220,8 +219,8 @@ try {
   };
   expectDraw(draws[0], 'cover'); // outfit W001 → W006: preset photo dissolves per its own cover
   expectDraw(draws[1], 'contain'); // scene original → upload: couple photo dissolves per its own contain
-  expectDraw(draws[2], 'cover'); // upload → venue: frame flip forces cover sampling of the upload photo
-  expectDraw(draws[3], 'cover'); // venue → original: venue photo dissolves per its own cover
+  expectDraw(draws[2], 'contain'); // upload → venue: upload photo dissolves per its own contain
+  expectDraw(draws[3], 'contain'); // venue → original: venue photo dissolves per its own contain
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await clickStep(page, 1);
   await page.evaluate(() => { window.__previewDraws = []; });
@@ -229,14 +228,19 @@ try {
   await displayed('W010');
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   assert.deepEqual(await page.evaluate(() => window.__previewDraws), []);
-  console.log('Shared particle sampling matches cover/focus, contain and forced cover across the preset frame flip; reduced motion draws no particles');
+  console.log('Shared particle sampling matches each source fit: outfit cover, scene/original/upload/venue contain; reduced motion draws no particles');
 
   // Verify fixed venue frames match outfit frames across viewports, including landscape mobile.
   const venueViewports = [[375, 812], [768, 900], [1440, 900], [1920, 1080], [812, 375]];
-  const displayedVenue = id => page.waitForFunction(id => {
-    const img = document.querySelector('#room-scene .is-front img');
-    return img?.dataset.venueId === id && img.complete && img.naturalWidth === 2400 && img.naturalHeight === 1600;
-  }, id);
+  const venueDisplaySize = new Map(manifest.venuePreviews.map(entry => [entry.id, [entry.display.width, entry.display.height]]));
+  const displayedVenue = id => {
+    const [width, height] = venueDisplaySize.get(id);
+    return page.waitForFunction(({ id, width, height }) => {
+      const img = document.querySelector('#room-scene .is-front img');
+      if (!img || img.dataset.venueId !== id || !img.complete) return false;
+      return img.naturalWidth === width && img.naturalHeight === height;
+    }, { id, width, height });
+  };
   const chooseVenue = id => page.locator(`[data-action="select-venue"][data-arg="${id}"]`).evaluate(element => element.click());
   for (const [width, height] of venueViewports) {
     await page.setViewportSize({ width, height });
@@ -256,12 +260,20 @@ try {
         const tile = document.querySelector(`.dock-thumb-btn[data-arg="${img.dataset.venueId}"]`);
         const name = tile.querySelector('.outfit-card-name');
         const gen = document.querySelector('#generate').getBoundingClientRect();
+        // Both ambient buffers stay in the DOM; the front one carries inline opacity 1.
+        const ambient = [...document.querySelectorAll('.ambient-img')].map(layer => ({
+          src: layer.getAttribute('src'),
+          fit: getComputedStyle(layer).objectFit,
+          visible: layer.style.opacity === '1',
+        }));
         return {
           x: box.x, y: box.y, width: box.width, height: box.height,
           viewportTop: viewport.top, viewportHeight: viewport.height,
           fit: style.objectFit,
-          focus: style.objectPosition.split(' ').map(value => parseFloat(value) / 100),
+          position: style.objectPosition,
           border: getComputedStyle(img.closest('.gallery-room'), '::after').content,
+          roomBackground: getComputedStyle(img.closest('.gallery-room')).backgroundColor,
+          ambient,
           tile: tile.getBoundingClientRect(),
           label: tile.getAttribute('aria-label'),
           nameText: name.textContent.trim(),
@@ -269,11 +281,25 @@ try {
           genVisible: gen.right <= innerWidth + 1 && gen.bottom <= innerHeight + 1 && gen.width > 0 && gen.height > 0,
         };
       });
-      assert.equal(geometry.fit, 'cover');
-      assert.ok(geometry.focus.every((value, i) => Math.abs(value - entry.focus[i]) < 1e-6));
+      // Venue images display complete and centered (contain), unlike the outfit cover crop.
+      assert.equal(geometry.fit, 'contain');
+      assert.equal(geometry.position, '50% 50%', `${entry.id} must stay centered`);
       assert.equal(geometry.border, 'none');
+      // The preset scene room becomes transparent so the blurred same-image ambient layer shows through.
+      assert.equal(geometry.roomBackground, 'rgba(0, 0, 0, 0)', `${entry.id} scene room must stay transparent`);
+      const front = geometry.ambient.filter(layer => layer.visible);
+      assert.equal(front.length, 1, `ambiguity in ambient buffers for ${entry.id}`);
+      assert.equal(front[0].fit, 'cover');
+      assert.equal(front[0].src, `/web/public/venues/${entry.id}.webp`, `ambient layer must track ${entry.id}`);
       assert.ok(Math.abs(geometry.x) < 1 && Math.abs(geometry.y - geometry.viewportTop) < 1);
       assert.ok(Math.abs(geometry.width - outfitBox.width) < 1 && Math.abs(geometry.height - outfitBox.height) < 1);
+      // Contain keeps the whole image inside the frame with the original aspect ratio.
+      const [naturalWidth, naturalHeight] = venueDisplaySize.get(entry.id);
+      const scale = Math.min(geometry.width / naturalWidth, geometry.height / naturalHeight);
+      const drawnWidth = naturalWidth * scale;
+      const drawnHeight = naturalHeight * scale;
+      assert.ok(drawnWidth <= geometry.width + 1 && drawnHeight <= geometry.height + 1, `${entry.id} contain overflow at ${width}x${height}`);
+      assert.ok(Math.abs(drawnWidth - geometry.width) < 2 || Math.abs(drawnHeight - geometry.height) < 2, `${entry.id} must touch one frame axis`);
       assert.deepEqual([Math.round(geometry.tile.width), Math.round(geometry.tile.height)], width <= 800 ? [88, 86] : [112, 104]);
       assert.ok(geometry.nameText.length > 0 && geometry.label.includes(geometry.nameText));
       assert.equal(geometry.nameFits, true, `venue card name clipped for ${entry.id} at ${width}x${height}`);

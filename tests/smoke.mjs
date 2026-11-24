@@ -445,6 +445,13 @@ try {
   await clickStep(page, 2);
   assert.equal(catalog.data.venues.length, await page.locator('.dock-thumb-btn[data-action="select-venue"]').count(), 'every venue has a dock tile');
   const firstVenue = catalog.data.venues[0].id;
+  // Venue display images keep each original aspect ratio; the expected size comes from web/public/manifest.json.
+  const webManifest = JSON.parse(readFileSync(new URL('../web/public/manifest.json', import.meta.url), 'utf8'));
+  const expectedVenueSize = id => {
+    const entry = webManifest.venuePreviews.find(item => item.id === id);
+    assert.ok(entry, `web manifest must list ${id}`);
+    return [entry.display.width, entry.display.height];
+  };
   const venueTileImg = page.locator(`.dock-thumb-btn[data-action="select-venue"][data-arg="${firstVenue}"] img.outfit-thumbnail`);
   assert.equal(await venueTileImg.getAttribute('src'), `/web/public/venues/${firstVenue}-thumb.webp`);
   await page.waitForFunction(id => {
@@ -452,11 +459,11 @@ try {
     return img?.complete && img.naturalWidth === 320 && img.naturalHeight === 240;
   }, firstVenue);
   await page.locator(`.dock-thumb-btn[data-action="select-venue"][data-arg="${firstVenue}"]`).click();
-  await page.waitForFunction(id => {
+  await page.waitForFunction(({ id, width, height }) => {
     const img = document.querySelector('#room-scene .is-front img');
-    return img?.dataset.venueId === id && img.complete && img.naturalWidth === 2400 && img.naturalHeight === 1600;
-  }, firstVenue);
-  assert.equal(await page.locator('#room-scene .is-front img').evaluate(img => getComputedStyle(img).objectFit), 'cover');
+    return img?.dataset.venueId === id && img.complete && img.naturalWidth === width && img.naturalHeight === height;
+  }, { id: firstVenue, width: expectedVenueSize(firstVenue)[0], height: expectedVenueSize(firstVenue)[1] });
+  assert.equal(await page.locator('#room-scene .is-front img').evaluate(img => getComputedStyle(img).objectFit), 'contain');
   assert.equal(await page.locator('#scene-preview-label').isHidden(), true);
   assert.equal(await page.locator('#scene-preview-status').textContent(), '');
   assert.equal(await page.locator(`.dock-thumb-btn[data-action="select-venue"][data-arg="${firstVenue}"]`).getAttribute('aria-pressed'), 'true');

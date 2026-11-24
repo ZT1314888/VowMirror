@@ -97,21 +97,22 @@ export async function verifyHeadroomTouch(base, evidence) {
 
     await clickStep(page, 1);
     await page.waitForFunction(() => Math.abs(document.querySelector('#room-outfit').getBoundingClientRect().x) < 1);
-    const swipe = async (fromY, toY) => {
+    const swipe = async (fromY, toY, steps = 8) => {
       const session = await page.context().newCDPSession(page);
       try {
         await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 187, y: fromY }] });
-        for (let step = 1; step <= 8; step++) {
-          await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 187, y: fromY + (toY - fromY) * step / 8 }] });
+        for (let step = 1; step <= steps; step++) {
+          await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 187, y: fromY + (toY - fromY) * step / steps }] });
         }
         await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       } finally {
         await session.detach();
       }
     };
-    await swipe(600, 500);
+    // 慢速小步上滑：单步不足 12px/24px，累计位移跨过容差后仍须隐藏。
+    await swipe(600, 500, 12);
     await page.waitForFunction(() => document.querySelector('.gallery-header').classList.contains('is-unpinned'));
-    await swipe(400, 500);
+    await swipe(400, 500, 12);
     await page.waitForFunction(() => !document.querySelector('.gallery-header').classList.contains('is-unpinned'));
 
     await clickStep(page, 0);
@@ -120,7 +121,6 @@ export async function verifyHeadroomTouch(base, evidence) {
     await page.waitForTimeout(300);
     assert.equal(await page.evaluate(() => !document.querySelector('.gallery-header').classList.contains('is-unpinned')), true, 'room 01 stays pinned under touch');
     if (evidence) await page.screenshot({ path: `${evidence}/headroom-touch.png` });
-    await browser.close();
     return { touch: 'swipe up hides, swipe down reveals', locked: 'room 01 pinned' };
   } finally {
     await browser.close();

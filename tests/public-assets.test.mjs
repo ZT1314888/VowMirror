@@ -107,16 +107,22 @@ test('venue previews match the catalog venue IDs with verified, metadata-free We
     assert.match(entry.source, /User-provided venue photo/);
     assert.equal(entry.focus.length, 2);
     assert.ok(entry.focus.every(value => Number.isFinite(value) && value >= 0 && value <= 1));
-    for (const [kind, suffix, size] of [['display', '', [2400, 1600]], ['thumbnail', '-thumb', [320, 240]]]) {
+    // Display keeps each original venue aspect ratio uncropped (no 3:2 mandate);
+    // thumbnails stay uniform 320x240 cover crops for the dock cards.
+    assert.match(entry.transformation, /no crop and no upscale/);
+    for (const [kind, suffix, size] of [['display', '', null], ['thumbnail', '-thumb', [320, 240]]]) {
       const asset = entry[kind];
       const file = `${entry.id}${suffix}.webp`;
+      if (size) assert.deepEqual([asset.width, asset.height], size);
+      else assert.ok(Number.isInteger(asset.width) && Number.isInteger(asset.height)
+        && asset.width > 0 && asset.height > 0 && Math.max(asset.width, asset.height) <= 2400, `${file} display size`);
       expected.push(file);
       assert.equal(asset.file, `venues/${file}`);
-      assert.deepEqual([asset.width, asset.height], size);
       const bytes = await readFile(new URL(asset.file, base));
       assert.equal(createHash('sha256').update(bytes).digest('hex'), asset.sha256);
       assert.equal(bytes.toString('ascii', 0, 4), 'RIFF');
       assert.equal(bytes.toString('ascii', 8, 12), 'WEBP');
+      assert.equal(bytes.readUInt32LE(4) + 8, bytes.length);
       let offset = 12;
       const chunks = [];
       while (offset < bytes.length) {
@@ -128,6 +134,27 @@ test('venue previews match the catalog venue IDs with verified, metadata-free We
       }
       assert.ok(chunks.includes('VP8 ') || chunks.includes('VP8L'));
       assert.ok(!chunks.some(chunk => ['EXIF', 'XMP ', 'ICCP'].includes(chunk)), file);
+      if (kind === 'display') {
+        // Each WebP frame carries its own bitmap dimensions; they must match the manifest.
+        const vp8 = chunks.includes('VP8 ') ? 'VP8 ' : 'VP8L';
+        let start = 12;
+        for (let index = 0; index < chunks.length && chunks[index] !== vp8; index++) {
+          start += 8 + bytes.readUInt32LE(start + 4) + (bytes.readUInt32LE(start + 4) % 2);
+        }
+        // VP8L stores 14-bit one-based width/height in the first payload dword (bit reader);
+        // VP8 lossy stores 14-bit width/height little-endian after tag+sync+dimensions header.
+        let width;
+        let height;
+        if (vp8 === 'VP8L') {
+          const bits = bytes.readUInt32LE(start + 9);
+          width = (bits & 0x3fff) + 1;
+          height = ((bits >>> 14) & 0x3fff) + 1;
+        } else {
+          width = bytes.readUInt16LE(start + 14) & 0x3fff;
+          height = bytes.readUInt16LE(start + 16) & 0x3fff;
+        }
+        assert.deepEqual([width, height], [asset.width, asset.height], `${file} frame matches manifest size`);
+      }
     }
   }
   assert.deepEqual((await readdir(new URL('venues/', base))).sort(), expected.sort());

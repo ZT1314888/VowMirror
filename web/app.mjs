@@ -170,13 +170,6 @@ function isPresetRoom() {
   return state.room === 1 || (state.room === 2 && state.sceneMode === 'venue');
 }
 
-// 跨入场馆预设画框（全幅布局）时画框尺寸翻转：溶解按 cover 铺满最终画框取样，
-// contain 旧图否则只在新画框中央留下一条窄带。离开场馆时旧图自身恒为 cover
-// （.preset-hero-photo），同框切换（原背景↔上传）维持各自 object-fit，均无需覆盖。
-function sceneHeroDissolveFit() {
-  return state.sceneMode === 'venue' ? 'cover' : null;
-}
-
 function syncPresetRoom() {
   experience.classList.toggle('is-preset-room', isPresetRoom());
 }
@@ -193,7 +186,8 @@ function goToRoom(index) {
   if (index === 1) refreshOutfitHero(false);
   // 重建导航与 dock 会移除原焦点元素；立即把焦点交给目标展厅标题。
   document.getElementById(ROOM_TITLES[index])?.focus({ preventScroll: true });
-  // 切厅按当前锁定来源收敛（焦点已在厅标题上、离开顶栏），先显示顶栏再重新闲置计时。
+  // 切厅先显出顶栏并按新展厅状态收敛锁定来源，随后重新闲置计时。
+  dispatchHeadroom({ type: 'reveal' });
   syncHeadroom();
 }
 
@@ -213,7 +207,9 @@ function updateAmbientBackdrop(url) {
 }
 
 function syncAmbient() {
-  if (state.room === 2 && state.sceneMode === 'upload' && state.sceneURL) updateAmbientBackdrop(state.sceneURL);
+  const venuePreview = currentVenuePreview();
+  if (state.room === 2 && venuePreview) updateAmbientBackdrop(`/web/public/${venuePreview.display.file}`);
+  else if (state.room === 2 && state.sceneMode === 'upload' && state.sceneURL) updateAmbientBackdrop(state.sceneURL);
   else if (state.room === 3 && state.resultURL) updateAmbientBackdrop(state.resultURL);
   else if (state.photoURL) updateAmbientBackdrop(state.photoURL);
   else updateAmbientBackdrop(AMBIENT_DEFAULT_URL);
@@ -247,10 +243,9 @@ function showHeroImmediately(layers, canvas, content) {
 }
 
 // 双缓冲切换：粒子溶解可用则旧图溶解为新图，否则退回纯交叉淡入。
-// fit 覆盖旧图自身的 object-fit：跨越预设画框边界（场景厅进出全幅预设布局，
-// 画框尺寸翻转）时传 'cover'，旧图按 cover 铺满最终画框取样，
-// contain 旧图才不会只在新画框中央留下一条窄带。
-function transitionHero(layers, canvas, content, fit = null) {
+// 三种场景模式（原背景 / 上传 / 固定场馆）的旧图均为 contain，溶解直接按旧图
+// 自身的 object-fit 取样；造型厅旧图恒为 cover（.preset-hero-photo），同理。
+function transitionHero(layers, canvas, content) {
   const incoming = bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'] ? layers[0] : layers[1];
   const outgoing = bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'] ? layers[1] : layers[0];
   cancelDissolve(canvas);
@@ -270,7 +265,7 @@ function transitionHero(layers, canvas, content, fit = null) {
 
   // 图片状态立即提交；粒子在本次布局更新完成后的两帧才按最终画框取样，
   // 未启动的取样会被后续选择统一取消，不能阻塞或覆盖新图。
-  if (!prefersReducedMotion()) scheduleDissolve({ canvas, source: outgoing.querySelector('img'), fit });
+  if (!prefersReducedMotion()) scheduleDissolve({ canvas, source: outgoing.querySelector('img') });
   showIncoming();
   setTimeout(() => { if (outgoing.style.opacity === '0') outgoing.innerHTML = ''; }, prefersReducedMotion() ? 0 : 500);
   bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'] = !bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'];
@@ -292,7 +287,7 @@ function renderPresetFrame(target) {
 
 // 造型与固定场馆的唯一加载路径：解码后再切换，迟到的结果由各次请求的版本号丢弃，
 // 失败时清空旧图并保留明确提示与手动重试。
-async function showPresetHero({ target, animate, key, id = key, preview, idleLabel, loadingLabel = `${idleLabel} · 正在载入…`, successLabel = idleLabel, noun, fit = null }) {
+async function showPresetHero({ target, animate, key, id = key, preview, idleLabel, loadingLabel = `${idleLabel} · 正在载入…`, successLabel = idleLabel, noun }) {
   const frame = PRESET_FRAMES[target];
   const hero = state[frame.hero];
   // 同键选择不得作废在途解码：短路只补充渲染，由原次序完成落地。
@@ -310,17 +305,22 @@ async function showPresetHero({ target, animate, key, id = key, preview, idleLab
   try {
     if (!preview) throw new Error(state.outfitPreviewsError || `展示素材清单中缺少此${noun === '场馆图片' ? '场馆图片' : '造型'}`);
     const image = new Image();
-    image.className = 'hero-photo preset-hero-photo';
+    // 造型厅主图 cover 裁切带偏心焦点；场馆主图完整 contain 居中展示，四周由同图模糊氛围铺底。
+    if (target === 'outfit') {
+      image.className = 'hero-photo preset-hero-photo';
+      image.style.objectPosition = preview.focus.map(value => `${value * 100}%`).join(' ');
+    } else {
+      image.className = 'hero-photo venue-hero-photo';
+    }
     // 单张加载失败时由状态与重试按钮报告；不挂 alt 文本，避免浏览器在画框里画出破图图标。
     image.alt = '';
     if (target === 'outfit') image.dataset.outfitId = id;
     else image.dataset.venueId = id;
-    image.style.objectPosition = preview.focus.map(value => `${value * 100}%`).join(' ');
     image.src = `/web/public/${preview.display.file}`;
     await image.decode();
     if (version !== state[frame.version]) return;
     hero.status = successLabel;
-    if (animate) transitionHero(frame.layers, frame.canvas, image, fit);
+    if (animate) transitionHero(frame.layers, frame.canvas, image);
     else showHeroImmediately(frame.layers, frame.canvas, image);
     renderPresetFrame(target);
   } catch (error) {
@@ -476,8 +476,6 @@ async function refreshSceneHero(animate) {
   const reference = document.querySelector('#scene-reference');
   reference.hidden = !sceneUploaded || !state.photoURL;
   reference.innerHTML = reference.hidden ? '' : `<img src="${escapeHTML(state.photoURL)}" alt="合照参考"><span>合照参考 · 下方为场地照片</span>`;
-  // 场景模式已定，fit 只依赖它；到达 venue 前后的预设状态取值一致，与画面内容无关。
-  const fit = sceneHeroDissolveFit();
   if (state.sceneMode !== 'venue') {
     const markup = heroMarkup({ src: sceneUploaded ? state.sceneURL : coupleHeroSrc() });
     state.sceneHero.key = sceneHeroKey();
@@ -486,7 +484,7 @@ async function refreshSceneHero(animate) {
     renderPresetFrame('scene');
     // 立即作废尚未完成的预设解码；各次请求提交前还会再次核对版本号。
     state.scenePreviewVersion++;
-    if (animate) transitionHero(sceneLayers, sceneCanvas, markup, fit);
+    if (animate) transitionHero(sceneLayers, sceneCanvas, markup);
     else showHeroImmediately(sceneLayers, sceneCanvas, markup);
     return;
   }
@@ -500,7 +498,6 @@ async function refreshSceneHero(animate) {
     loadingLabel: '',
     successLabel: '',
     noun: '场馆图片',
-    fit,
   });
 }
 
@@ -856,37 +853,54 @@ galleryViewport.addEventListener('wheel', event => {
 }, { passive: true });
 
 // 触摸：只处理起点不在 dock 与对比滑块内、纵向占主导的单指手势。
-// 触点即指针：touchstart 把几何悬停判定同步到触点位置，触摸交互不被
+// 触点即指针：touchstart 清除鼠标悬停坐标并收敛锁定态，触摸交互不被
 // 鼠标坐标的残影（混合输入设备/合成事件）锁在顶栏上。
 let headerTouchStart = null;
 galleryViewport.addEventListener('touchstart', event => {
-  if (event.touches.length === 1) lastPointerY = event.touches[0].clientY;
+  lastPointerY = null;
   syncHeadroom();
   if (event.touches.length !== 1) return;
   const target = event.target.closest('.floating-dock, .compare-stage');
   if (target) { headerTouchStart = null; return; }
-  headerTouchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY, moved: false };
+  const touch = event.touches[0];
+  headerTouchStart = { x: touch.clientX, y: touch.clientY, lastY: touch.clientY, axis: null };
 }, { passive: true });
 galleryViewport.addEventListener('touchmove', event => {
   if (!headerTouchStart || event.touches.length !== 1) return;
-  const dx = event.touches[0].clientX - headerTouchStart.x;
-  const dy = event.touches[0].clientY - headerTouchStart.y;
-  if (Math.abs(dy) < 12) return;
-  if (Math.abs(dy) <= Math.abs(dx)) { headerTouchStart.moved = true; return; }
-  if (headerTouchStart.moved) return;
-  headerTouchStart.moved = true;
-  dispatchHeadroom({ type: 'delta', dy: headerTouchStart.y - event.touches[0].clientY });
+  const touch = event.touches[0];
+  if (headerTouchStart.axis === 'x') return;
+  if (headerTouchStart.axis === null) {
+    const dx = touch.clientX - headerTouchStart.x;
+    const dy = touch.clientY - headerTouchStart.y;
+    if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+    if (Math.abs(dy) <= Math.abs(dx)) { headerTouchStart.axis = 'x'; return; }
+    headerTouchStart.axis = 'y';
+    dispatchHeadroom({ type: 'delta', dy: headerTouchStart.y - touch.clientY });
+  } else {
+    dispatchHeadroom({ type: 'delta', dy: headerTouchStart.lastY - touch.clientY });
+  }
+  headerTouchStart.lastY = touch.clientY;
+  scheduleHeaderIdle();
 }, { passive: true });
+galleryViewport.addEventListener('touchend', () => { headerTouchStart = null; }, { passive: true });
+galleryViewport.addEventListener('touchcancel', () => { headerTouchStart = null; }, { passive: true });
 
-// 桌面热区：指针贴近屏幕顶部即唤出。指针每次移动都重新按几何收敛锁定状态——
-// 离开顶栏横带即解除悬停锁定，进入热区先 reveal 再由 sync 的锁定判定接管。
-window.addEventListener('mousemove', event => {
+// 桌面热区：仅响应真实鼠标移动，指针贴近顶部即唤出，并按几何收敛锁定状态与闲置计时。
+window.addEventListener('pointermove', event => {
+  if (event.pointerType !== 'mouse') return;
   lastPointerY = event.clientY;
   if (event.clientY < 32) dispatchHeadroom({ type: 'reveal' });
   syncHeadroom();
 }, { passive: true });
 window.addEventListener('keydown', scheduleHeaderIdle);
-window.addEventListener('pointerdown', scheduleHeaderIdle);
+window.addEventListener('pointerdown', event => {
+  if (event.pointerType !== 'mouse') {
+    lastPointerY = null;
+    syncHeadroom();
+  } else {
+    scheduleHeaderIdle();
+  }
+});
 
 /* =========================================================================
    顶部提示条（请柬屏期间暂存，进入画廊后再呈现）
@@ -1516,7 +1530,7 @@ async function fetchOutfitPreviews() {
     state.outfitHero.key = '';
     state.sceneHero.key = '';
     if (state.room === 1) refreshOutfitHero(false);
-    if (state.room === 2) { refreshSceneHero(false); renderDock(); }
+    if (state.room === 2) { refreshSceneHero(false); renderDock(); syncAmbient(); }
   } catch (error) {
     state.outfitPreviews = new Map();
     state.venuePreviews = new Map();
