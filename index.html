@@ -123,7 +123,7 @@
               <div id="outfit-hero-a" class="hero-layer"></div>
               <div id="outfit-hero-b" class="hero-layer is-front"></div>
               <canvas id="outfit-particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
-              <div class="outfit-preview-label">
+              <div id="outfit-preview-label" class="preset-label">
                 <p id="outfit-preview-status" role="status" aria-live="polite">造型示例</p>
                 <button id="retry-outfit-preview" type="button" hidden>重新加载</button>
               </div>
@@ -133,10 +133,16 @@
         <section id="room-scene" class="gallery-room" aria-label="03 场景">
           <h2 class="room-title sr-only" id="room-scene-title" tabindex="-1">03 场景</h2>
           <div id="scene-reference" class="scene-reference" hidden></div>
-          <div class="hero-frame">
-            <div id="scene-hero-a" class="hero-layer"></div>
-            <div id="scene-hero-b" class="hero-layer is-front"></div>
-            <canvas id="scene-particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
+          <div id="scene-preview" class="scene-preview">
+            <div class="hero-frame">
+              <div id="scene-hero-a" class="hero-layer"></div>
+              <div id="scene-hero-b" class="hero-layer is-front"></div>
+              <canvas id="scene-particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
+              <div id="scene-preview-label" class="preset-label" hidden>
+                <p id="scene-preview-status" role="status" aria-live="polite"></p>
+                <button id="retry-scene-preview" type="button" hidden>重新加载</button>
+              </div>
+            </div>
           </div>
         </section>
         <section id="room-result" class="gallery-room" aria-label="04 成片">

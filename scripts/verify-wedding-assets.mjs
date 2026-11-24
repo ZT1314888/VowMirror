@@ -12,6 +12,8 @@ export const OUTFIT_IDS = Array.from({ length: EXPECTED_OUTFIT_COUNT }, (_, inde
 // Single source for the fixed preview id set (Nginx allowlist, app.mjs); those files keep the
 // same expression as a literal, and tests/wedding-assets.test.mjs fails when they drift apart.
 export const OUTFIT_ID_PATTERN = /^W0(0[1-9]|[12][0-9]|30)$/;
+// Same literal in web/app.mjs, docker/nginx.conf and .dockerignore; tests/public-assets.test.mjs compares them.
+export const VENUE_ID_PATTERN = /^V00[1-7]$/;
 export const ROLE_FIELDS = ['dress', 'menswear', 'shoes_detail'];
 export const EXPECTED_POSE_COUNT = 28;
 export const POSE_IDS = Array.from({ length: 30 }, (_, index) => `P${String(index + 1).padStart(3, '0')}`).filter(id => !['P020', 'P027'].includes(id));

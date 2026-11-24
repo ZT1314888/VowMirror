@@ -162,7 +162,8 @@ try {
   const catalog = await catalogResponse.json();
   assert.deepEqual(Object.keys(catalog).sort(), ['code', 'data', 'message']);
   assert.deepEqual(Object.keys(catalog.data).sort(), ['outfits', 'venues', 'version']);
-  assert.deepEqual(catalog.data.venues, [], 'private intake must not become fixed venues');
+  assert.equal(catalog.data.venues.every(entry => Object.keys(entry).sort().join(',') === 'id,name'), true, 'venue directory exposes only id and name');
+  assert.ok(catalog.data.venues.length > 0, 'desktop venue photos must not be dropped from the fixed venue directory');
   assert.equal(catalog.data.outfits.every(entry => Object.keys(entry).sort().join(',') === 'id,name'), true);
 
   // 无效生成码：真实后端拒绝，弹窗保持且不上传照片。
@@ -426,7 +427,42 @@ try {
     await page.setViewportSize({ width, height: 900 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `scene overflow at ${width}`);
   }
-  for (const path of ['/assets/wedding/private/intake.json', '/assets/wedding/poses/P007.png', '/assets/wedding/manifest.json', '/assets/wedding/venues/', '/.env']) assert.equal((await page.request.get(base + path)).status(), 404);
+  for (const path of ['/assets/wedding/private/intake.json', '/assets/wedding/venues/V001/scene.jpg', '/assets/wedding/poses/P007.png', '/assets/wedding/manifest.json', '/assets/wedding/venues/', '/web/public/venues/', '/web/public/venues/V000.webp', '/web/public/venues/V008.webp', '/web/public/venues/V001.png', '/.env']) assert.equal((await page.request.get(base + path)).status(), 404);
+  // 桌面场地图接入后，场景厅显示场馆缩略图，选中后主图解码并切换为场馆展示图；样例合照仍用于换回原背景。
+  assert.equal(catalog.data.venues.length, 7, 'desktop venue photos are registered as fixed venues');
+  assert.ok(catalog.data.venues.every(entry => Object.keys(entry).sort().join(',') === 'id,name'), 'venue directory exposes only id and name');
+  for (const venue of catalog.data.venues) {
+    assert.equal((await page.request.get(`${base}/web/public/venues/${venue.id}-thumb.webp`)).status(), 200, `${venue.id} thumbnail is served`);
+    assert.equal((await page.request.get(`${base}/web/public/venues/${venue.id}.webp`)).status(), 200, `${venue.id} display image is served`);
+  }
+  await page.locator('.stepper-link').nth(2).click();
+  assert.equal(catalog.data.venues.length, await page.locator('.dock-thumb-btn[data-action="select-venue"]').count(), 'every venue has a dock tile');
+  const firstVenue = catalog.data.venues[0].id;
+  const venueTileImg = page.locator(`.dock-thumb-btn[data-action="select-venue"][data-arg="${firstVenue}"] img.outfit-thumbnail`);
+  assert.equal(await venueTileImg.getAttribute('src'), `/web/public/venues/${firstVenue}-thumb.webp`);
+  await page.waitForFunction(id => {
+    const img = document.querySelector(`.dock-thumb-btn[data-action="select-venue"][data-arg="${id}"] img.outfit-thumbnail`);
+    return img?.complete && img.naturalWidth === 320 && img.naturalHeight === 240;
+  }, firstVenue);
+  await page.locator(`.dock-thumb-btn[data-action="select-venue"][data-arg="${firstVenue}"]`).click();
+  await page.waitForFunction(id => {
+    const img = document.querySelector('#room-scene .is-front img');
+    return img?.dataset.venueId === id && img.complete && img.naturalWidth === 2400 && img.naturalHeight === 1600;
+  }, firstVenue);
+  assert.equal(await page.locator('#room-scene .is-front img').evaluate(img => getComputedStyle(img).objectFit), 'cover');
+  assert.equal(await page.locator(`.dock-thumb-btn[data-action="select-venue"][data-arg="${firstVenue}"]`).getAttribute('aria-pressed'), 'true');
+  await page.locator('.dock-thumb-btn[data-action="set-scene-mode"][data-arg="original"]').click();
+  await page.waitForFunction(() => {
+    const img = document.querySelector('#room-scene .is-front img');
+    const coupleSrc = document.querySelector('#room-photo-content .hero-photo')?.getAttribute('src');
+    return coupleSrc && img?.getAttribute('src') === coupleSrc && img.complete && img.naturalWidth > 0;
+  });
+  assert.equal(await page.locator('#room-scene .is-front img').evaluate(img => getComputedStyle(img).objectFit), 'contain');
+  for (const width of [375, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `venue dock overflow at ${width}`);
+  }
+  console.log('Fixed venue flow: desktop photos registered, thumbnails and display images served, original mode restores without persistence');
   console.log('Phase 6 inherited scene flow: real three-format decode, invalid files/dimensions, replacement, clear, mode switch, late decode, five-image payload, edit lock and URL release passed');
 
   assert.deepEqual(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length })), { local: 0, session: 0 });

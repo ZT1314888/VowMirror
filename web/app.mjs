@@ -8,6 +8,9 @@ const GENERATION_TIMEOUT_MS = 90_000;
 const GENERATION_STAGE_LABELS = ['准备照片', '生成合影', '整理成片'];
 // Fixed preview id set; docker/nginx.conf and scripts/verify-wedding-assets.mjs repeat it.
 const OUTFIT_ID_PATTERN = /^W0(0[1-9]|[12][0-9]|30)$/;
+// Fixed venue preview id set; docker/nginx.conf and scripts/verify-wedding-assets.mjs repeat it.
+const VENUE_ID_PATTERN = /^V00[1-7]$/;
+const EXPECTED_VENUE_PREVIEWS = 7;
 const GENERATION_STAGES = Object.freeze(Object.fromEntries([
   ['reading_input', 'validating_request', 'validating_images', 'preparing_assets', 'assembling_request'],
   ['connection_acquisition', 'waiting_upstream_response', 'connection_acquired', 'dns_lookup', 'tcp_connect',
@@ -35,6 +38,7 @@ const sceneLayers = [document.querySelector('#scene-hero-a'), document.querySele
 const outfitCanvas = document.querySelector('#outfit-particle-canvas');
 const outfitPreview = document.querySelector('#outfit-preview');
 const experience = document.querySelector('#experience');
+const scenePreview = document.querySelector('#scene-preview');
 const sceneCanvas = document.querySelector('#scene-particle-canvas');
 const resultSlot = document.querySelector('#result-slot');
 const apertureOverlay = document.querySelector('#aperture-overlay');
@@ -59,10 +63,14 @@ const state = {
   outfitPreviews: new Map(),
   outfitPreviewsError: '',
   outfitPreviewVersion: 0,
+  outfitHero: { key: '', status: '', retryable: false },
+  venuePreviews: new Map(),
   sceneMode: 'original',
   sceneImage: null,
   sceneURL: '',
   sceneVenueId: '',
+  sceneHero: { key: '', status: '', retryable: false },
+  scenePreviewVersion: 0,
   venues: [],
   resultURL: '',
   resultMime: '',
@@ -156,10 +164,18 @@ function renderStepper() {
   }));
 }
 
+function isPresetRoom() {
+  return state.room === 1 || (state.room === 2 && state.sceneMode === 'venue');
+}
+
+function syncPresetRoom() {
+  experience.classList.toggle('is-preset-room', isPresetRoom());
+}
+
 function goToRoom(index) {
   if (index < 0 || index > 3 || isBusy()) return;
   state.room = index;
-  experience.classList.toggle('is-outfit-room', index === 1);
+  syncPresetRoom();
   document.querySelectorAll('.gallery-room').forEach((room, i) => { room.inert = i !== index; });
   track.style.transform = `${TRACK_EASE}(-${index * 100}vw, 0, 0)`;
   renderStepper();
@@ -194,9 +210,11 @@ function syncAmbient() {
 
 /* =========================================================================
    编辑风大图构建 + 双缓冲交叉淡入 / 粒子溶解
+   预设画框：造型与固定场馆共用同一画框、cover 裁切、焦点、状态与重试
    ========================================================================= */
-function heroMarkup({ src }) {
-  return `<img class="hero-photo" src="${escapeHTML(src)}" alt="照片完整预览">`;
+function heroMarkup({ src, focus = null }) {
+  const style = focus ? ` style="object-position:${focus.map(value => `${value * 100}%`).join(' ')}"` : '';
+  return `<img class="hero-photo" src="${escapeHTML(src)}" alt="照片完整预览"${style}>`;
 }
 
 function coupleHeroSrc() {
@@ -242,6 +260,60 @@ function transitionHero(layers, canvas, content) {
   showIncoming();
   setTimeout(() => { if (outgoing.style.opacity === '0') outgoing.innerHTML = ''; }, prefersReducedMotion() ? 0 : 500);
   bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'] = !bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'];
+}
+
+const PRESET_FRAMES = {
+  outfit: { layers: outfitLayers, canvas: outfitCanvas, label: '#outfit-preview-label', status: '#outfit-preview-status', retry: '#retry-outfit-preview', version: 'outfitPreviewVersion', hero: 'outfitHero', previews: 'outfitPreviews' },
+  scene: { layers: sceneLayers, canvas: sceneCanvas, label: '#scene-preview-label', status: '#scene-preview-status', retry: '#retry-scene-preview', version: 'scenePreviewVersion', hero: 'sceneHero', previews: 'venuePreviews' },
+};
+
+function renderPresetFrame(target) {
+  const frame = PRESET_FRAMES[target];
+  const hero = state[frame.hero];
+  document.querySelector(frame.status).textContent = hero.status;
+  // 场景厅的提示层只在场馆加载中或失败时出现，原背景与上传照片不显示。
+  document.querySelector(frame.label).hidden = !hero.status;
+  document.querySelector(frame.retry).hidden = !hero.retryable;
+}
+
+// 造型与固定场馆的唯一加载路径：解码后再切换，迟到的结果由各次请求的版本号丢弃，
+// 失败时清空旧图并保留明确提示与手动重试。
+async function showPresetHero({ target, animate, key, id = key, preview, idleLabel, noun }) {
+  const frame = PRESET_FRAMES[target];
+  const hero = state[frame.hero];
+  const version = ++state[frame.version];
+  if (hero.key === key) {
+    renderPresetFrame(target);
+    return;
+  }
+  hero.key = key;
+  hero.retryable = false;
+  hero.status = `${idleLabel} · 正在载入…`;
+  renderPresetFrame(target);
+  try {
+    if (!preview) throw new Error(state.outfitPreviewsError || `展示素材清单中缺少此${noun === '场馆图片' ? '场馆图片' : '造型'}`);
+    const image = new Image();
+    image.className = 'hero-photo preset-hero-photo';
+    // 单张加载失败时由状态与重试按钮报告；不挂 alt 文本，避免浏览器在画框里画出破图图标。
+    image.alt = '';
+    if (target === 'outfit') image.dataset.outfitId = id;
+    else image.dataset.venueId = id;
+    image.style.objectPosition = preview.focus.map(value => `${value * 100}%`).join(' ');
+    image.src = `/web/public/${preview.display.file}`;
+    await image.decode();
+    if (version !== state[frame.version]) return;
+    hero.status = idleLabel;
+    if (animate) transitionHero(frame.layers, frame.canvas, image);
+    else showHeroImmediately(frame.layers, frame.canvas, image);
+    renderPresetFrame(target);
+  } catch (error) {
+    if (version !== state[frame.version]) return;
+    cancelDissolve(frame.canvas);
+    for (const layer of frame.layers) layer.replaceChildren();
+    hero.retryable = true;
+    hero.status = `${noun}加载失败：${error.message}`;
+    renderPresetFrame(target);
+  }
 }
 
 /* =========================================================================
@@ -321,40 +393,19 @@ function currentOutfit() {
 
 async function refreshOutfitHero(animate) {
   const id = state.outfitId || 'W001';
+  const outfit = state.outfits.find(item => item.id === id);
   const preview = state.outfitPreviews.get(id);
-  const status = document.querySelector('#outfit-preview-status');
-  const retry = document.querySelector('#retry-outfit-preview');
-  const current = outfitLayers.find(layer => layer.classList.contains('is-front'))?.querySelector('img');
-  const version = ++state.outfitPreviewVersion;
-  retry.hidden = true;
-  if (current?.dataset.outfitId === id) {
-    status.textContent = `造型示例 · ${state.outfits.find(outfit => outfit.id === id)?.name || id}`;
-    return;
-  }
-  status.textContent = '造型示例 · 正在载入…';
-  try {
-    if (!preview) throw new Error(state.outfitPreviewsError || '展示素材清单中缺少此造型');
-    const image = new Image();
-    image.className = 'hero-photo';
-    image.alt = `${state.outfits.find(outfit => outfit.id === id)?.name || id} · 造型示例`;
-    image.dataset.outfitId = id;
-    image.style.objectPosition = preview.focus.map(value => `${value * 100}%`).join(' ');
-    image.src = `/web/public/${preview.display.file}`;
-    await image.decode();
-    if (version !== state.outfitPreviewVersion) return;
-    if (animate) transitionHero(outfitLayers, outfitCanvas, image);
-    else showHeroImmediately(outfitLayers, outfitCanvas, image);
-    status.textContent = `造型示例 · ${state.outfits.find(outfit => outfit.id === id)?.name || id}`;
-  } catch (error) {
-    if (version !== state.outfitPreviewVersion) return;
-    cancelDissolve(outfitCanvas);
-    for (const layer of outfitLayers) layer.replaceChildren();
-    status.textContent = `造型示例加载失败：${error.message}`;
-    retry.hidden = false;
-  }
+  await showPresetHero({
+    target: 'outfit', animate,
+    key: id,
+    preview,
+    idleLabel: `造型示例 · ${outfit?.name || id}`,
+    noun: '造型示例',
+  });
 }
 
 function selectOutfit(outfit) {
+  if (!state.outfits.includes(outfit)) return;
   state.outfitId = outfit.id;
   clearResult();
   refreshOutfitHero(true);
@@ -369,13 +420,20 @@ function selectOutfit(outfit) {
   }
 }
 
-document.querySelector('#retry-outfit-preview').addEventListener('click', async () => {
-  if (!state.outfitPreviews.size) {
+async function retryPresetPreview(target) {
+  if (target === 'scene' && state.sceneMode !== 'venue') return;
+  const frame = PRESET_FRAMES[target];
+  if (!state[frame.previews].size) {
     await loadOutfitPreviews();
     renderDock();
   }
-  refreshOutfitHero(false);
-});
+  state[frame.hero].key = '';
+  if (target === 'outfit') refreshOutfitHero(false);
+  else refreshSceneHero(false);
+}
+
+document.querySelector('#retry-outfit-preview').addEventListener('click', () => retryPresetPreview('outfit'));
+document.querySelector('#retry-scene-preview').addEventListener('click', () => retryPresetPreview('scene'));
 
 /* =========================================================================
    Room 2 · 场景（保留原背景 / 上传场地照片 / 固定场馆仅当目录提供）
@@ -384,18 +442,60 @@ function currentVenue() {
   return state.venues.find(item => item.id === state.sceneVenueId) || null;
 }
 
-function refreshSceneHero(animate) {
+function currentVenuePreview() {
+  return state.sceneMode === 'venue' ? state.venuePreviews.get(state.sceneVenueId) || null : null;
+}
+
+function sceneHeroKey() {
+  if (state.sceneMode === 'venue') return `venue:${state.sceneVenueId}`;
+  if (state.sceneMode === 'upload') return `upload:${state.sceneURL}`;
+  return `original:${coupleHeroSrc()}`;
+}
+
+async function refreshSceneHero(animate) {
   const sceneUploaded = state.sceneMode === 'upload' && state.sceneURL;
-  const markup = heroMarkup({ src: sceneUploaded ? state.sceneURL : coupleHeroSrc() });
+  const venue = currentVenue();
+  const venuePreview = currentVenuePreview();
   const reference = document.querySelector('#scene-reference');
   reference.hidden = !sceneUploaded || !state.photoURL;
   reference.innerHTML = reference.hidden ? '' : `<img src="${escapeHTML(state.photoURL)}" alt="合照参考"><span>合照参考 · 下方为场地照片</span>`;
-  if (animate) transitionHero(sceneLayers, sceneCanvas, markup);
-  else showHeroImmediately(sceneLayers, sceneCanvas, markup);
+  if (state.sceneMode !== 'venue') {
+    const markup = heroMarkup({ src: sceneUploaded ? state.sceneURL : coupleHeroSrc() });
+    state.sceneHero.key = sceneHeroKey();
+    state.sceneHero.retryable = false;
+    state.sceneHero.status = '';
+    renderPresetFrame('scene');
+    // 立即作废尚未完成的预设解码；各次请求提交前还会再次核对版本号。
+    state.scenePreviewVersion++;
+    if (animate) transitionHero(sceneLayers, sceneCanvas, markup);
+    else showHeroImmediately(sceneLayers, sceneCanvas, markup);
+    return;
+  }
+  await showPresetHero({
+    target: 'scene', animate,
+    key: sceneHeroKey(),
+    id: state.sceneVenueId,
+    preview: venuePreview,
+    idleLabel: `场馆示例 · ${venue?.name || state.sceneVenueId}`,
+    noun: '场馆图片',
+  });
+}
+
+function selectVenue(id) {
+  if (!state.venues.some(venue => venue.id === id)) return;
+  state.sceneMode = 'venue';
+  state.sceneVenueId = id;
+  clearResult();
+  syncPresetRoom();
+  renderDock();
+  refreshSceneHero(true);
+  syncAmbient();
 }
 
 function selectSceneMode(mode) {
   state.sceneMode = mode;
+  // 切换场景方式即放弃已选场馆；上传照片只在离开上传方式时释放。
+  state.sceneVenueId = '';
   clearResult();
   // 模式切换使进行中的场景图解码失效，迟到的选择不能覆盖新模式。
   state.sceneVersion++;
@@ -404,9 +504,10 @@ function selectSceneMode(mode) {
     state.sceneImage = null;
     sceneInput.value = '';
   }
+  syncPresetRoom();
+  renderDock();
   refreshSceneHero(true);
   syncAmbient();
-  renderDock();
 }
 
 async function selectScene(file) {
@@ -421,9 +522,10 @@ async function selectScene(file) {
     state.sceneImage = image;
     releaseSceneURL();
     state.sceneURL = URL.createObjectURL(new Blob([image.bytes], { type: image.mime }));
+    syncPresetRoom();
+    renderDock();
     refreshSceneHero(true);
     syncAmbient();
-    renderDock();
   } catch (error) {
     if (version !== state.sceneVersion) return;
     showAlert(error.message);
@@ -543,7 +645,7 @@ function renderDock() {
     const venueTiles = state.venues.map(venue => thumbTile({
       action: 'select-venue', arg: venue.id,
       active: state.sceneMode === 'venue' && state.sceneVenueId === venue.id,
-      inner: `<span class="name-tile">${escapeHTML(venue.name)}</span>`,
+      inner: `${state.venuePreviews.has(venue.id) ? `<img class="outfit-thumbnail" src="/web/public/${escapeHTML(state.venuePreviews.get(venue.id).thumbnail.file)}" alt="" width="320" height="240" loading="lazy" decoding="async" draggable="false">` : ''}<span class="outfit-card-name">${escapeHTML(venue.name)}</span>`,
       label: `选择场馆：${venue.name}`,
     })).join('');
     const hint = state.sceneMode === 'upload' && !state.sceneImage ? '<p class="dock-hint">请先上传一张场地照片</p>' : '';
@@ -568,8 +670,8 @@ function renderDock() {
     strip.scrollTo({ left: Math.min(previousScroll, Math.max(0, strip.scrollWidth - strip.clientWidth)), behavior: 'instant' });
   }
   if (!sameList) revealDockTile(strip?.querySelector('.dock-thumb-btn.is-active'));
-  // 造型厅沿用同一 dock，只把它叠在造型预览画框内，与其他厅共用一套 DOM 与状态。
-  const host = state.room === 1 ? outfitPreview : experience;
+  // 造型厅与场景厅预设模式把 dock 叠在预览画框内；普通展厅留在视口下方，避免遮挡完整照片。
+  const host = isPresetRoom() ? (state.room === 1 ? outfitPreview : scenePreview) : experience;
   if (dock.parentElement !== host) host.append(dock);
 }
 
@@ -655,12 +757,7 @@ dock.addEventListener('click', event => {
     selectSceneMode(arg);
     if (arg === 'upload') sceneInput.click();
   } else if (action === 'select-venue') {
-    state.sceneMode = 'venue';
-    state.sceneVenueId = arg;
-    clearResult();
-    refreshSceneHero(true);
-    syncAmbient();
-    renderDock();
+    selectVenue(arg);
   } else if (action === 'generate') {
     requestGeneration(control);
   } else if (action === 'restart') {
@@ -980,10 +1077,14 @@ function restartSession() {
   clearScene();
   state.sceneMode = 'original';
   state.outfitId = '';
-  state.outfitPreviewVersion++;
-  cancelDissolve(outfitCanvas);
-  for (const layer of outfitLayers) layer.replaceChildren();
   state.sceneVenueId = '';
+  state.outfitPreviewVersion++;
+  state.scenePreviewVersion++;
+  state.outfitHero.key = '';
+  state.sceneHero.key = '';
+  cancelDissolve(outfitCanvas);
+  cancelDissolve(sceneCanvas);
+  for (const layer of outfitLayers) layer.replaceChildren();
   clearResult();
   renderPhotoRoom();
   refreshSceneHero(false);
@@ -1048,25 +1149,20 @@ window.addEventListener('keydown', event => {
   const target = event.target;
   if (target instanceof Element && (target.closest('input, textarea, select') || target.closest('[contenteditable]'))) return;
   const items = state.room === 1
-    ? orderedOutfits()
-    : state.venues.length ? [{ id: 'original' }, { id: 'upload' }, ...state.venues.map(v => ({ id: v.id }))] : [{ id: 'original' }, { id: 'upload' }];
+    ? orderedOutfits().map(item => item.id)
+    : state.venues.length ? ['original', 'upload', ...state.venues.map(v => v.id)] : ['original', 'upload'];
   const activeId = state.room === 1 ? state.outfitId : (state.sceneMode === 'venue' ? state.sceneVenueId : state.sceneMode);
-  const index = items.findIndex(item => item.id === activeId);
+  const index = items.indexOf(activeId);
   const next = items[index < 0 ? (event.key === 'ArrowRight' ? 0 : items.length - 1) : index + (event.key === 'ArrowRight' ? 1 : -1)];
-  if (!next) return;
+  if (next === undefined) return;
   event.preventDefault();
   if (state.room === 1) {
-    const outfit = state.outfits.find(item => item.id === next.id);
+    const outfit = state.outfits.find(item => item.id === next);
     if (outfit) selectOutfit(outfit);
-  } else if (next.id === 'original' || next.id === 'upload') {
-    selectSceneMode(next.id);
+  } else if (next === 'original' || next === 'upload') {
+    selectSceneMode(next);
   } else {
-    state.sceneMode = 'venue';
-    state.sceneVenueId = next.id;
-    clearResult();
-    refreshSceneHero(true);
-    syncAmbient();
-    renderDock();
+    selectVenue(next);
   }
   // 键盘切换后重建 dock，并把焦点交给新的选中卡片。
   if (state.room === 1) renderDock();
@@ -1273,24 +1369,41 @@ async function fetchOutfitPreviews() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const manifest = await response.json();
     const previews = manifest.outfitPreviews;
+    const venuePreviews = manifest.venuePreviews;
     if (manifest.version !== 1 || !Array.isArray(previews) || previews.length !== 30
       || new Set(previews.map(item => item.id)).size !== 30
       || !previews.every(item => OUTFIT_ID_PATTERN.test(item.id)
         && item.display?.file === `outfits/${item.id}.webp`
         && item.thumbnail?.file === `outfits/${item.id}-thumb.webp`
         && Array.isArray(item.focus) && item.focus.length === 2
+        && item.focus.every(value => Number.isFinite(value) && value >= 0 && value <= 1))
+      || !Array.isArray(venuePreviews) || venuePreviews.length !== EXPECTED_VENUE_PREVIEWS
+      || new Set(venuePreviews.map(item => item.id)).size !== EXPECTED_VENUE_PREVIEWS
+      || !venuePreviews.every(item => VENUE_ID_PATTERN.test(item.id)
+        && item.display?.file === `venues/${item.id}.webp`
+        && item.thumbnail?.file === `venues/${item.id}-thumb.webp`
+        && Array.isArray(item.focus) && item.focus.length === 2
         && item.focus.every(value => Number.isFinite(value) && value >= 0 && value <= 1))) {
       throw new Error('展示素材清单格式无效');
     }
     state.outfitPreviews = new Map(previews.map(item => [item.id, item]));
+    state.venuePreviews = new Map(venuePreviews.map(item => [item.id, item]));
     state.outfitPreviewsError = '';
+    // 清单内容可能已更新：重新解析当前选择，避免同键短路保留旧图或旧错误。
+    state.outfitHero.key = '';
+    state.sceneHero.key = '';
     if (state.room === 1) refreshOutfitHero(false);
+    if (state.room === 2) { refreshSceneHero(false); renderDock(); }
   } catch (error) {
     state.outfitPreviews = new Map();
-    // Keep the manifest failure visible; the hero reports the same cause instead of
-    // replacing it with "missing this outfit".
+    state.venuePreviews = new Map();
+    // 清单失败原因跟随加载流程进入提示层；重试时由新的成功或失败覆盖。
     state.outfitPreviewsError = `造型示例清单读取失败：${error.message}`;
     status.textContent = state.outfitPreviewsError;
+    if (state.room === 2 && state.sceneMode === 'venue') {
+      state.sceneHero.key = '';
+      refreshSceneHero(false);
+    }
     showAlert(state.outfitPreviewsError);
   }
 }
@@ -1303,5 +1416,5 @@ await checkHealth();
 // Decorative outfit previews must not delay the interactive dock; redraw it when they arrive.
 await loadOutfits();
 renderDock();
-loadOutfitPreviews().then(() => { if (state.room === 1) renderDock(); });
+loadOutfitPreviews().then(() => { if (state.room === 1 || state.room === 2) renderDock(); });
 syncAmbient();

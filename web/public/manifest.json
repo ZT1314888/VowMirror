@@ -783,5 +783,161 @@
         }
       ]
     }
+  ],
+  "venuePreviews": [
+    {
+      "id": "V001",
+      "role": "venue-example-only",
+      "source": "User-provided venue photo; not a generated user result or model output.",
+      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "display": {
+        "file": "venues/V001.webp",
+        "width": 2400,
+        "height": 1600,
+        "sha256": "642c56603cb67cb6b5f09145f9c9cade36e1c7d7b7b432a2c464dcc6c55f9ebe"
+      },
+      "thumbnail": {
+        "file": "venues/V001-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "164e7d6bc611f96e44e1c8b9390446cf25156ed1398cdd34bc423e37ea2d1c9b"
+      }
+    },
+    {
+      "id": "V002",
+      "role": "venue-example-only",
+      "source": "User-provided venue photo; not a generated user result or model output.",
+      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "display": {
+        "file": "venues/V002.webp",
+        "width": 2400,
+        "height": 1600,
+        "sha256": "706a1103c62a926a17eae24a980cefb69760359f9b0c13685ffcf182e4ebdedb"
+      },
+      "thumbnail": {
+        "file": "venues/V002-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "9f8d4499e37b37773f6c01d8f5c7d838a442e2d1f5d89378b607317aa84c6f47"
+      }
+    },
+    {
+      "id": "V003",
+      "role": "venue-example-only",
+      "source": "User-provided venue photo; not a generated user result or model output.",
+      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "focus": [
+        0.499,
+        0.5
+      ],
+      "display": {
+        "file": "venues/V003.webp",
+        "width": 2400,
+        "height": 1600,
+        "sha256": "be69100fb699bf06f57d6bc025e9211880fcabc369df6811ac7086d6e83b8cc3"
+      },
+      "thumbnail": {
+        "file": "venues/V003-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "bb8e8cdca7707addf02e76834fecb91dd02bf07ed6cd0cac180da531f620e638"
+      }
+    },
+    {
+      "id": "V004",
+      "role": "venue-example-only",
+      "source": "User-provided venue photo; not a generated user result or model output.",
+      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "display": {
+        "file": "venues/V004.webp",
+        "width": 2400,
+        "height": 1600,
+        "sha256": "0429f9c70ebf175e5cf4673acf431ce79635102db979264958a38d105bcf28e5"
+      },
+      "thumbnail": {
+        "file": "venues/V004-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "fead76f11dbcbf4e8b7bf3fa320fdeb606a52362321570815460423d8f23e405"
+      }
+    },
+    {
+      "id": "V005",
+      "role": "venue-example-only",
+      "source": "User-provided venue photo; not a generated user result or model output.",
+      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "focus": [
+        0.5,
+        0.499
+      ],
+      "display": {
+        "file": "venues/V005.webp",
+        "width": 2400,
+        "height": 1600,
+        "sha256": "38a123fc06a4736c64c52f9d915e3481977f514dcbc7ef1b307657e74e9d5d17"
+      },
+      "thumbnail": {
+        "file": "venues/V005-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "1c28807102f790c82cbf120309286a76a3b28e221502406b36fccbf6578e6d30"
+      }
+    },
+    {
+      "id": "V006",
+      "role": "venue-example-only",
+      "source": "User-provided venue photo; not a generated user result or model output.",
+      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "display": {
+        "file": "venues/V006.webp",
+        "width": 2400,
+        "height": 1600,
+        "sha256": "956a8c6705734e7c6021b6b64b8904a869edbb90b57010b253b87ad7b5aee28e"
+      },
+      "thumbnail": {
+        "file": "venues/V006-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "f7208761a55ef5d10cee60f8553076a1107b89afbc0c4b3043cfe9dfccf1d574"
+      }
+    },
+    {
+      "id": "V007",
+      "role": "venue-example-only",
+      "source": "User-provided venue photo; not a generated user result or model output.",
+      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "focus": [
+        0.5,
+        0.5
+      ],
+      "display": {
+        "file": "venues/V007.webp",
+        "width": 2400,
+        "height": 1600,
+        "sha256": "3f36b9befa13127216c7422d0efd2321d3e4b67e6b214036b7c5edb963f153a4"
+      },
+      "thumbnail": {
+        "file": "venues/V007-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "bec5d996cd1f0bb02cf2a8f0841b8330908fb292510f99c51b60ddd5762fdccc"
+      }
+    }
   ]
 }

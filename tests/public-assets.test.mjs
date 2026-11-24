@@ -7,7 +7,7 @@ test('public sample assets are an exact, licensed, metadata-free allowlist', asy
   const base = new URL('../web/public/', import.meta.url);
   const manifest = JSON.parse(await readFile(new URL('manifest.json', base), 'utf8'));
   assert.equal(manifest.version, 1);
-  assert.deepEqual((await readdir(base)).sort(), ['florals.jpg', 'fonts', 'invitation-opening-petals.mp3', 'manifest.json', 'outfits', 'wedding-example.jpg']);
+  assert.deepEqual((await readdir(base)).sort(), ['florals.jpg', 'fonts', 'invitation-opening-petals.mp3', 'manifest.json', 'outfits', 'venues', 'wedding-example.jpg']);
   assert.deepEqual((await readdir(new URL('fonts', base))).sort(), [
     'OFL-cormorant-garamond.txt',
     'OFL-noto-serif-sc.txt',
@@ -92,6 +92,65 @@ test('invitation audio matches the approved CC0 mix and records both original so
   }
   const data = await readFile(new URL(audio.file, base));
   assert.equal(createHash('sha256').update(data).digest('hex'), audio.sha256);
+});
+
+test('venue previews match the catalog venue IDs with verified, metadata-free WebP files', async () => {
+  const base = new URL('../web/public/', import.meta.url);
+  const manifest = JSON.parse(await readFile(new URL('manifest.json', base), 'utf8'));
+  const catalog = JSON.parse(await readFile(new URL('../assets/wedding/manifest.json', import.meta.url), 'utf8'));
+  assert.ok(catalog.venues.length > 0);
+  assert.deepEqual(manifest.venuePreviews.map(item => item.id), catalog.venues.map(item => item.id));
+  const expected = [];
+  for (const entry of manifest.venuePreviews) {
+    assert.match(entry.id, /^V00[1-7]$/);
+    assert.equal(entry.role, 'venue-example-only');
+    assert.match(entry.source, /User-provided venue photo/);
+    assert.equal(entry.focus.length, 2);
+    assert.ok(entry.focus.every(value => Number.isFinite(value) && value >= 0 && value <= 1));
+    for (const [kind, suffix, size] of [['display', '', [2400, 1600]], ['thumbnail', '-thumb', [320, 240]]]) {
+      const asset = entry[kind];
+      const file = `${entry.id}${suffix}.webp`;
+      expected.push(file);
+      assert.equal(asset.file, `venues/${file}`);
+      assert.deepEqual([asset.width, asset.height], size);
+      const bytes = await readFile(new URL(asset.file, base));
+      assert.equal(createHash('sha256').update(bytes).digest('hex'), asset.sha256);
+      assert.equal(bytes.toString('ascii', 0, 4), 'RIFF');
+      assert.equal(bytes.toString('ascii', 8, 12), 'WEBP');
+      let offset = 12;
+      const chunks = [];
+      while (offset < bytes.length) {
+        const type = bytes.toString('ascii', offset, offset + 4);
+        chunks.push(type);
+        const length = bytes.readUInt32LE(offset + 4);
+        offset += 8 + length + (length % 2);
+        assert.ok(offset <= bytes.length);
+      }
+      assert.ok(chunks.includes('VP8 ') || chunks.includes('VP8L'));
+      assert.ok(!chunks.some(chunk => ['EXIF', 'XMP ', 'ICCP'].includes(chunk)), file);
+    }
+  }
+  assert.deepEqual((await readdir(new URL('venues/', base))).sort(), expected.sort());
+});
+
+test('venue preview ids keep one expression across the Nginx allowlist, frontend, manifest check and build context', async () => {
+  const pattern = '^/web/public/venues/V00[1-7](-thumb)?\\.webp$';
+  const nginx = await readFile(new URL('../docker/nginx.conf', import.meta.url), 'utf8');
+  // Nginx applies the first regex location that matches, so the venue rule must admit exactly this id set.
+  assert.ok(nginx.includes(`location ~ ${pattern} {`), 'nginx venue location');
+  assert.ok(nginx.includes(`"~${pattern}" "public, max-age=31536000, immutable";`), 'venue cache policy');
+  const app = await readFile(new URL('../web/app.mjs', import.meta.url), 'utf8');
+  assert.ok(app.includes('const VENUE_ID_PATTERN = /^V00[1-7]$/;'));
+  const bootstrap = await readFile(new URL('../scripts/verify-wedding-assets.mjs', import.meta.url), 'utf8');
+  assert.ok(bootstrap.includes('export const VENUE_ID_PATTERN = /^V00[1-7]$/;'));
+  for (const id of ['V001', 'V004', 'V007']) assert.ok(/^V00[1-7]$/.test(id), id);
+  for (const id of ['V000', 'V008', 'V099', 'v001', 'V01', 'V0010']) assert.ok(!/^V00[1-7]$/.test(id), id);
+  const ignore = await readFile(new URL('../.dockerignore', import.meta.url), 'utf8');
+  assert.match(ignore, /^web\/public\/venues\/\*\*$/m);
+  assert.match(ignore, /^!web\/public\/venues\/V00\[1-7\]\.webp$/m);
+  assert.match(ignore, /^!web\/public\/venues\/V00\[1-7\]-thumb\.webp$/m);
+  const dockerfile = await readFile(new URL('../docker/web.Dockerfile', import.meta.url), 'utf8');
+  assert.match(dockerfile, /rmdir \/usr\/share\/nginx\/html\/web\/public\/venues/);
 });
 
 test('self-hosted display fonts are OFL-licensed with recorded provenance', async () => {

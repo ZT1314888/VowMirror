@@ -50,6 +50,9 @@ export async function verifyDockWheel(page) {
   await page.keyboard.press('ArrowRight');
   await page.waitForFunction(id => document.querySelector('.dock-thumb-btn.is-active').dataset.arg !== id, nextSelection);
   await page.locator('.stepper-link').nth(2).click();
+  // The scene dock inherits the outfit card system with a wider strip for its longer list;
+  // drop the venues to exercise the fits-on-screen path.
+  await page.evaluate(() => document.querySelectorAll('[data-action="select-venue"]').forEach(tile => tile.remove()));
   assert.equal(await dispatch({ deltaY: 100 }), false, 'do not consume wheel for a list that fits');
   await page.locator('.stepper-link').first().click();
 }

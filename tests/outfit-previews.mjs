@@ -43,7 +43,7 @@ try {
   assert.equal(await page.locator('.dock-thumb-btn.is-active').getAttribute('data-arg'), 'W001', 'keyboard can make the first selection');
   assert.equal(mainRequests.length, 1, 'selecting the current example does not reload it');
 
-  // Check every image with the browser decoder, not just container headers.
+  // Check every outfit and venue image with the browser decoder, not just container headers.
   const decoded = await page.evaluate(async entries => Promise.all(entries.flatMap(entry => ['display', 'thumbnail'].map(async kind => {
     const spec = entry[kind];
     const response = await fetch(`/web/public/${spec.file}`);
@@ -52,10 +52,13 @@ try {
     const size = [image.width, image.height];
     image.close();
     return { file: spec.file, size };
-  }))), manifest.outfitPreviews);
-  assert.equal(decoded.length, 60);
-  for (const entry of decoded) assert.deepEqual(entry.size, entry.file.includes('-thumb') ? [320, 240] : [2400, 1040]);
-  for (const path of ['/web/public/outfits/', '/web/public/outfits/W000.webp', '/web/public/outfits/W031.webp', '/web/public/outfits/W001.png', '/web/public/outfits/other.webp', '/web/public/fonts/OFL-noto-serif-sc.txt', '/assets/wedding/W001/dress.jpg', '/assets/wedding/private/intake.json', '/.env', '/web/public/manifest.json.bak']) {
+  }))), [...manifest.outfitPreviews, ...manifest.venuePreviews]);
+  assert.equal(decoded.length, 74);
+  for (const entry of decoded) {
+    const expected = entry.file.includes('-thumb') ? [320, 240] : entry.file.startsWith('venues/') ? [2400, 1600] : [2400, 1040];
+    assert.deepEqual(entry.size, expected);
+  }
+  for (const path of ['/web/public/outfits/', '/web/public/outfits/W000.webp', '/web/public/outfits/W031.webp', '/web/public/outfits/W001.png', '/web/public/outfits/other.webp', '/web/public/venues/', '/web/public/venues/V000.webp', '/web/public/venues/V008.webp', '/web/public/venues/V001.png', '/web/public/fonts/OFL-noto-serif-sc.txt', '/assets/wedding/W001/dress.jpg', '/assets/wedding/venues/V001/scene.jpg', '/assets/wedding/private/intake.json', '/.env', '/web/public/manifest.json.bak']) {
     assert.equal((await page.request.get(base + path)).status(), 404, path);
   }
 
@@ -189,7 +192,18 @@ try {
   await page.locator('.stepper-link').nth(2).click();
   await page.locator('#scene-image').setInputFiles({ name: 'checker.png', mimeType: 'image/png', buffer: fixture });
   await page.waitForFunction(() => document.querySelector('#room-scene .is-front img')?.src.startsWith('blob:') && !document.querySelector('#scene-reference').hidden);
+  // Fixed venue previews use the same cover + focus frame and particle dissolve as outfit previews.
+  await Promise.all([
+    page.waitForRequest(request => request.url().endsWith('/web/public/venues/V001.webp')),
+    page.locator('[data-action="select-venue"][data-arg="V001"]').evaluate(element => element.click()),
+  ]);
+  await page.waitForFunction(() => document.querySelector('#room-scene .is-front img')?.dataset.venueId === 'V001');
   await page.waitForFunction(() => window.__previewDraws.some(draw => draw.fit === 'contain'));
+  // Switching back to original dissolves from the cover+focus venue image while restoring full contain framing.
+  await page.locator('[data-action="set-scene-mode"][data-arg="original"]').click();
+  await page.waitForFunction(photoURL => document.querySelector('#room-scene .is-front img')?.src === photoURL, photoURL);
+  await page.waitForFunction(() => window.__previewDraws.some(draw => draw.fit === 'cover' && draw.size[0] === 2400 && draw.size[1] === 1600));
+  assert.equal(await page.locator('#room-scene .is-front img').evaluate(img => getComputedStyle(img).objectFit), 'contain');
   for (const { canvas: [w, h], size: [sw, sh], fit, focus: [fx, fy], args } of await page.evaluate(() => window.__previewDraws)) {
     const scale = (fit === 'cover' ? Math.max : Math.min)(w / sw, h / sh);
     assert.deepEqual(args, [(w - sw * scale) * fx, (h - sh * scale) * fy, sw * scale, sh * scale]);
@@ -202,6 +216,107 @@ try {
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   assert.deepEqual(await page.evaluate(() => window.__previewDraws), []);
   console.log('Shared particle sampling matches cover/focus and contain; reduced motion draws no particles');
+
+  // Verify fixed venue frames match outfit frames across viewports, including landscape mobile.
+  const venueViewports = [[375, 812], [768, 900], [1440, 900], [1920, 1080], [812, 375]];
+  const displayedVenue = id => page.waitForFunction(id => {
+    const img = document.querySelector('#room-scene .is-front img');
+    return img?.dataset.venueId === id && img.complete && img.naturalWidth === 2400 && img.naturalHeight === 1600;
+  }, id);
+  const chooseVenue = id => page.locator(`[data-action="select-venue"][data-arg="${id}"]`).evaluate(element => element.click());
+  for (const [width, height] of venueViewports) {
+    await page.setViewportSize({ width, height });
+    await page.waitForFunction(({ width, height }) => innerWidth === width && innerHeight === height, { width, height });
+    await page.locator('.stepper-link').nth(1).click();
+    await page.waitForFunction(() => Math.abs(document.querySelector('#room-outfit').getBoundingClientRect().x) < 1);
+    const outfitBox = await page.locator('#room-outfit .hero-frame').boundingBox();
+    await page.locator('.stepper-link').nth(2).click();
+    await page.waitForFunction(() => Math.abs(document.querySelector('#room-scene').getBoundingClientRect().x) < 1);
+    for (const entry of manifest.venuePreviews) {
+      await chooseVenue(entry.id);
+      await displayedVenue(entry.id);
+      const geometry = await page.locator('#room-scene .is-front img').evaluate(img => {
+        const box = img.getBoundingClientRect();
+        const style = getComputedStyle(img);
+        const viewport = document.querySelector('#gallery-viewport').getBoundingClientRect();
+        const tile = document.querySelector(`.dock-thumb-btn[data-arg="${img.dataset.venueId}"]`);
+        const name = tile.querySelector('.outfit-card-name');
+        const gen = document.querySelector('#generate').getBoundingClientRect();
+        return {
+          x: box.x, y: box.y, width: box.width, height: box.height,
+          viewportTop: viewport.top, viewportHeight: viewport.height,
+          fit: style.objectFit,
+          focus: style.objectPosition.split(' ').map(value => parseFloat(value) / 100),
+          border: getComputedStyle(img.closest('.gallery-room'), '::after').content,
+          tile: tile.getBoundingClientRect(),
+          label: tile.getAttribute('aria-label'),
+          nameText: name.textContent.trim(),
+          nameFits: name.scrollHeight <= name.clientHeight + 1 && name.scrollWidth <= name.clientWidth + 1,
+          genVisible: gen.right <= innerWidth + 1 && gen.bottom <= innerHeight + 1 && gen.width > 0 && gen.height > 0,
+        };
+      });
+      assert.equal(geometry.fit, 'cover');
+      assert.ok(geometry.focus.every((value, i) => Math.abs(value - entry.focus[i]) < 1e-6));
+      assert.equal(geometry.border, 'none');
+      assert.ok(Math.abs(geometry.x) < 1 && Math.abs(geometry.y - geometry.viewportTop) < 1);
+      assert.ok(Math.abs(geometry.width - outfitBox.width) < 1 && Math.abs(geometry.height - outfitBox.height) < 1);
+      assert.deepEqual([Math.round(geometry.tile.width), Math.round(geometry.tile.height)], width <= 800 ? [88, 86] : [112, 104]);
+      assert.ok(geometry.nameText.length > 0 && geometry.label.includes(geometry.nameText));
+      assert.equal(geometry.nameFits, true, `venue card name clipped for ${entry.id} at ${width}x${height}`);
+      assert.equal(geometry.genVisible, true, `generate button clipped at ${width}x${height}`);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflow at ${width}x${height}`);
+    }
+    await page.screenshot({ path: `${evidence}/venue-preview-${width}x${height}.png` });
+  }
+
+  // Venue failure, retry, late decode isolation and arrow-key navigation.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.route('**/web/public/venues/V002.webp', route => route.fulfill({ status: 404, body: '' }));
+  await chooseVenue('V002');
+  await page.locator('#scene-preview-status').filter({ hasText: '加载失败' }).waitFor();
+  assert.equal(await page.locator('#room-scene .hero-frame img').count(), 0);
+  await page.unroute('**/web/public/venues/V002.webp');
+  await page.locator('#retry-scene-preview').click();
+  await displayedVenue('V002');
+
+  await page.evaluate(() => {
+    const original = HTMLImageElement.prototype.decode;
+    window.__heldVenueDecode = 0;
+    HTMLImageElement.prototype.decode = async function () {
+      await original.call(this);
+      if (this.src.endsWith('/V002.webp')) {
+        window.__heldVenueDecode++;
+        await new Promise(resolve => { window.__releaseVenueDecode = resolve; });
+      }
+    };
+    window.__restoreVenueDecode = () => { HTMLImageElement.prototype.decode = original; };
+  });
+  await chooseVenue('V001');
+  await displayedVenue('V001');
+  await chooseVenue('V002');
+  await page.waitForFunction(() => window.__heldVenueDecode === 1);
+  await chooseVenue('V003');
+  await displayedVenue('V003');
+  await page.evaluate(() => window.__releaseVenueDecode());
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await displayedVenue('V003');
+  await chooseVenue('V002');
+  await page.waitForFunction(() => window.__heldVenueDecode === 2);
+  await page.locator('[data-action="set-scene-mode"][data-arg="original"]').click();
+  await page.evaluate(() => { window.__releaseVenueDecode(); window.__restoreVenueDecode(); });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await page.locator('#room-scene .is-front img').evaluate(img => img.src), photoURL);
+
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.locator('.dock-thumb-btn.is-active').getAttribute('data-arg'), 'upload');
+  await page.keyboard.press('ArrowRight');
+  await displayedVenue('V001');
+  assert.equal(await page.locator('.dock-thumb-btn.is-active').getAttribute('data-arg'), 'V001');
+  await page.keyboard.press('ArrowLeft');
+  assert.equal(await page.locator('.dock-thumb-btn.is-active').getAttribute('data-arg'), 'upload');
+  await page.keyboard.press('ArrowLeft');
+  assert.equal(await page.locator('.dock-thumb-btn.is-active').getAttribute('data-arg'), 'original');
+  console.log('Venue multi-viewport layout, card names, retry, late decode isolation and arrow keys passed');
 
   // The display example must never enter the generation payload.
   await page.locator('.stepper-link').nth(2).click();

@@ -438,5 +438,41 @@
         "action": "Both people run away from the camera, viewed from behind, with the wedding-dress wearer on the left and the menswear wearer on the right. Their inner hands remain joined, both bend their trailing legs backward, and the wedding-dress wearer lightly lifts the existing skirt with the free hand."
       }
     ],
-  "venues": []
+  "venues": [
+    {
+      "id": "V001",
+      "name": "花园草坪仪式场地",
+      "path": "venues/V001/scene.jpg"
+    },
+    {
+      "id": "V002",
+      "name": "花园凉亭仪式场地",
+      "path": "venues/V002/scene.webp"
+    },
+    {
+      "id": "V003",
+      "name": "竹林草坪仪式场地",
+      "path": "venues/V003/scene.webp"
+    },
+    {
+      "id": "V004",
+      "name": "花艺拱门草坪",
+      "path": "venues/V004/scene.webp"
+    },
+    {
+      "id": "V005",
+      "name": "花园白色拱门",
+      "path": "venues/V005/scene.jpg"
+    },
+    {
+      "id": "V006",
+      "name": "花艺拱门竖版",
+      "path": "venues/V006/scene.jpg"
+    },
+    {
+      "id": "V007",
+      "name": "花园玻璃房仪式场地",
+      "path": "venues/V007/scene.jpg"
+    }
+  ]
 }

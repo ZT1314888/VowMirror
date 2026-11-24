@@ -7,6 +7,10 @@ assets/wedding/**
 !index.html
 !web/
 !web/**
+# Only the V001-V007 venue previews enter the web image; references and private intake stay out.
+web/public/venues/**
+!web/public/venues/V00[1-7].webp
+!web/public/venues/V00[1-7]-thumb.webp
 !docker/
 !docker/**
 !backend/

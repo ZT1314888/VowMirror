@@ -241,35 +241,48 @@ a { color: inherit; }
 .charcoal-pill:active, .ivory-pill:active { transform: translateY(1px); }
 .dock-hint { flex-shrink: 0; max-width: 180px; color: var(--taupe); font-size: 12px; line-height: 1.5; }
 
-/* 造型厅用与其余展厅相同的房间列；dock 作为浮动叠加层挂在同一预览画框内。 */
-#room-outfit { padding: 0; gap: 0; background: var(--ivory); }
-#room-outfit::before, #room-outfit::after { content: none; }
-#room-outfit .hero-photo { object-fit: cover; }
-.outfit-preview { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
-.is-outfit-room .floating-dock { display: none; }
-.is-outfit-room #outfit-preview .floating-dock {
+/* 预设画框：造型厅与场馆模式共用全幅画框、cover 裁切、步进器与底部浮层；
+   原背景与用户上传照片保留普通展厅装裱与完整显示。 */
+.is-preset-room #room-outfit,
+.is-preset-room #room-scene { padding: 0; gap: 0; background: var(--ivory); }
+.is-preset-room #room-outfit::before,
+.is-preset-room #room-outfit::after,
+.is-preset-room #room-scene::before,
+.is-preset-room #room-scene::after { content: none; }
+.preset-hero-photo { object-fit: cover; }
+.outfit-preview, .scene-preview { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.is-preset-room .floating-dock { display: none; }
+.is-preset-room .outfit-preview .floating-dock,
+.is-preset-room .scene-preview .floating-dock {
   display: flex; position: absolute; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom));
   max-width: calc(100% - 24px); transform: translateX(-50%); margin: 0; overflow: hidden; max-height: none;
   background: rgba(250, 248, 245, .92);
 }
-.is-outfit-room .stepper-link, .is-outfit-room .stepper-link .step-no { color: var(--taupe); }
-.is-outfit-room .stepper-link.is-current { color: var(--ink); }
-.is-outfit-room .stepper-link.is-current .step-no { color: var(--berry); }
-.is-outfit-room .dock-thumb-btn { width: 112px; height: 104px; transform: none; opacity: 1; }
-.is-outfit-room .dock-thumb-btn.is-active { border-color: var(--berry); box-shadow: 0 0 0 2px rgba(161, 38, 61, .15); }
-.is-outfit-room .dock-thumb-btn > img { display: block; height: 72px; object-fit: cover; object-position: center 40%; }
-.outfit-card-name { display: flex; align-items: center; justify-content: center; height: 29px; padding: 0 4px; color: var(--ink); font-size: 12px; white-space: nowrap; }
-.outfit-preview-label {
+.is-preset-room .stepper-link, .is-preset-room .stepper-link .step-no { color: var(--taupe); }
+.is-preset-room .stepper-link.is-current { color: var(--ink); }
+.is-preset-room .stepper-link.is-current .step-no { color: var(--berry); }
+/* 造型与场景卡片同一结构：缩略图居上、底部名称支持两行；桌面 112×104，窄屏 88×86。 */
+.is-preset-room .dock-thumb-btn, #room-scene .dock-thumb-btn { display: flex; flex-direction: column; width: 112px; height: 104px; transform: none; opacity: 1; }
+.is-preset-room .dock-thumb-btn.is-active, #room-scene .dock-thumb-btn.is-active { border-color: var(--berry); box-shadow: 0 0 0 2px rgba(161, 38, 61, .15); }
+.is-preset-room .dock-thumb-btn > img, #room-scene .dock-thumb-btn > img { flex: 0 0 auto; display: block; height: 60px; object-fit: cover; object-position: center 40%; }
+#room-scene .dock-thumb-strip { max-width: min(72vw, 820px); }
+.outfit-card-name {
+  display: flex; align-items: center; justify-content: center; flex: 1 1 0; min-height: 0; width: 100%;
+  padding: 2px 4px; overflow: hidden; color: var(--ink); font-size: 12px; line-height: 1.28; text-align: center; overflow-wrap: anywhere;
+}
+.preset-label {
   position: absolute; z-index: 8; top: max(16px, env(safe-area-inset-top)); left: 16px;
   max-width: calc(100% - 32px); padding: 8px 12px; border-radius: 12px;
   color: var(--ink); background: rgba(250, 248, 245, .92); font-size: 12px;
 }
-.outfit-preview-label p { margin: 0; }
-.outfit-preview-label button { min-height: 44px; margin-top: 4px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--ivory); color: var(--ink); }
+.preset-label:empty { display: none; }
+.preset-label p { margin: 0; }
+.preset-label button { min-height: 44px; margin-top: 4px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--ivory); color: var(--ink); }
 @media (max-width: 800px) {
-  .is-outfit-room .dock-thumb-btn { width: 88px; height: 86px; }
-  .is-outfit-room .dock-thumb-btn > img { height: 54px; }
-  .is-outfit-room .floating-dock { bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .is-preset-room .dock-thumb-btn, #room-scene .dock-thumb-btn { width: 88px; height: 86px; }
+  .is-preset-room .dock-thumb-btn > img, #room-scene .dock-thumb-btn > img { height: 48px; }
+  .is-preset-room .floating-dock, #room-scene .floating-dock { bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .is-preset-room .dock-thumb-strip, #room-scene .dock-thumb-strip { max-width: 58vw; }
 }
 
 /* =========================================================================

@@ -92,7 +92,6 @@ for (const headers of [{}, { Authorization: 'Bearer synthetic-invalid-catalog-to
   assert.ok(directory.data.outfits.length > 0);
   assert.ok(directory.data.outfits.every(entry => Object.keys(entry).sort().join(',') === 'id,name'));
   assert.ok(directory.data.venues.every(entry => Object.keys(entry).sort().join(',') === 'id,name'));
-  assert.deepEqual(directory.data.venues, []);
 }
 // Entry and backend limits are independent budgets; honor every advertised Retry-After.
 async function authorize(token) {

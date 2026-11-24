@@ -103,8 +103,9 @@ Phase 6 完整验收运行 `pwsh -NoProfile -File scripts/verify-phase6.ps1 -Col
 
 根 Compose 将 `W001`–`W030` 套装、`venues/` 固定场馆与 `poses/` 线稿目录只读挂载到后端；`private/` 不挂入应用。
 全新检出时 Compose 可建立空目录，健康和目录正常；缺失套装返回 `OUTFIT_UNAVAILABLE`，选中混合路线却缺线稿返回 `POSE_UNAVAILABLE`。
-唯一清单含 `venues: []`，没有场馆照片时页面不显示选项；未来只通过清单的 V001–V999 编号读取 `venues/Vxxx/`
-路径，未知编号 `UNKNOWN_VENUE`、缺图／损坏 `VENUE_UNAVAILABLE`。场馆实图被 Git 和 Docker 构建上下文忽略，九张私有场地图不会自动加入；不创建假图片，不要求私有素材进入 CI。
+唯一清单含 7 个固定场馆 `V001`–`V007`，来自用户桌面「场地」目录的 7 张照片；后端只通过清单编号读取 `assets/wedding/venues/Vxxx/`
+路径，未知编号 `UNKNOWN_VENUE`、缺图／损坏 `VENUE_UNAVAILABLE`。后端场馆参考图与服装、姿势目录一样被 Git 和 Docker 构建上下文忽略，全新检出为空目录；
+前端场馆预览仅通过 Nginx 白名单公开 `web/public/venues/V001.webp`–`V007.webp` 及 `-thumb.webp`，参考图和 `private/` 不进入静态镜像。
 清单之外的文件不能由客户端指定读取。Nginx 关闭请求和响应代理缓冲及响应临时文件，人物上传与结果不落盘。
 
 生成请求上限 24 MiB。Nginx `/api/` 在传输边界拦截超限请求，返回 JSON `41301 / REQUEST_TOO_LARGE`；响应头与正文带同一服务器请求 ID，保留安全响应头并禁止缓存，未鉴权超限请求也返回
@@ -119,10 +120,10 @@ GPT Image 官方上限。请求使用 multipart、各文件真实 MIME 和 Beare
 账本记录完整码哈希与成功／每日尝试计数，写账失败明确失败。模型提交前记录每日尝试，默认每码每天 10 次、按 UTC 换日；`TRYON_DAILY_ATTEMPT_LIMIT` 可按预算调整。确认成功前取消或超时不扣成
 功数，确认并写账后断线仍计数。
 
-Node 与 Go 使用同一组版本 2 素材清单契约用例；数组允许重排，但必须完整覆盖 30 套服装与 28 个 `unverified` 姿势，`venues` 为必填数组且当前为空。
+Node 与 Go 使用同一组版本 2 素材清单契约用例；数组允许重排，但必须完整覆盖 30 套服装与 28 个 `unverified` 姿势，`venues` 为必填数组，当前为 7 个固定场馆。
 姿势的发送方式、动作描述以清单为唯一来源；当前从全部 28 个条目随机抽取，详见[姿势方案](plan/2026-11-22-random-pose-catalog.md)。
 浏览器烟测覆盖场地上传真实三格式解码、
-尺寸／非空校验、预览替换清除、场地切换、迟到解码隔离、生成编辑锁定与刷新不恢复。Node 标准检查校验 fixture 和真实清单的结构，不要求私有图片进入 CI。已有本地素材时，另运行文件检查：
+尺寸／非空校验、预览替换清除、场地切换、场馆缩略图与主图切换、迟到解码隔离、生成编辑锁定与刷新不恢复。Node 标准检查校验 fixture 和真实清单的结构，不要求私有图片进入 CI。已有本地素材时，另运行文件检查：
 
 ```sh
 docker compose run --rm -T tools-node node scripts/verify-wedding-assets.mjs assets/wedding/manifest.json --check-files
