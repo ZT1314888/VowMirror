@@ -159,23 +159,6 @@ func TestValidateImagePixelLimit(t *testing.T) {
 	}
 }
 
-func TestValidateImagesPairCombinedSize(t *testing.T) {
-	limits := DefaultImageLimits()
-	limits.MaxCombinedDecodedBytes = 1000 // 1000 字节
-
-	img1 := createTestPNG(300, 300)
-	img2 := createTestPNG(300, 300)
-
-	_, _, err := ValidateImagesPair(img1, img2, limits)
-	if err == nil {
-		t.Fatal("expected combined size limit to fail")
-	}
-	apiErr, ok := err.(*security.APIError)
-	if !ok || apiErr.ErrorCode != "IMAGE_FILE_TOO_LARGE" {
-		t.Fatalf("expected IMAGE_FILE_TOO_LARGE, got %v", err)
-	}
-}
-
 func FuzzValidateImage(f *testing.F) {
 	// 语料种子
 	f.Add("")

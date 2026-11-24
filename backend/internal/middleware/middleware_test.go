@@ -180,6 +180,33 @@ func TestAuthMiddleware(t *testing.T) {
 	if respValid.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", respValid.StatusCode)
 	}
+
+	// 4. 即使意外传入 authRequired=false 的 store，也不允许免鉴权回退放行
+	disabledStore, err := security.NewTokenStore(false, envKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	disabledMw := NewAuthMiddleware(disabledStore)
+	sDisabled := g.Server("test-auth-disabled-rejected")
+	sDisabled.Group("/", func(group *ghttp.RouterGroup) {
+		group.Middleware(RequestID, disabledMw.Handler)
+		group.POST("/protected", func(r *ghttp.Request) {
+			r.Response.Write("unexpected")
+		})
+	})
+	sDisabled.SetPort(0)
+	_ = sDisabled.Start()
+	defer sDisabled.Shutdown()
+
+	reqDisabled, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:"+strings.Split(sDisabled.GetListenedAddress(), ":")[1]+"/protected", nil)
+	respDisabled, err := client.Do(reqDisabled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer respDisabled.Body.Close()
+	if respDisabled.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 when authRequired=false, got %d", respDisabled.StatusCode)
+	}
 }
 
 func TestBodyLimitMiddleware(t *testing.T) {

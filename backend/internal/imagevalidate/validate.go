@@ -135,21 +135,3 @@ func decodeBytes(data []byte, declaredMIME string, limits ImageLimits) (*Validat
 		SHA256: sha256Prefix,
 	}, decoded, nil
 }
-
-func ValidateImagesPair(personInput, garmentInput string, limits ImageLimits) (*ValidatedImage, *ValidatedImage, error) {
-	person, err := ValidateImage(personInput, limits)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	garment, err := ValidateImage(garmentInput, limits)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if limits.MaxCombinedDecodedBytes > 0 && int64(len(person.Data)+len(garment.Data)) > limits.MaxCombinedDecodedBytes {
-		return nil, nil, security.NewAPIError(422, 42203, "IMAGE_FILE_TOO_LARGE", "两张图片总大小超过限制")
-	}
-
-	return person, garment, nil
-}

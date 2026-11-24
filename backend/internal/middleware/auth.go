@@ -30,35 +30,18 @@ func (m *AuthMiddleware) Handler(r *ghttp.Request) {
 		token = strings.TrimSpace(authHeader[7:])
 	}
 
-	if m.tokenStore.IsAuthRequired() {
-		if token == "" {
-			WriteAPIError(r, security.ErrAuthRequired)
-			return
-		}
-		principalID, ok := m.tokenStore.ValidateToken(token)
-		if !ok {
-			WriteAPIError(r, security.ErrAuthInvalid)
-			return
-		}
-		r.SetCtxVar(CtxPrincipalID, principalID)
-		ctx := context.WithValue(r.Context(), CtxPrincipalID, principalID)
-		r.SetCtx(ctx)
-	} else {
-		// 未开启鉴权模式
-		principalID := ""
-		if token != "" {
-			if pid, ok := m.tokenStore.ValidateToken(token); ok {
-				principalID = pid
-			}
-		}
-		if principalID == "" {
-			// 回退到客户端 IP 作为限流标识
-			principalID = "ip:" + r.GetClientIp()
-		}
-		r.SetCtxVar(CtxPrincipalID, principalID)
-		ctx := context.WithValue(r.Context(), CtxPrincipalID, principalID)
-		r.SetCtx(ctx)
+	if !m.tokenStore.IsAuthRequired() || token == "" {
+		WriteAPIError(r, security.ErrAuthRequired)
+		return
 	}
+	principalID, ok := m.tokenStore.ValidateToken(token)
+	if !ok {
+		WriteAPIError(r, security.ErrAuthInvalid)
+		return
+	}
+	r.SetCtxVar(CtxPrincipalID, principalID)
+	ctx := context.WithValue(r.Context(), CtxPrincipalID, principalID)
+	r.SetCtx(ctx)
 
 	r.Middleware.Next()
 }
