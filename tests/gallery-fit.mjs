@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { serveSource } from './source-server.mjs';
 import { waitForInvitationReady } from './invitation-flow.mjs';
-import { armControlledCouple, blockUncontrolledGeneration, controlledCaptures, installControlledCouple, releaseControlledCouple, waitControlledCoupleHit, waitForGalleryRoom } from './browser-observations.mjs';
+import { armControlledCouple, blockUncontrolledGeneration, clickStep, controlledCaptures, installControlledCouple, releaseControlledCouple, waitControlledCoupleHit, waitForGalleryRoom } from './browser-observations.mjs';
 import { submitGeneration } from './generation-submit.mjs';
 import { verifyResultLifecycle } from './result-lifecycle.mjs';
 
@@ -73,10 +73,9 @@ async function imageGeometry(page, selector) {
   if (selector.includes('room-outfit')) {
     assert.equal(geometry.fit, 'cover');
     const size = page.viewportSize();
-    // The shared gallery column includes spacing below the header. The preview must
-    // fill the actual viewport, which is also the geometry used by the other rooms.
-    const headerBottom = await page.locator('.gallery-header').evaluate(el => el.getBoundingClientRect().bottom);
-    assert.ok(v.y >= headerBottom && v.bottom <= size.height + 1, JSON.stringify({ viewport: v, headerBottom, size }));
+    // The header floats on top: the preset full-bleed frame starts at the actual
+    // viewport top and fills it, the same geometry the other rooms sample.
+    assert.ok(Math.abs(v.y) < 1 && Math.abs(v.bottom - size.height) < 1, JSON.stringify({ viewport: v, size }));
     assert.ok(Math.abs(box.x - v.x) < 1 && Math.abs(box.y - v.y) < 1, JSON.stringify({ box, viewport: v }));
     assert.ok(Math.abs(box.width - v.width) < 1 && Math.abs(box.height - v.height) < 1, JSON.stringify({ box, viewport: v }));
     assert.deepEqual(geometry.natural, [2400, 1040]);
@@ -162,11 +161,11 @@ try {
   for (const spec of specs) fixtures.push(await fixture(page, spec));
   let checks = 0;
   for (const file of probe === 'all' ? fixtures : []) {
-    await page.locator('.stepper-link').nth(0).click();
+    await clickStep(page, 0);
     await selectFile(page, '#couple-image', file, '#room-photo-content .hero-photo');
     await page.locator('#photo-scan-beam').evaluate(element => element.classList.remove('is-scanning'));
     for (const room of [0, 2]) {
-      await page.locator('.stepper-link').nth(room).click();
+      await clickStep(page, room);
       const selector = room === 0 ? '#room-photo-content .hero-photo' : '#room-scene .is-front .hero-photo';
       for (const [width, height] of viewports) {
         await page.setViewportSize({ width, height });
@@ -189,9 +188,9 @@ try {
 
   // Check the particle renderer's real draw destination and intermediate transforms.
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.locator('.stepper-link').nth(0).click();
+  await clickStep(page, 0);
   await selectFile(page, '#couple-image', fixtures[1], '#room-photo-content .hero-photo');
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 1);
   await page.locator('[data-action="select-outfit"]').first().click();
   const waitForSelectedOutfit = async () => {
     // The example preview is shown before any outfit is chosen; wait for the press to land.
@@ -259,7 +258,7 @@ try {
     };
   });
 
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   assert.equal(await page.locator('#scene-reference').isVisible(), false, 'no reference row before a scene photo exists');
   await selectFile(page, '#scene-image', fixtures[3], '#room-scene .is-front .hero-photo');
   assert.equal(await page.locator('#scene-reference').isVisible(), true, 'reference row joins the same layout update as the photo');
@@ -275,7 +274,7 @@ try {
   assert.ok(upload.samples['scene-particle-canvas'].frame.every((value, index) => Math.abs(value - upload.scene.frame[index === 0 ? 'width' : 'height']) < 1), 'sample size matches the settled frame');
 
   await page.locator('[data-action="set-scene-mode"][data-arg="upload"]').click();
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 1);
   // 先等上一段动效自然结束，再取基线，避免把旧动画计入新选择。
   await page.waitForFunction(() => {
     const canvas = document.querySelector('#outfit-particle-canvas');
@@ -328,7 +327,7 @@ try {
   await imageGeometry(page, '#room-outfit .is-front .hero-photo');
   await page.waitForTimeout(150);
   await imageGeometry(page, '#room-outfit .is-front .hero-photo');
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await selectFile(page, '#scene-image', fixtures[2], '#room-scene .is-front .hero-photo');
   await page.setViewportSize({ width: 812, height: 375 });
   await imageGeometry(page, '#room-scene .is-front .hero-photo');

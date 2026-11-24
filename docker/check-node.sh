@@ -3,6 +3,7 @@ set -eu
 for source in web/*.mjs tests/*.mjs; do node --check "$source"; done
 node --test tests/image-core.test.mjs
 node --test tests/sse-core.test.mjs
+node --test tests/headroom-core.test.mjs
 node --test tests/wedding-assets.test.mjs
 node --test tests/phase7-evaluation.test.mjs
 node --test tests/public-assets.test.mjs

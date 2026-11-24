@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { clickStep } from './browser-observations.mjs';
 
 export async function confirmGeneration(page) {
   await page.locator('#access-dialog[open]').waitFor();
@@ -12,7 +13,7 @@ export async function confirmGeneration(page) {
 
 // 「生成成片」入口固定在 03 场景展厅的底部 dock；重新生成共用同一入口。
 export async function submitGeneration(page) {
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('#generate').click();
   await confirmGeneration(page);
 }

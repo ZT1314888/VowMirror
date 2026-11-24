@@ -3,10 +3,11 @@ import { readFileSync, mkdirSync } from 'node:fs';
 import { confirmGeneration, submitGeneration } from './generation-submit.mjs';
 import { verifyAuthorizationFlow, verifyMobileForm } from './authorization-flow.mjs';
 import { createRequire } from 'node:module';
-import { armControlledCouple, blockUncontrolledGeneration, controlledCaptures, installControlledCouple, observeConsole, releaseControlledCouple, waitControlledCoupleHit } from './browser-observations.mjs';
+import { armControlledCouple, blockUncontrolledGeneration, clickStep, controlledCaptures, installControlledCouple, observeConsole, releaseControlledCouple, waitControlledCoupleHit } from './browser-observations.mjs';
 import { verifyResultLifecycle } from './result-lifecycle.mjs';
 import { verifyInvitationFlow, waitForInvitationReady } from './invitation-flow.mjs';
 import { verifyDockDrag, verifyDockSelectionPosition, verifyDockTouch, verifyDockWheel } from './dock-scroll.mjs';
+import { verifyHeadroomBehavior, verifyHeadroomTouch } from './headroom-browser.mjs';
 
 const require = createRequire('/opt/browser/package.json');
 const { chromium } = require('playwright');
@@ -127,7 +128,7 @@ try {
   await waitForCatalog(page);
 
   // 逐步校验：缺合照 → 上传 → 缺造型 → 键盘选造型。
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('#generate').click();
   await page.locator('#form-alert').getByText('请先在「01 合照」上传一张有效的合照。', { exact: true }).waitFor();
   assert.equal(await page.locator('#access-dialog').evaluate(dialog => dialog.open), false, 'invalid form must not open code dialog');
@@ -141,7 +142,7 @@ try {
   await page.waitForFunction(() => document.querySelector('#room-photo-content .hero-photo')?.src.startsWith('blob:'));
   const originalPhotoURL = await page.evaluate(() => document.querySelector('#room-photo-content .hero-photo').src);
 
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('#generate').click();
   await page.locator('#form-alert').getByText('请先在「02 造型」选择一套婚礼造型。', { exact: true }).waitFor();
   assert.equal(await currentRoom(page), 1);
@@ -149,7 +150,7 @@ try {
   assert.equal(await page.locator('.dock-thumb-btn[data-arg="W001"]').getAttribute('aria-pressed'), 'true');
 
   // 场景模式默认选中「保留原背景」：进入 03 场景展厅后检查瓦片初始态。
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   assert.equal(await page.locator('.dock-thumb-btn[data-arg="original"]').getAttribute('aria-pressed'), 'true', 'original scene mode is preselected');
   assert.equal(await page.locator('.dock-thumb-btn[data-arg="upload"]').getAttribute('aria-pressed'), 'false');
 
@@ -167,7 +168,7 @@ try {
   assert.equal(catalog.data.outfits.every(entry => Object.keys(entry).sort().join(',') === 'id,name'), true);
 
   // 无效生成码：真实后端拒绝，弹窗保持且不上传照片。
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('#generate').click();
   assert.equal(await page.locator('#access-dialog').evaluate(dialog => dialog.open), true);
   await page.locator('#access-token').fill('synthetic-invalid-generation-code');
@@ -255,7 +256,7 @@ try {
   assert.equal(await page.locator('#reveal-compare-stage').getAttribute('aria-valuenow'), '50');
 
   // 替换合照：旧照片与旧结果的对象 URL 必须释放，结果回到空态。
-  await page.locator('.stepper-link').nth(0).click();
+  await clickStep(page, 0);
   await page.locator('#couple-image').setInputFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: fixture });
   await page.waitForFunction(previous => document.querySelector('#room-photo-content .hero-photo')?.src !== previous, originalPhotoURL);
   assert.equal(await page.locator('#result-image').count(), 0, 'replacement must clear the stale result');
@@ -317,7 +318,7 @@ try {
 
   // 场景校验使用真实 Chromium 解码器，不依赖模型或私人照片。
   // 点击「上传场地照片」瓦片但不选文件：upload 模式下无有效场地图必须被校验拦截。
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.waitForFunction(() => document.querySelector('.dock-thumb-btn[data-arg="upload"]') !== null);
   await page.locator('.dock-thumb-btn[data-arg="upload"]').click();
   await page.waitForFunction(() => document.querySelector('.dock-thumb-btn[data-arg="upload"]')?.getAttribute('aria-pressed') === 'true');
@@ -333,7 +334,7 @@ try {
   ]) {
     await page.locator('#scene-image').setInputFiles(invalid);
     await page.locator('#form-alert').filter({ hasText: invalid.error }).waitFor();
-    await page.locator('.stepper-link').nth(2).click();
+    await clickStep(page, 2);
     await page.locator('#generate').click();
     assert.equal((await controlledCaptures(page)).length, 6, `${invalid.name} must never generate`);
   }
@@ -361,7 +362,7 @@ try {
   const sceneWebP = readFileSync(new URL('../backend/internal/imagevalidate/testdata/checker.webp', import.meta.url));
   console.log('Scene real three-format decoding and replacement: passed');
   await armControlledCouple(page, successResponse);
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('#generate').click();
   await confirmGeneration(page);
   await waitControlledCoupleHit(page);
@@ -373,7 +374,7 @@ try {
   await page.locator('#result-image').waitFor();
   await assertControls(page);
   assert.deepEqual((await controlledCaptures(page))[6].body.scene, { mode: 'upload', image: sceneWebP.toString('base64') });
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('.dock-thumb-btn[data-arg="original"]').click();
   await page.waitForFunction(url => document.querySelector('#room-scene .is-front img')?.src !== url, priorSceneURL, { timeout: 5_000 });
   assert.equal(await page.evaluate(url => window.__revokedObjectURLs.includes(url), priorSceneURL), true);
@@ -413,7 +414,7 @@ try {
   await page.locator('.dock-thumb-btn[data-arg="original"]').click();
   assert.equal(await page.evaluate(url => window.__revokedObjectURLs.includes(url), switchedURL), true);
   await armControlledCouple(page, successResponse);
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('#generate').click();
   await confirmGeneration(page);
   await waitControlledCoupleHit(page);
@@ -421,6 +422,12 @@ try {
   await page.locator('#result-image').waitFor();
   assert.deepEqual((await controlledCaptures(page))[7].body.scene, { mode: 'original' }, 'original must omit stale image/venue fields');
   if (stage !== 'phase6') console.log(JSON.stringify({ resultLifecycle: await verifyResultLifecycle(page, successResponse) }));
+  if (stage === 'phase8') {
+    // 顶栏自动隐藏：同一 page 复用 clock 与受控请求环境。
+    const evidence = process.env.SMOKE_EVIDENCE_DIR;
+    console.log(JSON.stringify({ headroom: await verifyHeadroomBehavior(page, evidence) }));
+    console.log(JSON.stringify({ headroomTouch: await verifyHeadroomTouch(base, evidence) }));
+  }
   await page.locator('#scene-image').setInputFiles({ name: 'before-refresh.png', mimeType: 'image/png', buffer: fixture });
   await page.waitForFunction(() => document.querySelector('#room-scene .is-front img')?.src.startsWith('blob:'));
   for (const width of [375, 768, 1024, 1440]) {
@@ -435,7 +442,7 @@ try {
     assert.equal((await page.request.get(`${base}/web/public/venues/${venue.id}-thumb.webp`)).status(), 200, `${venue.id} thumbnail is served`);
     assert.equal((await page.request.get(`${base}/web/public/venues/${venue.id}.webp`)).status(), 200, `${venue.id} display image is served`);
   }
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   assert.equal(catalog.data.venues.length, await page.locator('.dock-thumb-btn[data-action="select-venue"]').count(), 'every venue has a dock tile');
   const firstVenue = catalog.data.venues[0].id;
   const venueTileImg = page.locator(`.dock-thumb-btn[data-action="select-venue"][data-arg="${firstVenue}"] img.outfit-thumbnail`);
@@ -450,6 +457,8 @@ try {
     return img?.dataset.venueId === id && img.complete && img.naturalWidth === 2400 && img.naturalHeight === 1600;
   }, firstVenue);
   assert.equal(await page.locator('#room-scene .is-front img').evaluate(img => getComputedStyle(img).objectFit), 'cover');
+  assert.equal(await page.locator('#scene-preview-label').isHidden(), true);
+  assert.equal(await page.locator('#scene-preview-status').textContent(), '');
   assert.equal(await page.locator(`.dock-thumb-btn[data-action="select-venue"][data-arg="${firstVenue}"]`).getAttribute('aria-pressed'), 'true');
   await page.locator('.dock-thumb-btn[data-action="set-scene-mode"][data-arg="original"]').click();
   await page.waitForFunction(() => {
@@ -469,7 +478,7 @@ try {
   await page.reload();
   await page.locator('#open-invitation').click();
   await waitForCatalog(page);
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   assert.equal(await page.locator('#room-photo-content .hero-photo').count(), 0);
   assert.equal(await page.locator('#result-image').count(), 0);
   assert.equal(await page.locator('#room-scene .is-front img').getAttribute('src'), '/web/public/wedding-example.jpg', 'scene hero resets to the sample photo without persistence');

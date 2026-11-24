@@ -3,6 +3,7 @@ import { imageExtensionForMime, normalizeImageMime, readImageFile, resolveResult
 import { consumeSSE } from './sse-core.mjs';
 import { cancelDissolve, cancelDissolveIfResized, scheduleDissolve } from './particle-core.mjs';
 import { petalBurst } from './petal-core.mjs';
+import { HEADER_IDLE_MS, headroomStep, initialHeadroomState } from './headroom-core.mjs';
 
 const GENERATION_TIMEOUT_MS = 90_000;
 const GENERATION_STAGE_LABELS = ['准备照片', '生成合影', '整理成片'];
@@ -128,6 +129,7 @@ function setOperation(next) {
   tokenInput.disabled = dialogBusy;
   renderStepper();
   renderDock();
+  syncHeadroom();
 }
 
 function setHealth(stateText, text) {
@@ -191,6 +193,8 @@ function goToRoom(index) {
   if (index === 1) refreshOutfitHero(false);
   // 重建导航与 dock 会移除原焦点元素；立即把焦点交给目标展厅标题。
   document.getElementById(ROOM_TITLES[index])?.focus({ preventScroll: true });
+  // 切厅按当前锁定来源收敛（焦点已在厅标题上、离开顶栏），先显示顶栏再重新闲置计时。
+  syncHeadroom();
 }
 
 /* =========================================================================
@@ -281,24 +285,27 @@ function renderPresetFrame(target) {
   const frame = PRESET_FRAMES[target];
   const hero = state[frame.hero];
   document.querySelector(frame.status).textContent = hero.status;
-  // 场景厅的提示层只在场馆加载中或失败时出现，原背景与上传照片不显示。
+  // 场景厅的提示层只在场馆加载失败时出现；载入中、成功后及原背景与上传照片均不显示。
   document.querySelector(frame.label).hidden = !hero.status;
   document.querySelector(frame.retry).hidden = !hero.retryable;
 }
 
 // 造型与固定场馆的唯一加载路径：解码后再切换，迟到的结果由各次请求的版本号丢弃，
 // 失败时清空旧图并保留明确提示与手动重试。
-async function showPresetHero({ target, animate, key, id = key, preview, idleLabel, noun, fit = null }) {
+async function showPresetHero({ target, animate, key, id = key, preview, idleLabel, loadingLabel = `${idleLabel} · 正在载入…`, successLabel = idleLabel, noun, fit = null }) {
   const frame = PRESET_FRAMES[target];
   const hero = state[frame.hero];
-  const version = ++state[frame.version];
+  // 同键选择不得作废在途解码：短路只补充渲染，由原次序完成落地。
+  // 版本号只对新负载提升；否则加载中重选同一项会把唯一在途结果丢弃，
+  // 状态永久停留在载入中，既不显示也不报错。
   if (hero.key === key) {
     renderPresetFrame(target);
     return;
   }
+  const version = ++state[frame.version];
   hero.key = key;
   hero.retryable = false;
-  hero.status = `${idleLabel} · 正在载入…`;
+  hero.status = loadingLabel;
   renderPresetFrame(target);
   try {
     if (!preview) throw new Error(state.outfitPreviewsError || `展示素材清单中缺少此${noun === '场馆图片' ? '场馆图片' : '造型'}`);
@@ -312,7 +319,7 @@ async function showPresetHero({ target, animate, key, id = key, preview, idleLab
     image.src = `/web/public/${preview.display.file}`;
     await image.decode();
     if (version !== state[frame.version]) return;
-    hero.status = idleLabel;
+    hero.status = successLabel;
     if (animate) transitionHero(frame.layers, frame.canvas, image, fit);
     else showHeroImmediately(frame.layers, frame.canvas, image);
     renderPresetFrame(target);
@@ -489,6 +496,9 @@ async function refreshSceneHero(animate) {
     id: state.sceneVenueId,
     preview: venuePreview,
     idleLabel: `场馆示例 · ${venue?.name || state.sceneVenueId}`,
+    // 场景厅大图加载中与成功后左上角均不显示描述文字；提示层只在失败时出现。
+    loadingLabel: '',
+    successLabel: '',
     noun: '场馆图片',
     fit,
   });
@@ -777,6 +787,106 @@ dock.addEventListener('click', event => {
     restartSession();
   }
 });
+
+/* =========================================================================
+   顶栏自动隐藏（Headroom 式）：整页无滚动，由手势与闲置计时驱动。
+   01 展厅、核验/生成中、指针或焦点在顶栏时锁定显示；其余房间可隐藏。
+   ========================================================================= */
+const galleryHeader = document.querySelector('.gallery-header');
+const galleryViewport = document.querySelector('#gallery-viewport');
+let headroom = initialHeadroomState();
+let lastPointerY = null;
+let headerIdleTimer = 0;
+
+// 顶栏实际高度（含刘海屏 safe-area 与断点换行）写入 CSS 变量，
+// 供 .gallery-room 的留白与 .preset-label 的跟随位移使用。
+let headerHeightPx = 64;
+const headerResize = new ResizeObserver(() => {
+  headerHeightPx = Math.max(64, galleryHeader.getBoundingClientRect().height);
+  experience.style.setProperty('--header-h', `${headerHeightPx}px`);
+});
+headerResize.observe(galleryHeader);
+
+function dispatchHeadroom(event) {
+  headroom = headroomStep(headroom, event);
+  // 视觉以每次流转后的终态为准（lock 结尾规则会把 pinned 直接置回 true，
+  // 不能以"pinned 是否变化"为条件决定是否切换 class）。
+  const unpinned = !headroom.pinned;
+  galleryHeader.classList.toggle('is-unpinned', unpinned);
+  experience.classList.toggle('is-header-unpinned', unpinned);
+}
+
+// 顶栏显隐的唯一入口：先统一锁定来源，再驱动状态机；随后把视觉同步到终态。
+// 悬停按几何判定：顶栏滑入/滑出静止指针下方时浏览器不补发 pointerenter/leave，
+// 事件法在 transform 动画下会漏判；可见顶栏恒占顶部 headerHeightPx 高的横带。
+function headerHoverTargeted() {
+  return headroom.pinned && lastPointerY !== null && lastPointerY < headerHeightPx;
+}
+function syncHeadroom() {
+  const locked = state.room === 0 || isBusy() || headerHoverTargeted() || galleryHeader.contains(document.activeElement);
+  headroom = headroomStep(headroom, { type: locked ? 'lock' : 'unlock' });
+  dispatchHeadroom({ type: locked ? 'reveal' : 'noop' });
+  if (locked) {
+    window.clearTimeout(headerIdleTimer);
+    headerIdleTimer = 0;
+  } else {
+    scheduleHeaderIdle();
+  }
+}
+
+// 只有可隐藏的房间才启动闲置计时；指针、滚轮、键盘与触摸都会重置它。
+function scheduleHeaderIdle() {
+  window.clearTimeout(headerIdleTimer);
+  const locked = state.room === 0 || isBusy() || headerHoverTargeted() || galleryHeader.contains(document.activeElement);
+  if (!locked) headerIdleTimer = window.setTimeout(() => dispatchHeadroom({ type: 'idle' }), HEADER_IDLE_MS);
+}
+
+galleryHeader.addEventListener('focusin', syncHeadroom);
+galleryHeader.addEventListener('focusout', syncHeadroom);
+
+// 滚轮：dock、结果详情、对比滑块等已自持纵向滚动的区域不计入；横向占主导与缩放保留给浏览器。
+galleryViewport.addEventListener('wheel', event => {
+  scheduleHeaderIdle();
+  if (event.defaultPrevented || event.ctrlKey) return;
+  if (event.target.closest('.floating-dock, .result-details, .result-meta, .compare-stage')) return;
+  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+  const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16
+    : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? galleryViewport.clientHeight : 1;
+  dispatchHeadroom({ type: 'delta', dy: event.deltaY * unit });
+}, { passive: true });
+
+// 触摸：只处理起点不在 dock 与对比滑块内、纵向占主导的单指手势。
+// 触点即指针：touchstart 把几何悬停判定同步到触点位置，触摸交互不被
+// 鼠标坐标的残影（混合输入设备/合成事件）锁在顶栏上。
+let headerTouchStart = null;
+galleryViewport.addEventListener('touchstart', event => {
+  if (event.touches.length === 1) lastPointerY = event.touches[0].clientY;
+  syncHeadroom();
+  if (event.touches.length !== 1) return;
+  const target = event.target.closest('.floating-dock, .compare-stage');
+  if (target) { headerTouchStart = null; return; }
+  headerTouchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY, moved: false };
+}, { passive: true });
+galleryViewport.addEventListener('touchmove', event => {
+  if (!headerTouchStart || event.touches.length !== 1) return;
+  const dx = event.touches[0].clientX - headerTouchStart.x;
+  const dy = event.touches[0].clientY - headerTouchStart.y;
+  if (Math.abs(dy) < 12) return;
+  if (Math.abs(dy) <= Math.abs(dx)) { headerTouchStart.moved = true; return; }
+  if (headerTouchStart.moved) return;
+  headerTouchStart.moved = true;
+  dispatchHeadroom({ type: 'delta', dy: headerTouchStart.y - event.touches[0].clientY });
+}, { passive: true });
+
+// 桌面热区：指针贴近屏幕顶部即唤出。指针每次移动都重新按几何收敛锁定状态——
+// 离开顶栏横带即解除悬停锁定，进入热区先 reveal 再由 sync 的锁定判定接管。
+window.addEventListener('mousemove', event => {
+  lastPointerY = event.clientY;
+  if (event.clientY < 32) dispatchHeadroom({ type: 'reveal' });
+  syncHeadroom();
+}, { passive: true });
+window.addEventListener('keydown', scheduleHeaderIdle);
+window.addEventListener('pointerdown', scheduleHeaderIdle);
 
 /* =========================================================================
    顶部提示条（请柬屏期间暂存，进入画廊后再呈现）

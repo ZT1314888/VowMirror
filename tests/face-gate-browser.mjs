@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { consumeSSE } from '../web/sse-core.mjs';
 import { waitForInvitationReady } from './invitation-flow.mjs';
+import { clickStep } from './browser-observations.mjs';
 
 // Run only against verify-phase6's isolated web/backend with empty model credentials.
 const base = process.env.SMOKE_BASE_URL;
@@ -59,7 +60,7 @@ try {
     ['one.jpg', 'COUPLE_IMAGE_NOT_COUPLE', '未检测到两张清晰的人脸，请换一张两人面部清楚的合照。'],
     ['two.jpg', 'MODEL_CONFIGURATION_INVALID', '服务器资源紧张，请稍后再试'],
   ].entries()) {
-    await page.locator('.stepper-link').nth(0).click();
+    await clickStep(page, 0);
     const expectedRequests = index * 2;
     await page.locator('#couple-image').setInputFiles(fileURLToPath(new URL(`../backend/internal/facedetect/testdata/${file}`, import.meta.url)));
     const preview = await page.waitForFunction(previous => {
@@ -68,10 +69,10 @@ try {
     }, previousPreview);
     previousPreview = await preview.jsonValue();
     if (index === 0) {
-      await page.locator('.stepper-link').nth(1).click();
+      await clickStep(page, 1);
       await page.locator('.dock-thumb-btn[data-arg="W001"]').click();
     }
-    await page.locator('.stepper-link').nth(2).click();
+    await clickStep(page, 2);
     await page.locator('#generate').click();
     await page.locator('#access-dialog[open]').waitFor();
     assert.equal(submissions.length, expectedRequests, 'selection and local preview must not submit a photo');

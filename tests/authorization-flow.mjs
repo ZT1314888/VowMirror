@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { clickStep } from './browser-observations.mjs';
 
 function currentRoom(page) {
   return page.evaluate(() => [...document.querySelectorAll('.stepper-link')].findIndex(link => link.getAttribute('aria-current') === 'step'));
@@ -19,7 +20,7 @@ async function waitForPressed(page, arg, expected) {
 
 export async function verifyAuthorizationFlow(page, token) {
   // 键盘选择真实目录瓦片：Enter 选中并保持焦点，选中态即时可见。
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 1);
   await waitForRoom(page, 1);
   const keyboardCard = page.locator('.dock-thumb-btn[data-arg="W002"]');
   await keyboardCard.focus();
@@ -30,7 +31,7 @@ export async function verifyAuthorizationFlow(page, token) {
   await waitForPressed(page, 'W001', 'true');
 
   // 生成码弹窗：焦点进入输码框、Tab 循环封闭、Escape 关闭后回到触发按钮。
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('#generate').click();
   await page.locator('#access-dialog[open]').waitFor();
   assert.equal(await page.evaluate(() => document.activeElement.id), 'access-token');
@@ -89,18 +90,18 @@ export async function verifyMobileForm(page, fixture) {
   // 375 宽：顶栏步骤与底部 dock 不得溢出；帮助弹窗可用。
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   // 逐步校验：缺合照 → 缺造型 → 缺场地图 → 生成码弹窗。
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('#generate').click();
   await page.locator('#form-alert').getByText('请先在「01 合照」上传一张有效的合照。', { exact: true }).waitFor();
   assert.equal(await page.locator('#access-dialog').evaluate(dialog => dialog.open), false);
   await page.locator('#couple-image').setInputFiles({ name: 'mobile-couple.png', mimeType: 'image/png', buffer: fixture });
   await page.waitForFunction(() => document.querySelector('#room-photo-content .hero-photo')?.src.startsWith('blob:'));
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('#generate').click();
   await page.locator('#form-alert').getByText('请先在「02 造型」选择一套婚礼造型。', { exact: true }).waitFor();
   await page.locator('.dock-thumb-btn[data-arg="W001"]').click();
   await waitForPressed(page, 'W001', 'true');
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('.dock-thumb-btn[data-arg="upload"]').click();
   await page.waitForFunction(() => document.querySelector('.dock-thumb-btn[data-arg="upload"]')?.getAttribute('aria-pressed') === 'true');
   await page.locator('#generate').click();

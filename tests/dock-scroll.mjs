@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { waitForGalleryRoom } from './browser-observations.mjs';
+import { clickStep, waitForGalleryRoom } from './browser-observations.mjs';
 
 export async function verifyDockWheel(page) {
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 1);
   const strip = page.locator('.dock-thumb-strip');
   await strip.waitFor({ state: 'visible' });
   assert.ok(await strip.evaluate(el => el.scrollWidth > el.clientWidth), 'outfit list must overflow');
@@ -49,16 +49,16 @@ export async function verifyDockWheel(page) {
 
   await page.keyboard.press('ArrowRight');
   await page.waitForFunction(id => document.querySelector('.dock-thumb-btn.is-active').dataset.arg !== id, nextSelection);
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   // The scene dock inherits the outfit card system with a wider strip for its longer list;
   // drop the venues to exercise the fits-on-screen path.
   await page.evaluate(() => document.querySelectorAll('[data-action="select-venue"]').forEach(tile => tile.remove()));
   assert.equal(await dispatch({ deltaY: 100 }), false, 'do not consume wheel for a list that fits');
-  await page.locator('.stepper-link').first().click();
+  await clickStep(page, 0);
 }
 
 export async function verifyDockSelectionPosition(page) {
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 1);
   await page.locator('.dock-thumb-strip').evaluate(el => el.scrollTo({ left: el.scrollWidth / 2, behavior: 'instant' }));
   const target = await visibleOutfit(page);
   await page.evaluate(() => {
@@ -91,8 +91,8 @@ export async function verifyDockSelectionPosition(page) {
   // Keyboard selection moves focus only: the strip keeps its browsing position and the outer
   // toolbar never scrolls to reveal the focused card.
   const selected = await page.locator('.dock-thumb-btn.is-active').getAttribute('data-arg');
-  await page.locator('.stepper-link').first().click();
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 0);
+  await clickStep(page, 1);
   // Re-entry rebuilds the dock, and the browser may asynchronously reveal a previously focused
   // card; take the baseline only after layout settles.
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -135,7 +135,7 @@ async function visibleOutfit(page) {
 }
 
 export async function verifyDockDrag(page) {
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 1);
   const strip = page.locator('.dock-thumb-strip');
   const selected = () => page.locator('.dock-thumb-btn.is-active').getAttribute('data-arg');
   const scrollLeft = () => strip.evaluate(el => el.scrollLeft);
@@ -189,8 +189,8 @@ export async function verifyDockDrag(page) {
   assert.equal(await selected(), finalClick.id, 'normal selection must still work after outside release and edge drags');
   assert.equal(await page.locator('#floating-dock').evaluate(el => el.scrollLeft), 0);
   // Returning to this room creates a fresh strip; delegated dragging must still work.
-  await page.locator('.stepper-link').first().click();
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 0);
+  await clickStep(page, 1);
   await strip.evaluate(el => el.scrollTo({ left: el.scrollWidth / 2, behavior: 'instant' }));
   const fresh = await visibleOutfit(page);
   const freshScroll = await scrollLeft();
@@ -202,7 +202,7 @@ export async function verifyDockDrag(page) {
 }
 
 export async function verifyDockTouch(page) {
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 1);
   await page.locator('.dock-thumb-btn').first().tap();
   const strip = page.locator('.dock-thumb-strip');
   const bounds = await strip.boundingBox();

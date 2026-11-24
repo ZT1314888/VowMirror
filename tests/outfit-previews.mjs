@@ -3,7 +3,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { waitForInvitationReady } from './invitation-flow.mjs';
 import { verifyDockDrag, verifyDockSelectionPosition, verifyDockTouch, verifyDockWheel } from './dock-scroll.mjs';
-import { armControlledCouple, blockUncontrolledGeneration, controlledCaptures, installControlledCouple, releaseControlledCouple, waitControlledCoupleHit } from './browser-observations.mjs';
+import { armControlledCouple, blockUncontrolledGeneration, clickStep, controlledCaptures, installControlledCouple, releaseControlledCouple, waitControlledCoupleHit } from './browser-observations.mjs';
 
 const { chromium } = createRequire('/opt/browser/package.json')('playwright');
 const manifest = JSON.parse(await readFile(new URL('../web/public/manifest.json', import.meta.url), 'utf8'));
@@ -35,7 +35,7 @@ try {
   await waitForInvitationReady(page);
   await page.waitForFunction(() => !document.querySelector('.stepper-link')?.disabled);
   assert.equal(mainRequests.length, 0, 'main previews load only on demand');
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 1);
   const displayed = id => page.waitForFunction(id => document.querySelector('#room-outfit .is-front img')?.dataset.outfitId === id, id);
   await displayed('W001');
   assert.equal(await page.locator('.dock-thumb-btn.is-active').count(), 0, 'default example must not select an outfit');
@@ -78,7 +78,8 @@ try {
       assert.equal(geometry.fit, 'cover');
       assert.ok(geometry.focus.every((value, i) => Math.abs(value - entry.focus[i]) < 1e-6));
       assert.equal(geometry.border, 'none');
-      // Same room column as every other stage: the preview starts under the header and fills the rest.
+      // The preset full-bleed frame starts at the top of the viewport, which now
+      // fills the whole screen behind the floating header.
       assert.ok(Math.abs(geometry.x) < 1 && Math.abs(geometry.y - geometry.viewportTop) < 1, JSON.stringify({ id: entry.id, width, geometry }));
       assert.ok(Math.abs(geometry.width - width) < 1 && Math.abs(geometry.height - geometry.viewportHeight) < 1, JSON.stringify({ id: entry.id, width, geometry, viewport: page.viewportSize() }));
       // The sources share this pose. Both face centres must survive every cover crop.
@@ -86,7 +87,7 @@ try {
       for (const [x, y] of [[960, 365], [1130, 380]]) {
         const left = (geometry.width - 2400 * scale) * entry.focus[0] + x * scale;
         const top = (geometry.height - 1040 * scale) * entry.focus[1] + y * scale;
-        assert.ok(left > 20 && left < geometry.width - 20 && top > geometry.viewportTop + 20 && top < geometry.height - 140, `${entry.id} face outside framing at ${width}`);
+        assert.ok(left > 20 && left < geometry.width - 20 && top > 20 + (geometry.y - geometry.viewportTop) && top < geometry.height - 140, `${entry.id} face outside framing at ${width}`);
       }
     }
     const card = await page.locator('.dock-thumb-btn').first().boundingBox();
@@ -153,7 +154,7 @@ try {
   await page.locator('#open-invitation').click();
   await waitForInvitationReady(page);
   await page.waitForFunction(() => document.querySelectorAll('.stepper-link').length === 4);
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 1);
   await page.locator('#outfit-preview-status').filter({ hasText: '造型示例清单读取失败' }).waitFor();
   // A retry while the manifest is still failing keeps the real failure in the hero.
   await page.locator('#retry-outfit-preview').click();
@@ -185,11 +186,11 @@ try {
   await choose('W006');
   await displayed('W006');
   await page.waitForFunction(() => window.__previewDraws.some(draw => draw.fit === 'cover'));
-  await page.locator('.stepper-link').first().click();
+  await clickStep(page, 0);
   await page.locator('#couple-image').setInputFiles({ name: 'checker.png', mimeType: 'image/png', buffer: fixture });
   await page.waitForFunction(() => document.querySelector('#room-photo-content .hero-photo')?.src.startsWith('blob:'));
   const photoURL = await page.locator('#room-photo-content .hero-photo').getAttribute('src');
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('#scene-image').setInputFiles({ name: 'checker.png', mimeType: 'image/png', buffer: fixture });
   await page.waitForFunction(() => document.querySelector('#room-scene .is-front img')?.src.startsWith('blob:') && !document.querySelector('#scene-reference').hidden);
   await page.waitForFunction(() => window.__previewDraws.length >= 2);
@@ -199,6 +200,8 @@ try {
     page.locator('[data-action="select-venue"][data-arg="V001"]').evaluate(element => element.click()),
   ]);
   await page.waitForFunction(() => document.querySelector('#room-scene .is-front img')?.dataset.venueId === 'V001');
+  assert.equal(await page.locator('#scene-preview-label').isHidden(), true);
+  assert.equal(await page.locator('#scene-preview-status').textContent(), '');
   // Entering the venue preset flips the frame size, so the outgoing upload photo dissolves
   // into the settled frame by the forced cover fit instead of a centered contain strip.
   await page.waitForFunction(() => window.__previewDraws.length >= 3);
@@ -220,7 +223,7 @@ try {
   expectDraw(draws[2], 'cover'); // upload → venue: frame flip forces cover sampling of the upload photo
   expectDraw(draws[3], 'cover'); // venue → original: venue photo dissolves per its own cover
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.locator('.stepper-link').nth(1).click();
+  await clickStep(page, 1);
   await page.evaluate(() => { window.__previewDraws = []; });
   await choose('W010');
   await displayed('W010');
@@ -238,10 +241,10 @@ try {
   for (const [width, height] of venueViewports) {
     await page.setViewportSize({ width, height });
     await page.waitForFunction(({ width, height }) => innerWidth === width && innerHeight === height, { width, height });
-    await page.locator('.stepper-link').nth(1).click();
+    await clickStep(page, 1);
     await page.waitForFunction(() => Math.abs(document.querySelector('#room-outfit').getBoundingClientRect().x) < 1);
     const outfitBox = await page.locator('#room-outfit .hero-frame').boundingBox();
-    await page.locator('.stepper-link').nth(2).click();
+    await clickStep(page, 2);
     await page.waitForFunction(() => Math.abs(document.querySelector('#room-scene').getBoundingClientRect().x) < 1);
     for (const entry of manifest.venuePreviews) {
       await chooseVenue(entry.id);
@@ -306,6 +309,8 @@ try {
   await displayedVenue('V001');
   await chooseVenue('V002');
   await page.waitForFunction(() => window.__heldVenueDecode === 1);
+  assert.equal(await page.locator('#scene-preview-label').isHidden(), true);
+  assert.equal(await page.locator('#scene-preview-status').textContent(), '');
   await chooseVenue('V003');
   await displayedVenue('V003');
   await page.evaluate(() => window.__releaseVenueDecode());
@@ -330,7 +335,7 @@ try {
   console.log('Venue multi-viewport layout, card names, retry, late decode isolation and arrow keys passed');
 
   // The display example must never enter the generation payload.
-  await page.locator('.stepper-link').nth(2).click();
+  await clickStep(page, 2);
   await page.locator('[data-action="set-scene-mode"][data-arg="original"]').click();
   const payload = { code: 0, message: '', data: { image: fixture.toString('base64'), mime_type: 'image/png', width: fixture.readUInt32BE(16), height: fixture.readUInt32BE(20), model: 'controlled-test', request_id: 'preview-payload-check', duration_ms: 1 } };
   await armControlledCouple(page, { status: 200, contentType: 'text/event-stream', body: `event: result\ndata: ${JSON.stringify(payload)}\n\n` });
@@ -349,7 +354,7 @@ try {
     await page.setViewportSize({ width, height: 900 });
     await page.waitForFunction(width => innerWidth === width, width);
     for (const [room, selector] of [[0, '#room-photo-content .hero-photo'], [2, '#room-scene .is-front img'], [3, '#result-image']]) {
-      await page.locator('.stepper-link').nth(room).click();
+      await clickStep(page, room);
       const geometry = await page.locator(selector).evaluate(img => {
         const r = img.getBoundingClientRect();
         const header = document.querySelector('.gallery-header').getBoundingClientRect();

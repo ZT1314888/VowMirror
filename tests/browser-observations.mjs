@@ -1,5 +1,16 @@
 import assert from 'node:assert/strict';
 
+// 顶栏在 02–04 展厅闲置 3 秒后自动隐藏，步骤按钮会移出视口。
+// 走真实交互路径唤回：先把真实指针移到顶部唤出热区，等顶栏滑回再点击。
+export async function clickStep(page, index) {
+  const link = page.locator('.stepper-link').nth(index);
+  await page.mouse.move(10, 10);
+  await link.waitFor({ state: 'visible' });
+  await page.waitForFunction(() => !document.querySelector('.gallery-header').classList.contains('is-unpinned')
+    && [...document.querySelectorAll('.stepper-link')].every(el => el.getBoundingClientRect().bottom > 0));
+  await link.click();
+}
+
 // Room navigation and viewport resizing can both animate the gallery track. A
 // stable page-header button does not establish that room controls are ready.
 export async function waitForGalleryRoom(page, selector) {
