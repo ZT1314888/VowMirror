@@ -24,6 +24,11 @@ func (r unexpectedAssetReads) ReadVenue(context.Context, string) (*imagevalidate
 	return nil, errors.New("unexpected venue read")
 }
 
+func (r unexpectedAssetReads) ReadPose(context.Context, string) (*imagevalidate.ValidatedImage, error) {
+	r.t.Error("read pose before face gate passed")
+	return nil, errors.New("unexpected pose read")
+}
+
 type gateUsage struct{ checks, attempts, successes int }
 
 func (u *gateUsage) Check(context.Context, string) (int, *security.APIError) {
@@ -72,7 +77,10 @@ func TestFaceGateStopsBeforeAssetsAndAccounting(t *testing.T) {
 			service, err := NewCoupleService(func() (ImageGenerator, error) {
 				t.Error("initialized generator before face gate passed")
 				return nil, errors.New("unexpected generator")
-			}, unexpectedAssetReads{t}, admission, usage, countFaces)
+			}, unexpectedAssetReads{t}, admission, usage, countFaces, func(context.Context) (catalog.Pose, error) {
+				t.Error("selected pose before face gate passed")
+				return catalog.Pose{}, catalog.ErrPoseUnavailable
+			})
 			if err != nil {
 				t.Fatal(err)
 			}

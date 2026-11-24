@@ -1,5 +1,21 @@
 import assert from 'node:assert/strict';
 
+// Room navigation and viewport resizing can both animate the gallery track. A
+// stable page-header button does not establish that room controls are ready.
+export async function waitForGalleryRoom(page, selector) {
+  await page.waitForFunction(selector => {
+    const room = document.querySelector(selector)?.closest('.gallery-room');
+    const viewport = document.querySelector('#gallery-viewport');
+    const track = document.querySelector('#gallery-track');
+    if (!room || room.inert || !viewport || !track) return false;
+    const bounds = room.getBoundingClientRect();
+    const frame = viewport.getBoundingClientRect();
+    return frame.width > 0 && Math.abs(bounds.left - frame.left) < 1
+      && Math.abs(bounds.width - frame.width) < 1
+      && track.getAnimations().every(animation => !animation.pending && animation.playState !== 'running');
+  }, selector, { timeout: 5000 });
+}
+
 // 边界拦截仅覆盖 couple 上传端点：无效码 401 探针需要 authorize 触达真后端，
 // 因此 assertSafe 的语义是「无未受控的上传流量」，不含 authorize。
 export const generationURL = url => /^\/api\/tryon\/couple\/?$/.test(new URL(url).pathname);

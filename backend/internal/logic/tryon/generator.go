@@ -41,6 +41,7 @@ const (
 	RoleMenswear Role = "menswear"
 	RoleShoes    Role = "shoes_detail"
 	RoleScene    Role = "scene"
+	RolePose     Role = "pose"
 )
 
 type Reference struct {
@@ -92,8 +93,17 @@ func newModelHTTPClient(transport http.RoundTripper) *http.Client {
 }
 
 func validateReferences(refs []Reference) error {
-	roles := []Role{RoleCouple, RoleDress, RoleMenswear, RoleShoes, RoleScene}
-	if len(refs) < 4 || len(refs) > len(roles) {
+	roles := []Role{RoleCouple, RoleDress, RoleMenswear, RoleShoes}
+	if len(refs) < len(roles) || len(refs) > 6 {
+		return ErrReferences
+	}
+	if len(refs) > 4 && refs[4].Role == RoleScene {
+		roles = append(roles, RoleScene)
+	}
+	if len(refs) > len(roles) {
+		roles = append(roles, RolePose)
+	}
+	if len(refs) != len(roles) {
 		return ErrReferences
 	}
 	var total int64

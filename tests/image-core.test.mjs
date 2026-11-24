@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { detectImageMimeFromBytes, detectImageMimeFromBase64, imageExtensionForMime, resolveResultImageInfo, createResultImageDataUrl, readImageFile } from '../web/image-core.mjs';
-import { parseAPIResponse, getAPIError } from '../web/response-core.mjs';
+import { parseAPIResponse, getAPIError, SERVER_BUSY_MESSAGE } from '../web/response-core.mjs';
 
 // Module tests inject dimensions; actual PNG/JPEG/WebP decoding is verified in Chromium.
 const decodeFixture = async () => ({ width: 384, height: 256, close() {} });
@@ -50,9 +50,9 @@ test('response parser accepts JSON and exposes malformed responses as errors', a
   const body = { code: 0, data: { status: 'ok' } };
   assert.deepEqual(await parseAPIResponse(Response.json(body)), body);
   assert.deepEqual(await parseAPIResponse(new Response(JSON.stringify(body), { headers: { 'content-type': 'application/problem+json' } })), body);
-  await assert.rejects(parseAPIResponse(new Response('<html>bad gateway</html>', { status: 502 })), /非 JSON/);
-  await assert.rejects(parseAPIResponse(new Response('{bad', { headers: { 'content-type': 'application/json' } })));
-  await assert.rejects(parseAPIResponse(Response.json(null)), /格式无效/);
+  await assert.rejects(parseAPIResponse(new Response('<html>bad gateway</html>', { status: 502 })), { message: SERVER_BUSY_MESSAGE });
+  await assert.rejects(parseAPIResponse(new Response('{bad', { headers: { 'content-type': 'application/json' } })), TypeError);
+  await assert.rejects(parseAPIResponse(Response.json(null)), TypeError);
 });
 
 test('error mapping does not display raw upstream messages', () => {

@@ -44,7 +44,7 @@ func TestSuccessCommitIsFinalBeforeClientDisconnect(t *testing.T) {
 		return validResult(t), nil
 	}}
 	reader := testOutfits{run: func(context.Context, string) (catalog.OutfitImages, error) { return outfitImages(t), nil }}
-	service, err := NewCoupleService(func() (ImageGenerator, error) { return gen, nil }, reader, security.NewConcurrencyManager(1, 1), commitCancelsUsage{q, cancel}, twoFaces)
+	service, err := NewCoupleService(func() (ImageGenerator, error) { return gen, nil }, reader, security.NewConcurrencyManager(1, 1), commitCancelsUsage{q, cancel}, twoFaces, fixedPosePicker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestStorageFailureCannotReturnGenerationSuccess(t *testing.T) {
 		return validResult(t), nil
 	}}
 	reader := testOutfits{run: func(context.Context, string) (catalog.OutfitImages, error) { return outfitImages(t), nil }}
-	service, err := NewCoupleService(func() (ImageGenerator, error) { return gen, nil }, reader, security.NewConcurrencyManager(1, 1), q, twoFaces)
+	service, err := NewCoupleService(func() (ImageGenerator, error) { return gen, nil }, reader, security.NewConcurrencyManager(1, 1), q, twoFaces, fixedPosePicker)
 	if err != nil {
 		t.Fatal(err)
 	}

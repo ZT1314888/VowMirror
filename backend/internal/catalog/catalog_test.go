@@ -127,7 +127,7 @@ func TestParseManifest(t *testing.T) {
 	for name, data := range map[string][]byte{
 		"valid":           fixture,
 		"BOM":             append([]byte{0xef, 0xbb, 0xbf}, fixture...),
-		"decimal version": []byte(strings.Replace(string(fixture), `"version": 1`, `"version": 1.0`, 1)),
+		"decimal version": []byte(strings.Replace(string(fixture), `"version": 2`, `"version": 2.0`, 1)),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := ParseManifest(data); err != nil {

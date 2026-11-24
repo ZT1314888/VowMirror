@@ -150,7 +150,7 @@ func TestCatalogRoutes(t *testing.T) {
 		if envelope.Code != 0 || envelope.Message != "" || !reflect.DeepEqual(envelope.Data, want) {
 			t.Fatalf("unexpected public catalog fields: %s", body)
 		}
-		for _, privateField := range []string{`"path"`, `"poses"`, `"dress"`, `"menswear"`, `"shoes_detail"`} {
+		for _, privateField := range []string{`"path"`, `"poses"`, `"action"`, `"mode"`, `"requirements"`, `"dress"`, `"menswear"`, `"shoes_detail"`} {
 			if strings.Contains(string(body), privateField) {
 				t.Fatalf("public catalog exposed %s", privateField)
 			}

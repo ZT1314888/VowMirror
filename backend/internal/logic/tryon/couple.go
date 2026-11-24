@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"image"
 	"time"
 
@@ -36,10 +35,13 @@ type CoupleResponse struct {
 	ProviderRequestID string `json:"provider_request_id,omitempty"`
 }
 
-type OutfitReader interface {
+type AssetReader interface {
 	ReadOutfit(context.Context, string) (catalog.OutfitImages, error)
 	ReadVenue(context.Context, string) (*imagevalidate.ValidatedImage, error)
+	ReadPose(context.Context, string) (*imagevalidate.ValidatedImage, error)
 }
+
+type PosePicker func(context.Context) (catalog.Pose, error)
 type Admission interface{ Acquire(string) (func(), bool) }
 type GeneratorFactory func() (ImageGenerator, error)
 type FaceCounter func(context.Context, image.Image, []byte) (int, error)
@@ -54,17 +56,18 @@ type Usage interface {
 
 type CoupleService struct {
 	newGenerator GeneratorFactory
-	outfits      OutfitReader
+	outfits      AssetReader
 	admission    Admission
 	usage        Usage
 	countFaces   FaceCounter
+	pickPose     PosePicker
 }
 
-func NewCoupleService(factory GeneratorFactory, outfits OutfitReader, admission Admission, usage Usage, countFaces FaceCounter) (*CoupleService, error) {
-	if factory == nil || outfits == nil || admission == nil || usage == nil || countFaces == nil {
+func NewCoupleService(factory GeneratorFactory, outfits AssetReader, admission Admission, usage Usage, countFaces FaceCounter, pickPose PosePicker) (*CoupleService, error) {
+	if factory == nil || outfits == nil || admission == nil || usage == nil || countFaces == nil || pickPose == nil {
 		return nil, errors.New("缺少婚礼生成依赖")
 	}
-	return &CoupleService{newGenerator: factory, outfits: outfits, admission: admission, usage: usage, countFaces: countFaces}, nil
+	return &CoupleService{newGenerator: factory, outfits: outfits, admission: admission, usage: usage, countFaces: countFaces, pickPose: pickPose}, nil
 }
 
 func (s *CoupleService) Generate(ctx context.Context, principal string, trace RequestTrace, input CoupleRequest) (*CoupleResponse, *security.APIError) {
@@ -163,6 +166,25 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 	if scene != nil {
 		refs = append(refs, Reference{Role: RoleScene, Data: scene.Data, MIME: scene.MIME})
 	}
+	pose, err := s.pickPose(ctx)
+	if err != nil || pose.Validate() != nil {
+		trace.Record("preparing_assets", assetsStarted)
+		if ctx.Err() != nil {
+			return nil, contextError(ctx)
+		}
+		return nil, security.NewAPIError(503, 50306, "POSE_UNAVAILABLE", catalog.ErrPoseUnavailable.Error())
+	}
+	if pose.Mode == catalog.PoseLineartText {
+		img, err := s.outfits.ReadPose(ctx, pose.ID)
+		if err != nil || img == nil {
+			trace.Record("preparing_assets", assetsStarted)
+			if ctx.Err() != nil {
+				return nil, contextError(ctx)
+			}
+			return nil, security.NewAPIError(503, 50306, "POSE_UNAVAILABLE", catalog.ErrPoseUnavailable.Error())
+		}
+		refs = append(refs, Reference{Role: RolePose, Data: img.Data, MIME: img.MIME})
+	}
 	if err := validateReferences(refs); err != nil {
 		trace.Record("preparing_assets", assetsStarted)
 		return nil, security.NewAPIError(422, 42207, "REFERENCE_IMAGES_INVALID", ErrReferences.Error())
@@ -172,7 +194,7 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 		return nil, contextError(ctx)
 	}
 	submitted := false
-	result, err := generator.Generate(ctx, GenerationRequest{References: refs, Prompt: couplePrompt(scene != nil), Trace: trace, BeforeSend: func(sendCtx context.Context) error {
+	result, err := generator.Generate(ctx, GenerationRequest{References: refs, Prompt: couplePrompt(refs, pose), Trace: trace, BeforeSend: func(sendCtx context.Context) error {
 		if submitted {
 			return errors.New("模型请求不得重复发送")
 		}
@@ -245,14 +267,6 @@ func validScene(scene Scene) bool {
 	default:
 		return false
 	}
-}
-
-func couplePrompt(scene bool) string {
-	background := "Preserve the original background from reference 1."
-	if scene {
-		background = "Use reference 5 only for the venue; preserve its architecture, stage and decorations without replacing the people."
-	}
-	return fmt.Sprintf("Create exactly one landscape full-body wedding photograph of the same two people from reference 1 (couple). Preserve both identities, faces, natural proportions, and original left/right positions; do not swap or move the people across sides. Decide from reference 1 which person should wear the wedding dress, judging only by what the photo shows. That person must wear only the wedding dress from reference 2 (dress). The other person must wear only the menswear, including shoes, from reference 3 (menswear), with shoe details from reference 4 (shoes_detail). Do not mix garments. Show both people from head to toe, including complete shoes, without cropping. %s", background)
 }
 
 func invalidRequest() *security.APIError {

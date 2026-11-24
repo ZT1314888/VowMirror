@@ -27,7 +27,7 @@
     "changes": [
       {
         "path": "version",
-        "value": 2
+        "value": 3
       }
     ]
   },
@@ -526,8 +526,8 @@
     "valid": false,
     "textChanges": [
       {
-        "from": "\"version\":1",
-        "to": "\"version\":1,\"version\":null"
+        "from": "\"version\":2",
+        "to": "\"version\":2,\"version\":null"
       }
     ]
   },
@@ -536,8 +536,8 @@
     "valid": true,
     "textChanges": [
       {
-        "from": "\"version\":1",
-        "to": "\"version\":\"bad\",\"version\":1"
+        "from": "\"version\":2",
+        "to": "\"version\":\"bad\",\"version\":2"
       }
     ]
   },
@@ -561,16 +561,337 @@
       }
     ]
   },
-  {"valid":true,"name":"empty venues accepted","changes":[]},
-  {"valid":true,"name":"fixed venue accepted","changes":[{"value":[{"path":"venues/V001/scene.png","name":"Synthetic venue","id":"V001"}],"path":"venues"}]},
-  {"valid":false,"name":"invalid venue path venues/V001/../scene.png","changes":[{"value":[{"path":"venues/V001/../scene.png","name":"Synthetic venue","id":"V001"}],"path":"venues"}]},
-  {"valid":false,"name":"invalid venue path private/V001/scene.png","changes":[{"value":[{"path":"private/V001/scene.png","name":"Synthetic venue","id":"V001"}],"path":"venues"}]},
-  {"valid":false,"name":"invalid venue path venues/V002/scene.png","changes":[{"value":[{"path":"venues/V002/scene.png","name":"Synthetic venue","id":"V001"}],"path":"venues"}]},
-  {"valid":false,"name":"invalid venue path https://invalid/scene.png","changes":[{"value":[{"path":"https://invalid/scene.png","name":"Synthetic venue","id":"V001"}],"path":"venues"}]},
-  {"valid":false,"name":"invalid venue path venues/V001/scene.gif","changes":[{"value":[{"path":"venues/V001/scene.gif","name":"Synthetic venue","id":"V001"}],"path":"venues"}]},
-  {"valid":false,"name":"invalid venue path venues\\V001\\scene.png","changes":[{"value":[{"path":"venues\\V001\\scene.png","name":"Synthetic venue","id":"V001"}],"path":"venues"}]},
-  {"valid":false,"name":"duplicate venue","changes":[{"value":[{"path":"venues/V001/scene.png","name":"Synthetic venue","id":"V001"},{"path":"venues/V001/scene.png","name":"Synthetic venue","id":"V001"}],"path":"venues"}]},
-  {"valid":false,"name":"missing venues","changes":[{"path":"venues","remove":true}]},
-  {"valid":false,"name":"null venues","changes":[{"value":null,"path":"venues"}]},
-  {"valid":false,"name":"venue unknown field","changes":[{"value":[{"path":"venues/V001/scene.png","url":"invalid","name":"Synthetic venue","id":"V001"}],"path":"venues"}]}
+  {
+    "valid": true,
+    "name": "empty venues accepted",
+    "changes": []
+  },
+  {
+    "valid": true,
+    "name": "fixed venue accepted",
+    "changes": [
+      {
+        "value": [
+          {
+            "path": "venues/V001/scene.png",
+            "name": "Synthetic venue",
+            "id": "V001"
+          }
+        ],
+        "path": "venues"
+      }
+    ]
+  },
+  {
+    "valid": false,
+    "name": "invalid venue path venues/V001/../scene.png",
+    "changes": [
+      {
+        "value": [
+          {
+            "path": "venues/V001/../scene.png",
+            "name": "Synthetic venue",
+            "id": "V001"
+          }
+        ],
+        "path": "venues"
+      }
+    ]
+  },
+  {
+    "valid": false,
+    "name": "invalid venue path private/V001/scene.png",
+    "changes": [
+      {
+        "value": [
+          {
+            "path": "private/V001/scene.png",
+            "name": "Synthetic venue",
+            "id": "V001"
+          }
+        ],
+        "path": "venues"
+      }
+    ]
+  },
+  {
+    "valid": false,
+    "name": "invalid venue path venues/V002/scene.png",
+    "changes": [
+      {
+        "value": [
+          {
+            "path": "venues/V002/scene.png",
+            "name": "Synthetic venue",
+            "id": "V001"
+          }
+        ],
+        "path": "venues"
+      }
+    ]
+  },
+  {
+    "valid": false,
+    "name": "invalid venue path https://invalid/scene.png",
+    "changes": [
+      {
+        "value": [
+          {
+            "path": "https://invalid/scene.png",
+            "name": "Synthetic venue",
+            "id": "V001"
+          }
+        ],
+        "path": "venues"
+      }
+    ]
+  },
+  {
+    "valid": false,
+    "name": "invalid venue path venues/V001/scene.gif",
+    "changes": [
+      {
+        "value": [
+          {
+            "path": "venues/V001/scene.gif",
+            "name": "Synthetic venue",
+            "id": "V001"
+          }
+        ],
+        "path": "venues"
+      }
+    ]
+  },
+  {
+    "valid": false,
+    "name": "invalid venue path venues\\V001\\scene.png",
+    "changes": [
+      {
+        "value": [
+          {
+            "path": "venues\\V001\\scene.png",
+            "name": "Synthetic venue",
+            "id": "V001"
+          }
+        ],
+        "path": "venues"
+      }
+    ]
+  },
+  {
+    "valid": false,
+    "name": "duplicate venue",
+    "changes": [
+      {
+        "value": [
+          {
+            "path": "venues/V001/scene.png",
+            "name": "Synthetic venue",
+            "id": "V001"
+          },
+          {
+            "path": "venues/V001/scene.png",
+            "name": "Synthetic venue",
+            "id": "V001"
+          }
+        ],
+        "path": "venues"
+      }
+    ]
+  },
+  {
+    "valid": false,
+    "name": "missing venues",
+    "changes": [
+      {
+        "path": "venues",
+        "remove": true
+      }
+    ]
+  },
+  {
+    "valid": false,
+    "name": "null venues",
+    "changes": [
+      {
+        "value": null,
+        "path": "venues"
+      }
+    ]
+  },
+  {
+    "valid": false,
+    "name": "venue unknown field",
+    "changes": [
+      {
+        "value": [
+          {
+            "path": "venues/V001/scene.png",
+            "url": "invalid",
+            "name": "Synthetic venue",
+            "id": "V001"
+          }
+        ],
+        "path": "venues"
+      }
+    ]
+  },
+  {
+    "name": "missing pose mode",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/mode",
+        "remove": true
+      }
+    ]
+  },
+  {
+    "name": "invalid pose mode None",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/mode",
+        "value": null
+      }
+    ]
+  },
+  {
+    "name": "invalid pose mode 7",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/mode",
+        "value": 7
+      }
+    ]
+  },
+  {
+    "name": "invalid pose mode {}",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/mode",
+        "value": {}
+      }
+    ]
+  },
+  {
+    "name": "missing pose action",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/action",
+        "remove": true
+      }
+    ]
+  },
+  {
+    "name": "invalid pose action None",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/action",
+        "value": null
+      }
+    ]
+  },
+  {
+    "name": "invalid pose action 7",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/action",
+        "value": 7
+      }
+    ]
+  },
+  {
+    "name": "invalid pose action {}",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/action",
+        "value": {}
+      }
+    ]
+  },
+  {
+    "name": "invalid pose mode value image",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/mode",
+        "value": "image"
+      }
+    ]
+  },
+  {
+    "name": "invalid pose action value   ",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/action",
+        "value": "  "
+      }
+    ]
+  },
+  {
+    "name": "invalid pose action value aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/action",
+        "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ]
+  },
+  {
+    "name": "lineart text pose accepted",
+    "valid": true,
+    "changes": [
+      {
+        "path": "poses/0/mode",
+        "value": "lineart_text"
+      }
+    ]
+  },
+  {
+    "name": "deleted pose P020 rejected",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/id",
+        "value": "P020"
+      },
+      {
+        "path": "poses/0/path",
+        "value": "poses/P020.png"
+      }
+    ]
+  },
+  {
+    "name": "deleted pose P027 rejected",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/id",
+        "value": "P027"
+      },
+      {
+        "path": "poses/0/path",
+        "value": "poses/P027.png"
+      }
+    ]
+  },
+  {
+    "name": "removed requirements field rejected",
+    "valid": false,
+    "changes": [
+      {
+        "path": "poses/0/requirements",
+        "value": []
+      }
+    ]
+  }
 ]

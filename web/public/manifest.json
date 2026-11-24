@@ -82,5 +82,706 @@
       "sha256": "a137c267667aa7223bfc3489565385cd4ef2fd4bf3da5792b77691bbae8ceeaf"
     }
   ],
-  "outfitThumbnails": []
+  "outfitPreviews": [
+    {
+      "id": "W001",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W001.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "a9fa075e6bbdfec0291c622d6086f82aa3a519b02e98650b683c578e50b54a4c"
+      },
+      "thumbnail": {
+        "file": "outfits/W001-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "f69f6a8862d49cd1ee4308f668fe5069e48dd0e531d139145a5de0137cd2f8f2"
+      }
+    },
+    {
+      "id": "W002",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.411,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W002.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "fcc0523a35c22103abac23ab845ca39f3fc14e133497b7ec1c0fed2989891c0a"
+      },
+      "thumbnail": {
+        "file": "outfits/W002-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "af2308611a22888e76ecb72538b3feec55f16ddb2fdeba4de9d1f2c6bfe542b5"
+      }
+    },
+    {
+      "id": "W003",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.411,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W003.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "71bfaaf16569e6d2d78965059754779ca1e0ab9ec9aea75159e1c95d81fada6a"
+      },
+      "thumbnail": {
+        "file": "outfits/W003-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "0c13dec776cf232c5b76d3acb82455ec4f8813d2232667dfc72636fbe2d96e25"
+      }
+    },
+    {
+      "id": "W004",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.412,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W004.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "49c69c77923d543b94d14d404bdd13ea1d93c023cf6bfd5eae4eaccbe2e76c78"
+      },
+      "thumbnail": {
+        "file": "outfits/W004-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "ed77fb4c0d6dc723c926ad8aaf242059aeef9734c685d6e38ffd1543510cab60"
+      }
+    },
+    {
+      "id": "W005",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W005.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "e9b010a9fcc674ba19651e0a13c7345cefde2fc55d18a47d3ac4a51c4bf746f3"
+      },
+      "thumbnail": {
+        "file": "outfits/W005-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "8813bed55075c4b4bae373fa6ba06ecaa95130c7ce56c1790542115c3b82f895"
+      }
+    },
+    {
+      "id": "W006",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W006.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "3c1e00dd58ba278db3d03661ceb8cf5f211b03d77229f44af985aafc898137c8"
+      },
+      "thumbnail": {
+        "file": "outfits/W006-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "35f2579c73c882cf9dbb1857b824df4cecb0d457448fd42f3074b68e1221a0c6"
+      }
+    },
+    {
+      "id": "W007",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W007.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "125e8a264fb43ccfdc761b3e5967e15db9f791f41f45ea45406b585ff5289afb"
+      },
+      "thumbnail": {
+        "file": "outfits/W007-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "b07fa0aee5a2c41d21e109fe71fc30c8db1db31dc3ddc4ec2e8feba5cc4c46d4"
+      }
+    },
+    {
+      "id": "W008",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.412,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W008.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "bc77c0aff848c0eb985f71850c63bb6f8a66410b922637c098b75c92b81118ec"
+      },
+      "thumbnail": {
+        "file": "outfits/W008-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "37e82bac929cca725b2f13202bc0ee176a1ce8da247fb773cee3286061855a9c"
+      }
+    },
+    {
+      "id": "W009",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.412,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W009.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "10f89aa136ce2ced1335fe50ae9f19a10e441492caed65033fd060859bd4a2db"
+      },
+      "thumbnail": {
+        "file": "outfits/W009-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "ded6564435d110c34e5acb5030e0e5b42b5fdf18006f76055373a63cecc389ec"
+      }
+    },
+    {
+      "id": "W010",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.412,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W010.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "2dbecbfd851d1fd32bf676c8d27fd3d1b0e7898e512c52a420b2d1e6dd98e275"
+      },
+      "thumbnail": {
+        "file": "outfits/W010-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "f36337d1e8b9c7e615beb0f7e4151b0bd4df0c9a2467e71ff12d38528b137108"
+      }
+    },
+    {
+      "id": "W011",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W011.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "ac698a30b087ce0a4928765d49d30b56c2107c4fd1f8271be3f8a183aa23c687"
+      },
+      "thumbnail": {
+        "file": "outfits/W011-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "662e6b7c16dad423bce419d9da1da744e27cfea240874eca6e921fab06106451"
+      }
+    },
+    {
+      "id": "W012",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.411,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W012.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "3fe468e53a9e0cfdd19882d24ccd6af07bc02b9e71eeebb547bd55bb7240f867"
+      },
+      "thumbnail": {
+        "file": "outfits/W012-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "f69bd448da57814f09373858f7b07662b0c516c8ad47a927f69dab40d37e95ad"
+      }
+    },
+    {
+      "id": "W013",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.411,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W013.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "d190eaace76c227dbe68bab8ece5dc29ba015b7c47a9fa4e498659ce2637ce3e"
+      },
+      "thumbnail": {
+        "file": "outfits/W013-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "b5992bc3ab272ed597530bf6f720069ac865bfe4ac8091d36863e19ff3b27360"
+      }
+    },
+    {
+      "id": "W014",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.411,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W014.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "162c252f1a7bc56d28195dbd19d2cc3f2550914070e5444da760caae756f27e6"
+      },
+      "thumbnail": {
+        "file": "outfits/W014-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "4bab18995ac77b87c49f14b4006b56349e350a4bbe4e2bc821b2382702dcde24"
+      }
+    },
+    {
+      "id": "W015",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.411,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W015.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "2d199549e4374f465bc278bc51eff6be63004673a0cbf141c710fa91c3f5d84c"
+      },
+      "thumbnail": {
+        "file": "outfits/W015-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "a250f04ca57ba515edbf1d0badbbf7c6aa86228794907e545f89664e19c96d4b"
+      }
+    },
+    {
+      "id": "W016",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W016.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "4dbf01a773f7254cda7b2175b0ff02c6b942a1b3042eff23889d7a626912d94f"
+      },
+      "thumbnail": {
+        "file": "outfits/W016-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "8952e51ce9d9387c0b3a97be466a26f6d440112ed7518c0796e99d1b42e713e1"
+      }
+    },
+    {
+      "id": "W017",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.411,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W017.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "2141f28ad068a7461547eeabe07b0a6857312c783c61455db252bb2832e1eb59"
+      },
+      "thumbnail": {
+        "file": "outfits/W017-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "2a6891b94baf9ad4812a02f3739adb2cf2f7b379b1ea23dcb51999d3112d77be"
+      }
+    },
+    {
+      "id": "W018",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W018.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "ba6ba47fae6e812b970f7f647f2bc17eedd063ad91587be552e6e39bfde00f42"
+      },
+      "thumbnail": {
+        "file": "outfits/W018-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "1d0e209d050e710b6db129258307db3489f6a4cd98a4a65eabc86d1a4612e40b"
+      }
+    },
+    {
+      "id": "W019",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.412,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W019.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "2911f3864be5144c90df6807db4258e4e6387b41e289f7618f48212757798591"
+      },
+      "thumbnail": {
+        "file": "outfits/W019-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "7486b1be530a6c1548386ecb42a4fae0d02d8911b96548545f14af5d17713f2f"
+      }
+    },
+    {
+      "id": "W020",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.412,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W020.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "21e1104c5995b05e8839ffd48136bfba25959128d2b0cd34d2e99d58df252e71"
+      },
+      "thumbnail": {
+        "file": "outfits/W020-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "ba693e45b022c13dd8be9b5c612ac08b452229f5c420ed8b6224f763fe99cdff"
+      }
+    },
+    {
+      "id": "W021",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W021.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "9b116803758270b161948e3bf04a8ff14d170c2fbfad3c6118233435249a30fc"
+      },
+      "thumbnail": {
+        "file": "outfits/W021-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "698ba217e796d4dd3454f2a33dc547059dffeba1a9f92ad5f0efa0ce79a3b39a"
+      }
+    },
+    {
+      "id": "W022",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W022.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "2d137fe23a193e3cce89b438a27d60e8b94e6c25acf341cbf6c565031b124f7d"
+      },
+      "thumbnail": {
+        "file": "outfits/W022-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "234c589a7ecaafd6a00c6de69156db9c01660b703428c2ecebb2713a07d3d7a3"
+      }
+    },
+    {
+      "id": "W023",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.411,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W023.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "402eeca4fccebe44c076eae92a4e3ec64921876987ea7343eaf5554ce283747e"
+      },
+      "thumbnail": {
+        "file": "outfits/W023-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "4b7c762ee3c081f439b742170c814c81c0a969e272a44ed8f7318f424d2abdc1"
+      }
+    },
+    {
+      "id": "W024",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W024.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "0be93ea34332eca058433bf82604aeaa50c5df120d0a33a43c10cb7592a1bca4"
+      },
+      "thumbnail": {
+        "file": "outfits/W024-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "08d431469894c5f74569822239ed3c97d54f7dbe52bb0cb32c89f40ebb247bdd"
+      }
+    },
+    {
+      "id": "W025",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.412,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W025.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "553d5ed7dd1f6a1173284b6d28723bead7d2c16af55169b7716d42f0daa951cc"
+      },
+      "thumbnail": {
+        "file": "outfits/W025-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "4e4b2fb375afe521f9ea0561ecadeb674cf244a1158f1eb70d7ca06058f38944"
+      }
+    },
+    {
+      "id": "W026",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.411,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W026.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "b17a67d71f12d4f691c72c6ae72f862332264f0e9cdd95de7af857dfec9a09fa"
+      },
+      "thumbnail": {
+        "file": "outfits/W026-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "6b3c6b80dfe3584113e5264b700c8d2f54b640f7653f45236db8f6713fec6422"
+      }
+    },
+    {
+      "id": "W027",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.412,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W027.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "6083b75b0146395dc4189e877dbf5682c53f876604f2d75902ef69402650cf87"
+      },
+      "thumbnail": {
+        "file": "outfits/W027-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "1c63c175bd6682b2e1440a8ad51e5fcc2270abc19cb6b5eef8e139471899e8e5"
+      }
+    },
+    {
+      "id": "W028",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.412,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W028.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "3e6e24f5f91179364aee539df4a3bee4181c7e953440c328a6641650b41af690"
+      },
+      "thumbnail": {
+        "file": "outfits/W028-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "41be17a7236560e3e471e928be1a5c60c7fe1b20cd31d83b587f22ed0089ac63"
+      }
+    },
+    {
+      "id": "W029",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W029.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "54143f4801a03543530af2395a482d178dda44d40ac3324808e24686d4618986"
+      },
+      "thumbnail": {
+        "file": "outfits/W029-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "459836c034c287c6bca063e790f535a810fcbbb52c84be01f5cf3b33cb21f6d5"
+      }
+    },
+    {
+      "id": "W030",
+      "role": "outfit-example-only",
+      "source": "User-provided pre-rendered outfit display image; not a generated user result or model reference.",
+      "transformation": "Pillow RGB WebP quality 90, metadata removed; thumbnail crops the couple before Lanczos resizing.",
+      "focus": [
+        0.41,
+        0.5
+      ],
+      "display": {
+        "file": "outfits/W030.webp",
+        "width": 2400,
+        "height": 1040,
+        "sha256": "a62f83faebb0a1f81630e5fabe0429be033dbfd9e437821f698f431c69b1961d"
+      },
+      "thumbnail": {
+        "file": "outfits/W030-thumb.webp",
+        "width": 320,
+        "height": 240,
+        "sha256": "d56cae6fa701d30f204117e0448367043426e80e55bd66ecde4cd0f69623fbcc"
+      }
+    }
+  ],
+  "audio": [
+    {
+      "file": "invitation-opening-petals.mp3",
+      "role": "invitation-opening-sound",
+      "license": "CC0-1.0",
+      "licenseURL": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "verified": "2026-11-23",
+      "durationSeconds": 2.6,
+      "sha256": "009a599d1c1e603463020ad28e45b29619af1c36f10ff927146c0d31cc0d4989",
+      "transformation": "Band limiting, transient compression on chimes, layered paper and sparkle, soft attack and fade out, peak normalization to -3 dBFS.",
+      "sources": [
+        {
+          "title": "Page Turn Free",
+          "creator": "AardsReal",
+          "source": "https://freesound.org/people/AardsReal/sounds/842183/",
+          "download": "https://cdn.freesound.org/previews/842/842183_13307919-hq.mp3",
+          "license": "CC0-1.0",
+          "licenseURL": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "sourceSHA256": "e80f6dbb21137880ec65eef3dc6d03ce8aa73d91163cad7dc7922723d9d1823b",
+          "trimSeconds": [
+            0.1,
+            0.53
+          ]
+        },
+        {
+          "title": "Chimes Sparkle",
+          "creator": "lukabea",
+          "source": "https://freesound.org/people/lukabea/sounds/660493/",
+          "download": "https://cdn.freesound.org/previews/660/660493_2407572-hq.mp3",
+          "license": "CC0-1.0",
+          "licenseURL": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "sourceSHA256": "bf65f39a47ab5dcf84f793f9d870c284a10a5c3fd1c00632a16284d49d1636d0",
+          "trimSeconds": [
+            3.52,
+            5.85
+          ]
+        }
+      ]
+    }
+  ]
 }

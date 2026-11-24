@@ -2,6 +2,8 @@
 # Secrets are injected only through Docker runtime environment variables.
 server:
   address: ":8000"
+  # Make GoFrame's existing 10 KiB default explicit, without changing body/time limits.
+  maxHeaderBytes: 10240
   openapiPath: ""
   swaggerPath: ""
   logPath: ""

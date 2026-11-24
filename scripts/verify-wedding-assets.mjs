@@ -9,20 +9,22 @@ import { pathToFileURL } from 'node:url';
 
 export const EXPECTED_OUTFIT_COUNT = 30;
 export const OUTFIT_IDS = Array.from({ length: EXPECTED_OUTFIT_COUNT }, (_, index) => `W${String(index + 1).padStart(3, '0')}`);
+// Single source for the fixed preview id set (Nginx allowlist, app.mjs); those files keep the
+// same expression as a literal, and tests/wedding-assets.test.mjs fails when they drift apart.
+export const OUTFIT_ID_PATTERN = /^W0(0[1-9]|[12][0-9]|30)$/;
 export const ROLE_FIELDS = ['dress', 'menswear', 'shoes_detail'];
-export const EXPECTED_POSE_COUNT = 30;
-export const POSE_IDS = Array.from({ length: EXPECTED_POSE_COUNT }, (_, index) => `P${String(index + 1).padStart(3, '0')}`);
+export const EXPECTED_POSE_COUNT = 28;
+export const POSE_IDS = Array.from({ length: 30 }, (_, index) => `P${String(index + 1).padStart(3, '0')}`).filter(id => !['P020', 'P027'].includes(id));
 const ALLOWED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp'];
 const MANIFEST_KEYS = ['version', 'outfits', 'poses', 'venues'];
 const OUTFIT_KEYS = ['id', 'name', ...ROLE_FIELDS];
-const ID_PATTERN = /^W\d{3}$/;
 const POSE_ID_PATTERN = /^P\d{3}$/;
 
 const USAGE = `用法：node scripts/verify-wedding-assets.mjs <manifest.json> [--check-files]
 
 校验婚礼素材清单的结构。清单结构约定（唯一清单：assets/wedding/manifest.json）：
 {
-  "version": 1,
+  "version": 2,
   "outfits": [
     { "id": "W001", "name": "套装名称",
       "dress": "W001/dress.png",
@@ -30,7 +32,8 @@ const USAGE = `用法：node scripts/verify-wedding-assets.mjs <manifest.json> [
       "shoes_detail": "W001/shoes_detail.png" }
   ],
   "poses": [
-    { "id": "P001", "name": "姿势 P001", "path": "poses/P001.png", "status": "unverified" }
+    { "id": "P001", "name": "姿势 P001", "path": "poses/P001.png", "status": "unverified",
+      "mode": "text", "action": "Describe the two-person action." }
   ],
   "venues": []
 }
@@ -41,7 +44,8 @@ const USAGE = `用法：node scripts/verify-wedding-assets.mjs <manifest.json> [
 - 路径相对素材根目录（清单所在目录），必须位于对应 id 同名子目录内。
 - 拒绝绝对路径、盘符、URL、".."/"." 段、反斜杠和错误扩展名（允许：${ALLOWED_EXTENSIONS.join(' ')}）。
 - 全部路径不得重复或跨套共享。
-- poses 必须完整覆盖 P001..P030，路径为 poses/Pxxx.png，status 为 unverified；两个数组均不要求排序。
+- poses 必须包含 P001..P030 中除 P020、P027 外的 28 个编号，路径为 poses/Pxxx.png，status 为 unverified；两个数组均不要求排序。
+- 每个姿势必须含 mode（text 或 lineart_text）、非空 action（最多 2000 个 Unicode 字符）。
 - venues 必须是数组；无授权固定场馆时为空。真实场馆编号 V001..V999，路径在 venues/Vxxx/ 内。
 
 注意：默认只做结构校验，不验证文件存在、内容与许可；传入 --check-files 时会检查清单引用的文件存在、非空及 PNG/JPEG/WebP 签名。
@@ -122,7 +126,7 @@ export function validateManifest(manifest) {
   for (const key of Object.keys(manifest)) {
     if (!MANIFEST_KEYS.includes(key)) problems.push(`清单存在未知字段：${key}`);
   }
-  if (manifest.version !== 1) problems.push(`清单 version 必须为 1，当前为 ${JSON.stringify(manifest.version)}`);
+  if (manifest.version !== 2) problems.push(`清单 version 必须为 2，当前为 ${JSON.stringify(manifest.version)}`);
   if (!Array.isArray(manifest.outfits)) {
     problems.push('清单 outfits 必须是数组');
     return problems;
@@ -141,7 +145,7 @@ export function validateManifest(manifest) {
     }
     const id = outfit.id;
     let idForPath = position;
-    if (typeof id !== 'string' || !ID_PATTERN.test(id) || !OUTFIT_IDS.includes(id)) {
+    if (typeof id !== 'string' || !OUTFIT_ID_PATTERN.test(id) || !OUTFIT_IDS.includes(id)) {
       problems.push(`${position} 的 id 必须匹配 ${OUTFIT_IDS[0]}..${OUTFIT_IDS[EXPECTED_OUTFIT_COUNT - 1]} 形式，当前为 ${JSON.stringify(id)}`);
     } else if (seenIds.has(id)) {
       problems.push(`套装 id 重复：${id}（首次出现在 outfits[${seenIds.get(id)}]）`);
@@ -185,7 +189,7 @@ export function validateManifest(manifest) {
       continue;
     }
     for (const key of Object.keys(pose)) {
-      if (!['id', 'name', 'path', 'status'].includes(key)) problems.push(`${position} 存在未知字段：${key}`);
+      if (!['id', 'name', 'path', 'status', 'mode', 'action'].includes(key)) problems.push(`${position} 存在未知字段：${key}`);
     }
     const id = pose.id;
     if (typeof id !== 'string' || !POSE_ID_PATTERN.test(id) || !POSE_IDS.includes(id)) {
@@ -197,6 +201,8 @@ export function validateManifest(manifest) {
     }
     if (typeof pose.name !== 'string' || pose.name.trim() === '') problems.push(`${id || position} 的 name 必须是非空字符串`);
     if (pose.status !== 'unverified') problems.push(`${id || position} 的 status 必须为 unverified`);
+    if (!['text', 'lineart_text'].includes(pose.mode)) problems.push(`${id || position} 的 mode 无效`);
+    if (typeof pose.action !== 'string' || !pose.action.trim() || [...pose.action].length > 2000) problems.push(`${id || position} 的 action 必须非空且不超过 2000 个字符`);
     checkPosePathField(id || position, pose.path, problems);
     if (typeof pose.path === 'string' && seenPosePaths.has(pose.path)) problems.push(`姿势路径重复：${pose.path}`);
     else if (typeof pose.path === 'string') seenPosePaths.add(pose.path);

@@ -124,11 +124,11 @@ func coupleInput(t *testing.T) CoupleRequest {
 }
 
 func TestCouplePromptLetsModelDecideDressWearer(t *testing.T) {
-	prompt := couplePrompt(false)
+	pose, _ := fixedPosePicker(context.Background())
+	prompt := couplePrompt(references(t, false), pose)
 	for _, phrase := range []string{
 		"Preserve both identities",
-		"original left/right positions",
-		"do not swap or move the people across sides",
+		"freely move, turn, and re-pose",
 		"Decide from reference 1 which person should wear the wedding dress",
 		"judging only by what the photo shows",
 		"wedding dress from reference 2",
@@ -139,7 +139,7 @@ func TestCouplePromptLetsModelDecideDressWearer(t *testing.T) {
 			t.Errorf("prompt missing rule %q", phrase)
 		}
 	}
-	for _, banned := range []string{"Assign clothing by the selected side", "regardless of gender", "viewer's left", "viewer's right", "may intentionally put a man", "Do not infer clothing from gender"} {
+	for _, banned := range []string{"original left/right positions", "do not swap or move the people across sides", "Assign clothing by the selected side", "regardless of gender", "viewer's left", "viewer's right", "may intentionally put a man", "Do not infer clothing from gender"} {
 		if strings.Contains(prompt, banned) {
 			t.Errorf("prompt retains side-assignment rule %q", banned)
 		}
@@ -148,9 +148,9 @@ func TestCouplePromptLetsModelDecideDressWearer(t *testing.T) {
 
 func twoFaces(context.Context, image.Image, []byte) (int, error) { return 2, nil }
 
-func serviceFor(t *testing.T, generator ImageGenerator, reader OutfitReader, admission Admission) *CoupleService {
+func serviceFor(t *testing.T, generator ImageGenerator, reader AssetReader, admission Admission) *CoupleService {
 	t.Helper()
-	service, err := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission, usageFor(t), twoFaces)
+	service, err := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission, usageFor(t), twoFaces, fixedPosePicker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestCoupleFailureAlwaysReleasesAdmission(t *testing.T) {
 				t.Fatal(ledgerErr)
 			}
 			defer ledger.Close()
-			service, serviceErr := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission, ledger, twoFaces)
+			service, serviceErr := NewCoupleService(func() (ImageGenerator, error) { return generator, nil }, reader, admission, ledger, twoFaces, fixedPosePicker)
 			if serviceErr != nil {
 				t.Fatal(serviceErr)
 			}
@@ -416,7 +416,7 @@ func TestBusyRequestsDoNotAllocateImagePixels(t *testing.T) {
 			}, testOutfits{run: func(context.Context, string) (catalog.OutfitImages, error) {
 				t.Fatal("busy request read outfit assets")
 				return catalog.OutfitImages{}, nil
-			}}, admission, usageFor(t), twoFaces)
+			}}, admission, usageFor(t), twoFaces, fixedPosePicker)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -437,4 +437,11 @@ func TestBusyRequestsDoNotAllocateImagePixels(t *testing.T) {
 			t.Logf("busy request allocated %d bytes; no pixel decoding", allocated)
 		})
 	}
+}
+
+func fixedPosePicker(context.Context) (catalog.Pose, error) {
+	return catalog.Pose{ID: "P001", Mode: catalog.PoseText, Action: "Synthetic two-person side-by-side action."}, nil
+}
+func (r testOutfits) ReadPose(context.Context, string) (*imagevalidate.ValidatedImage, error) {
+	return nil, catalog.ErrPoseUnavailable
 }

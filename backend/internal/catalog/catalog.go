@@ -7,10 +7,11 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 const outfitCount = 30
-const poseCount = 30
+const poseCount = 28
 
 var schemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
 var venueIDPattern = regexp.MustCompile(`^V[0-9]{3}$`)
@@ -67,6 +68,19 @@ type Pose struct {
 	Name   string `json:"name"`
 	Path   string `json:"path"`
 	Status string `json:"status"`
+	Mode   string `json:"mode"`
+	Action string `json:"action"`
+}
+
+const PoseText = "text"
+const PoseLineartText = "lineart_text"
+const MaxPoseActionLength = 2000
+
+func (p Pose) Validate() error {
+	if (p.Mode != PoseText && p.Mode != PoseLineartText) || isBlank(p.Action) || utf8.RuneCountInString(p.Action) > MaxPoseActionLength {
+		return fmt.Errorf("姿势策略或动作无效")
+	}
+	return nil
 }
 
 func LoadManifest(path string) (*Manifest, error) {
@@ -87,14 +101,14 @@ func ParseManifest(data []byte) (*Manifest, error) {
 	if err := json.Unmarshal(fields["version"], &version); err != nil {
 		return nil, fmt.Errorf("解析婚礼素材清单失败: %w", err)
 	}
-	if version != 1 {
+	if version != 2 {
 		return nil, fmt.Errorf("婚礼素材清单版本无效")
 	}
 	outfits, err := parseObjects[Outfit](fields["outfits"], "id", "name", "dress", "menswear", "shoes_detail")
 	if err != nil {
 		return nil, fmt.Errorf("解析服装清单失败: %w", err)
 	}
-	poses, err := parseObjects[Pose](fields["poses"], "id", "name", "path", "status")
+	poses, err := parseObjects[Pose](fields["poses"], "id", "name", "path", "status", "mode", "action")
 	if err != nil {
 		return nil, fmt.Errorf("解析姿势清单失败: %w", err)
 	}
@@ -102,7 +116,7 @@ func ParseManifest(data []byte) (*Manifest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("解析场馆清单失败: %w", err)
 	}
-	manifest := Manifest{Version: 1, Outfits: outfits, Poses: poses, Venues: venues}
+	manifest := Manifest{Version: 2, Outfits: outfits, Poses: poses, Venues: venues}
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}
@@ -161,14 +175,14 @@ func parseObjects[T any](data []byte, keys ...string) ([]T, error) {
 }
 
 func (m *Manifest) Validate() error {
-	if m.Version != 1 {
+	if m.Version != 2 {
 		return fmt.Errorf("婚礼素材清单版本无效")
 	}
 	if len(m.Outfits) != outfitCount {
 		return fmt.Errorf("婚礼素材清单必须包含 30 套服装")
 	}
 	if len(m.Poses) != poseCount {
-		return fmt.Errorf("婚礼素材清单必须包含 30 个姿势")
+		return fmt.Errorf("婚礼素材清单必须包含 28 个姿势")
 	}
 	if m.Venues == nil {
 		return fmt.Errorf("场馆清单必须为数组，无素材时使用空数组")
@@ -194,10 +208,15 @@ func (m *Manifest) Validate() error {
 			seenPaths[assetPath] = true
 		}
 	}
-	poseIDs := expectedIDs("P", poseCount)
+	poseIDs := expectedIDs("P", 30)
+	delete(poseIDs, "P020")
+	delete(poseIDs, "P027")
 	for _, pose := range m.Poses {
 		if !poseIDs[pose.ID] || isBlank(pose.Name) || pose.Path != "poses/"+pose.ID+".png" || pose.Status != "unverified" {
 			return fmt.Errorf("婚礼素材清单姿势项 %s 无效或重复", pose.ID)
+		}
+		if err := pose.Validate(); err != nil {
+			return fmt.Errorf("婚礼素材清单姿势项 %s: %w", pose.ID, err)
 		}
 		delete(poseIDs, pose.ID)
 	}

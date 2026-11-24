@@ -131,14 +131,14 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 			factory := func() (tryon.ImageGenerator, error) {
 				return tryon.NewGenerator(tryon.ModelConfig{Provider: "chuanapi", Model: tryon.GPTImageModel, APIKey: marker, BaseURL: upstream.URL + "/v1"}, upstream.Client().Transport)
 			}
-			var reader tryon.OutfitReader = apiOutfits{image: img}
+			var reader tryon.AssetReader = apiOutfits{image: img}
 			if scenario.name == "missing asset" {
 				reader = &catalog.Reader{Directory: t.TempDir(), LoadManifest: func() (*catalog.Manifest, error) {
 					return catalog.LoadManifest("../../../tests/fixtures/wedding-assets-manifest.json")
 				}}
 			}
 			admission := security.NewConcurrencyManager(1, 1)
-			service, err := tryon.NewCoupleService(factory, reader, admission, usageFor(t), count)
+			service, err := tryon.NewCoupleService(factory, reader, admission, usageFor(t), count, fixedPosePicker)
 			if err != nil {
 				t.Fatal(err)
 			}

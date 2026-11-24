@@ -30,7 +30,7 @@ services:
       MODEL_BASE_URL: ${MODEL_BASE_URL:-}
       MODEL_API_KEY: ${MODEL_API_KEY:-}
     # Fresh checkouts get empty directories; missing images explicitly fail generation.
-    # Only fixed outfits are mounted; private intake and poses remain invisible.
+    # Only controlled outfits, venues and pose line drawings are mounted; private intake stays invisible.
     volumes:
       - usage:/var/lib/vowmirror
       - ./assets/wedding/W001:/assets/wedding/W001:ro
@@ -64,6 +64,7 @@ services:
       - ./assets/wedding/W029:/assets/wedding/W029:ro
       - ./assets/wedding/W030:/assets/wedding/W030:ro
       - ./assets/wedding/venues:/assets/wedding/venues:ro
+      - ./assets/wedding/poses:/assets/wedding/poses:ro
     networks:
       - app
 

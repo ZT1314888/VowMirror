@@ -1,5 +1,5 @@
 {
-    "version":  1,
+    "version":  2,
     "outfits":  [
                     {
                         "id":  "W001",
@@ -213,186 +213,230 @@
                     }
                 ],
     "poses":  [
-                  {
-                      "id":  "P001",
-                      "name":  "姿势 P001",
-                      "path":  "poses/P001.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P002",
-                      "name":  "姿势 P002",
-                      "path":  "poses/P002.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P003",
-                      "name":  "姿势 P003",
-                      "path":  "poses/P003.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P004",
-                      "name":  "姿势 P004",
-                      "path":  "poses/P004.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P005",
-                      "name":  "姿势 P005",
-                      "path":  "poses/P005.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P006",
-                      "name":  "姿势 P006",
-                      "path":  "poses/P006.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P007",
-                      "name":  "姿势 P007",
-                      "path":  "poses/P007.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P008",
-                      "name":  "姿势 P008",
-                      "path":  "poses/P008.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P009",
-                      "name":  "姿势 P009",
-                      "path":  "poses/P009.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P010",
-                      "name":  "姿势 P010",
-                      "path":  "poses/P010.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P011",
-                      "name":  "姿势 P011",
-                      "path":  "poses/P011.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P012",
-                      "name":  "姿势 P012",
-                      "path":  "poses/P012.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P013",
-                      "name":  "姿势 P013",
-                      "path":  "poses/P013.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P014",
-                      "name":  "姿势 P014",
-                      "path":  "poses/P014.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P015",
-                      "name":  "姿势 P015",
-                      "path":  "poses/P015.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P016",
-                      "name":  "姿势 P016",
-                      "path":  "poses/P016.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P017",
-                      "name":  "姿势 P017",
-                      "path":  "poses/P017.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P018",
-                      "name":  "姿势 P018",
-                      "path":  "poses/P018.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P019",
-                      "name":  "姿势 P019",
-                      "path":  "poses/P019.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P020",
-                      "name":  "姿势 P020",
-                      "path":  "poses/P020.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P021",
-                      "name":  "姿势 P021",
-                      "path":  "poses/P021.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P022",
-                      "name":  "姿势 P022",
-                      "path":  "poses/P022.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P023",
-                      "name":  "姿势 P023",
-                      "path":  "poses/P023.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P024",
-                      "name":  "姿势 P024",
-                      "path":  "poses/P024.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P025",
-                      "name":  "姿势 P025",
-                      "path":  "poses/P025.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P026",
-                      "name":  "姿势 P026",
-                      "path":  "poses/P026.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P027",
-                      "name":  "姿势 P027",
-                      "path":  "poses/P027.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P028",
-                      "name":  "姿势 P028",
-                      "path":  "poses/P028.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P029",
-                      "name":  "姿势 P029",
-                      "path":  "poses/P029.png",
-                      "status":  "unverified"
-                  },
-                  {
-                      "id":  "P030",
-                      "name":  "姿势 P030",
-                      "path":  "poses/P030.png",
-                      "status":  "unverified"
-                  }
-              ],
+      {
+        "id": "P001",
+        "name": "并肩牵手侧向同行",
+        "path": "poses/P001.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people stand upright side by side, facing the right side of the image and stepping forward together. Their inner hands clasp between them at waist height; their outer arms rest naturally at their sides."
+      },
+      {
+        "id": "P002",
+        "name": "举手牵引转圈",
+        "path": "poses/P002.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "The menswear wearer stands on the right and raises one joined hand above the wedding-dress wearer on the left, guiding a turn. The wedding-dress wearer balances on one foot, bends the other leg backward, and extends the free arm toward the left."
+      },
+      {
+        "id": "P003",
+        "name": "扶背后仰抬膝亲吻",
+        "path": "poses/P003.png",
+        "status": "unverified",
+        "mode": "lineart_text",
+        "action": "The menswear wearer on the right supports the wedding-dress wearer at the back as they lean toward the left into a kiss. The wedding-dress wearer keeps one foot on the ground and lifts the other bent knee across the front; their other hands meet in front of the waist."
+      },
+      {
+        "id": "P004",
+        "name": "牵手向右奔跑",
+        "path": "poses/P004.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people run toward the right side of the image, the menswear wearer leading and the wedding-dress wearer slightly behind. Their inner hands remain joined, with bent knees and outer arms swinging naturally."
+      },
+      {
+        "id": "P005",
+        "name": "正面并肩牵手",
+        "path": "poses/P005.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people stand side by side facing the camera, with the wedding-dress wearer on the left and the menswear wearer on the right. Their inner hands clasp between them and their outer arms hang relaxed; they glance toward each other."
+      },
+      {
+        "id": "P006",
+        "name": "侧身牵手迈步",
+        "path": "poses/P006.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people step toward the right side of the image while holding their inner hands between them. The wedding-dress wearer is slightly behind and turns the upper body toward the camera, with the free hand resting behind the lower back."
+      },
+      {
+        "id": "P007",
+        "name": "公主抱",
+        "path": "poses/P007.png",
+        "status": "unverified",
+        "mode": "lineart_text",
+        "action": "The menswear wearer stands and carries the wedding-dress wearer horizontally, with one arm supporting their back and the other supporting under their knees. The carried person's head is on the right side of the image and their bent legs extend toward the left."
+      },
+      {
+        "id": "P008",
+        "name": "背起相拥",
+        "path": "poses/P008.png",
+        "status": "unverified",
+        "mode": "lineart_text",
+        "action": "The menswear wearer stands facing the camera and carries the wedding-dress wearer on their back. The carried person leans over the shoulders with arms around the upper chest and legs down either side of the carrier; the carrier supports the thighs with both hands, and the carried feet stay off the ground."
+      },
+      {
+        "id": "P009",
+        "name": "靠额扶胸拥抱",
+        "path": "poses/P009.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people face each other with their foreheads touching. The wedding-dress wearer rests one hand on the other person's chest and bends one knee slightly; the menswear wearer supports the waist, with both people remaining on the ground."
+      },
+      {
+        "id": "P010",
+        "name": "拥抱抚下巴",
+        "path": "poses/P010.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people stand facing each other in a close embrace. The menswear wearer supports the waist with one hand and gently touches the wedding-dress wearer's chin with the other; the wedding-dress wearer rests an arm over the shoulder."
+      },
+      {
+        "id": "P011",
+        "name": "侧靠揽腰相依",
+        "path": "poses/P011.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people stand side by side with the wedding-dress wearer on the left leaning their head toward the menswear wearer's shoulder. The menswear wearer wraps an arm around the waist and inclines their head toward the other person."
+      },
+      {
+        "id": "P012",
+        "name": "交谊舞牵手扶腰",
+        "path": "poses/P012.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people face each other in a close ballroom dance position. One pair of hands is joined in front at chest height, the menswear wearer's other hand supports the waist, and the wedding-dress wearer steps one foot back while looking at their partner."
+      },
+      {
+        "id": "P013",
+        "name": "扶腰举手旋转",
+        "path": "poses/P013.png",
+        "status": "unverified",
+        "mode": "lineart_text",
+        "action": "The wedding-dress wearer stands on the left with their back partly toward the camera and turns toward the menswear wearer on the right. One pair of hands is joined above the head, the menswear wearer's other hand supports the waist, and the wedding-dress wearer's free arm extends horizontally toward the right."
+      },
+      {
+        "id": "P014",
+        "name": "面对面捧脸",
+        "path": "poses/P014.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people stand face to face, leaning their foreheads together. The menswear wearer gently cups the wedding-dress wearer's cheeks with both hands while the wedding-dress wearer lightly touches the wrists."
+      },
+      {
+        "id": "P015",
+        "name": "捧脸仰头亲吻",
+        "path": "poses/P015.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "The menswear wearer stands on the left and the wedding-dress wearer on the right, facing each other. The menswear wearer cups the other person's face with both hands as the wedding-dress wearer tilts their face upward for a kiss and rests hands against the chest."
+      },
+      {
+        "id": "P016",
+        "name": "奔向张臂迎接",
+        "path": "poses/P016.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "The wedding-dress wearer on the left takes a lively step toward the menswear wearer on the right, bending the trailing leg backward and lightly gathering the skirt. The menswear wearer stands with both arms extended to welcome them; the people have not yet embraced."
+      },
+      {
+        "id": "P017",
+        "name": "双膝跪地相拥",
+        "path": "poses/P017.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people kneel on both knees facing each other, with their lower legs extending behind in opposite directions. They lean their foreheads together, the menswear wearer holding the waist and the wedding-dress wearer resting hands on the upper arms."
+      },
+      {
+        "id": "P018",
+        "name": "靠肩扶胸依偎",
+        "path": "poses/P018.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people stand facing the camera, the wedding-dress wearer on the left leaning their head on the other person's shoulder with a hand on the chest. The menswear wearer embraces the shoulders; the wedding-dress wearer bends one knee gently toward the other leg."
+      },
+      {
+        "id": "P019",
+        "name": "踮脚整理领口",
+        "path": "poses/P019.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people face each other. The wedding-dress wearer rises slightly onto the toes and uses both hands to straighten the menswear wearer's existing collar or neckwear; the menswear wearer gently holds the waist and looks down toward their partner."
+      },
+      {
+        "id": "P021",
+        "name": "牵手向左奔跑跃起",
+        "path": "poses/P021.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "The menswear wearer and the wedding-dress wearer run hand in hand toward the left side of the image, both mid-stride and off the ground in a joyful leap. The menswear wearer's inner hand clasps the wedding-dress wearer's inner hand between them, arms extended toward each other, and their outer arms swing naturally with the motion."
+      },
+      {
+        "id": "P022",
+        "name": "斜后搭肩挽臂",
+        "path": "poses/P022.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "The menswear wearer stands in front facing the camera. The wedding-dress wearer stands immediately behind and to the left, looking toward their partner, with one hand on the far shoulder and the other around the near upper arm; show both people in full."
+      },
+      {
+        "id": "P023",
+        "name": "环颈扶腰抱起",
+        "path": "poses/P023.png",
+        "status": "unverified",
+        "mode": "lineart_text",
+        "action": "The menswear wearer on the right lifts the wedding-dress wearer upright by supporting the waist with both hands. The lifted person wraps both arms around the carrier's neck, tilts their head upward, and keeps both feet just above the ground as the carrier leans down toward them."
+      },
+      {
+        "id": "P024",
+        "name": "单膝跪地牵手",
+        "path": "poses/P024.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "The menswear wearer on the right kneels on one knee, with the other foot planted in front, and looks up at the wedding-dress wearer standing on the left. One pair of hands is joined between them; the standing person covers their mouth with the free hand."
+      },
+      {
+        "id": "P025",
+        "name": "揽腰扶胸仰头",
+        "path": "poses/P025.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people stand close facing each other, the wedding-dress wearer on the left and the menswear wearer on the right. The menswear wearer embraces the waist while the wedding-dress wearer rests a hand on the chest and tilts their face upward toward their partner."
+      },
+      {
+        "id": "P026",
+        "name": "背后拥抱抚脸",
+        "path": "poses/P026.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "The wedding-dress wearer stands in front with the menswear wearer immediately behind, embracing the waist. The wedding-dress wearer raises one hand to touch the partner's cheek and rests the other near the joined hands at the waist; both heads lean toward each other."
+      },
+      {
+        "id": "P028",
+        "name": "扶腰后仰单腿后屈",
+        "path": "poses/P028.png",
+        "status": "unverified",
+        "mode": "lineart_text",
+        "action": "The menswear wearer on the right supports the wedding-dress wearer's waist and back as they lean backward toward the left. The wedding-dress wearer keeps one foot grounded, bends the other leg backward toward the left, rests one hand on the partner's shoulder, and extends the free arm down and outward."
+      },
+      {
+        "id": "P029",
+        "name": "共撑伞揽肩",
+        "path": "poses/P029.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people stand side by side facing the camera, the wedding-dress wearer on the left and the menswear wearer on the right. The menswear wearer holds one open umbrella above both heads with the outer hand and embraces the partner's shoulders with the other arm; add only this umbrella without changing the venue or weather."
+      },
+      {
+        "id": "P030",
+        "name": "背向牵手奔跑",
+        "path": "poses/P030.png",
+        "status": "unverified",
+        "mode": "text",
+        "action": "Both people run away from the camera, viewed from behind, with the wedding-dress wearer on the left and the menswear wearer on the right. Their inner hands remain joined, both bend their trailing legs backward, and the wedding-dress wearer lightly lifts the existing skirt with the free hand."
+      }
+    ],
   "venues": []
 }

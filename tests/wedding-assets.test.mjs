@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { EXPECTED_OUTFIT_COUNT, EXPECTED_POSE_COUNT, OUTFIT_IDS, POSE_IDS, ROLE_FIELDS, validateManifest, validateManifestFiles, validateManifestText } from '../scripts/verify-wedding-assets.mjs';
+import { readFileSync } from 'node:fs';
+import { EXPECTED_OUTFIT_COUNT, EXPECTED_POSE_COUNT, OUTFIT_ID_PATTERN, OUTFIT_IDS, POSE_IDS, ROLE_FIELDS, validateManifest, validateManifestFiles, validateManifestText } from '../scripts/verify-wedding-assets.mjs';
 
 const scriptPath = fileURLToPath(new URL('../scripts/verify-wedding-assets.mjs', import.meta.url));
 const fixturePath = fileURLToPath(new URL('./fixtures/wedding-assets-manifest.json', import.meta.url));
@@ -95,7 +96,7 @@ test('missing image fields or wrong types are rejected', () => {
 
   const badVersion = buildManifest();
   badVersion.version = '1';
-  assert.ok(problemsOf(badVersion).some(problem => problem.includes('version 必须为 1')));
+  assert.ok(problemsOf(badVersion).some(problem => problem.includes('version 必须为 2')));
 });
 
 test('shared or duplicated paths across outfits are rejected', () => {
@@ -177,10 +178,21 @@ test('manifest contract expects 30 outfits with three role files', () => {
   assert.deepEqual(ROLE_FIELDS, ['dress', 'menswear', 'shoes_detail']);
 });
 
-test('pose catalog accepts exactly the 30 controlled pose ids', () => {
+test('preview id pattern matches the fixed outfit set and every copy of the expression', () => {
+  for (const id of OUTFIT_IDS) assert.ok(OUTFIT_ID_PATTERN.test(id), id);
+  for (const id of ['W000', 'W031', 'w001', 'W01']) assert.ok(!OUTFIT_ID_PATTERN.test(id), id);
+  // nginx.conf and app.mjs cannot import this module, so they must carry the identical expression.
+  const nginx = readFileSync(new URL('../docker/nginx.conf', import.meta.url), 'utf8');
+  const allowlist = [...nginx.matchAll(/location ~ \^(.+?) \{/g)].map(match => match[1].trim());
+  assert.ok(allowlist.includes('/web/public/outfits/W0(0[1-9]|[12][0-9]|30)(-thumb)?\\.webp$'), allowlist.join(' '));
+  const app = readFileSync(new URL('../web/app.mjs', import.meta.url), 'utf8');
+  assert.ok(app.includes(`const OUTFIT_ID_PATTERN = ${OUTFIT_ID_PATTERN.toString()};`));
+});
+
+test('pose catalog accepts exactly the 28 controlled pose ids', () => {
   const manifest = buildManifest();
-  manifest.poses = POSE_IDS.map(id => ({ id, name: `姿势 ${id}`, path: `poses/${id}.png`, status: 'unverified' }));
-  assert.equal(EXPECTED_POSE_COUNT, 30);
+  manifest.poses = POSE_IDS.map(id => ({ id, name: `姿势 ${id}`, path: `poses/${id}.png`, status: 'unverified', mode: 'text', action: 'Synthetic action.' }));
+  assert.equal(EXPECTED_POSE_COUNT, 28);
   assert.deepEqual(validateManifest(manifest), []);
 
   manifest.poses[0].path = 'poses/P002.png';

@@ -80,6 +80,7 @@ try {
     $expected += $faceFixtures
     $publicAssets = Get-Content -LiteralPath 'web/public/manifest.json' -Raw | ConvertFrom-Json
     $expected += @($publicAssets.assets | ForEach-Object { 'web/public/' + $_.file })
+    $expected += @($publicAssets.outfitPreviews | ForEach-Object { 'web/public/' + $_.display.file; 'web/public/' + $_.thumbnail.file })
     if (Compare-Object ($images | Sort-Object) ($expected | Sort-Object)) { throw 'Unexpected tracked image' }
     if ($tracked | Where-Object { $_ -match '(^|/)(\.env|config\.yaml|private/|node_modules/|go-build/)|\.(exe|log|test)$' -and $_ -ne '.env.example' }) {
         throw 'Private input or build artifact entered tracked source'
@@ -89,7 +90,7 @@ try {
         Invoke-Compose @('run', '--rm', '--no-deps', '-T', '-v', "${root}/docker/check-image.sh:/run/check-image.sh:ro", '-v', "${boundary}:/run/boundary.env:ro", '--entrypoint', 'sh', $entry[0], '/run/check-image.sh', $entry[1])
     }
     Invoke-Compose @('up', '-d', '--wait', 'web', 'backend')
-    Invoke-Compose @('exec', '-T', 'backend', 'sh', '-ec', 'test ${#TRYON_API_KEYS} -ge 32; test ${#MODEL_API_KEY} -eq 0; test ${#MODEL_PROVIDER} -eq 0; test ${#MODEL_NAME} -eq 0; test ${#MODEL_BASE_URL} -eq 0; test ! -e /assets/wedding/private; test ! -e /assets/wedding/poses; test ! -e /app/.env; test ! -e /app/manifest/config/config.yaml; test ! -e /usr/local/go')
+    Invoke-Compose @('exec', '-T', 'backend', 'sh', '-ec', 'test ${#TRYON_API_KEYS} -ge 32; test ${#MODEL_API_KEY} -eq 0; test ${#MODEL_PROVIDER} -eq 0; test ${#MODEL_NAME} -eq 0; test ${#MODEL_BASE_URL} -eq 0; test ! -e /assets/wedding/private; test -d /assets/wedding/poses; test ! -e /app/.env; test ! -e /app/manifest/config/config.yaml; test ! -e /usr/local/go')
 
     # Both application and test networks must have no external route during execution.
     $networkIDs = & docker network ls --filter "label=com.docker.compose.project=$runID" --format '{{.ID}}'
@@ -99,8 +100,11 @@ try {
         if ($LASTEXITCODE -ne 0 -or $internal -ne 'true') { throw 'Acceptance network has external routing' }
     }
     Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', '--test', 'tests/browser-safety.test.mjs')
+    Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/invitation-audio.mjs')
     Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/http-acceptance.mjs')
     Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/smoke.mjs', '--stage', $Stage)
+    Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/gallery-fit.mjs')
+    Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/outfit-previews.mjs')
     Invoke-Compose @('restart', 'backend')
     Invoke-Compose @('up', '-d', '--wait', 'web', 'backend')
     Invoke-Compose @('run', '--rm', '-T', 'tools-browser', 'node', 'tests/restart-acceptance.mjs')

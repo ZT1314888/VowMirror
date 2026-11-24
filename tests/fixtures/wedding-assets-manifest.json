@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "outfits": [
     {
       "id": "W001",
@@ -217,181 +217,225 @@
       "id": "P001",
       "name": "pose P001",
       "path": "poses/P001.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P002",
       "name": "pose P002",
       "path": "poses/P002.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P003",
       "name": "pose P003",
       "path": "poses/P003.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P004",
       "name": "pose P004",
       "path": "poses/P004.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P005",
       "name": "pose P005",
       "path": "poses/P005.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P006",
       "name": "pose P006",
       "path": "poses/P006.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P007",
       "name": "pose P007",
       "path": "poses/P007.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P008",
       "name": "pose P008",
       "path": "poses/P008.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P009",
       "name": "pose P009",
       "path": "poses/P009.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P010",
       "name": "pose P010",
       "path": "poses/P010.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P011",
       "name": "pose P011",
       "path": "poses/P011.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P012",
       "name": "pose P012",
       "path": "poses/P012.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P013",
       "name": "pose P013",
       "path": "poses/P013.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P014",
       "name": "pose P014",
       "path": "poses/P014.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P015",
       "name": "pose P015",
       "path": "poses/P015.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P016",
       "name": "pose P016",
       "path": "poses/P016.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P017",
       "name": "pose P017",
       "path": "poses/P017.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P018",
       "name": "pose P018",
       "path": "poses/P018.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P019",
       "name": "pose P019",
       "path": "poses/P019.png",
-      "status": "unverified"
-    },
-    {
-      "id": "P020",
-      "name": "pose P020",
-      "path": "poses/P020.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P021",
       "name": "pose P021",
       "path": "poses/P021.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P022",
       "name": "pose P022",
       "path": "poses/P022.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P023",
       "name": "pose P023",
       "path": "poses/P023.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P024",
       "name": "pose P024",
       "path": "poses/P024.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P025",
       "name": "pose P025",
       "path": "poses/P025.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P026",
       "name": "pose P026",
       "path": "poses/P026.png",
-      "status": "unverified"
-    },
-    {
-      "id": "P027",
-      "name": "pose P027",
-      "path": "poses/P027.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P028",
       "name": "pose P028",
       "path": "poses/P028.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P029",
       "name": "pose P029",
       "path": "poses/P029.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     },
     {
       "id": "P030",
       "name": "pose P030",
       "path": "poses/P030.png",
-      "status": "unverified"
+      "status": "unverified",
+      "mode": "text",
+      "action": "Synthetic two-person pose description."
     }
   ],
   "venues": []

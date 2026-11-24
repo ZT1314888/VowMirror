@@ -74,6 +74,7 @@
   <!-- 隐藏的文件选择入口 -->
   <input id="couple-image" name="couple-image" type="file" accept="image/png,image/jpeg,image/webp" class="file-input-proxy" tabindex="-1" aria-hidden="true">
   <input id="scene-image" name="scene-image" type="file" accept="image/png,image/jpeg,image/webp" class="file-input-proxy" tabindex="-1" aria-hidden="true">
+  <audio id="invitation-sound" src="/web/public/invitation-opening-petals.mp3" preload="auto"></audio>
 
   <main id="invitation-screen" class="invitation-screen" aria-labelledby="invitation-title">
     <svg class="floral-ambient is-tl" viewBox="0 0 120 170" aria-hidden="true"><use href="#deco-branch"/></svg>
@@ -117,14 +118,21 @@
         </section>
         <section id="room-outfit" class="gallery-room" aria-label="02 造型">
           <h2 class="room-title sr-only" id="room-outfit-title" tabindex="-1">02 造型</h2>
-          <div class="hero-frame">
-            <div id="outfit-hero-a" class="hero-layer"></div>
-            <div id="outfit-hero-b" class="hero-layer is-front"></div>
-            <canvas id="outfit-particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
+          <div id="outfit-preview" class="outfit-preview">
+            <div class="hero-frame">
+              <div id="outfit-hero-a" class="hero-layer"></div>
+              <div id="outfit-hero-b" class="hero-layer is-front"></div>
+              <canvas id="outfit-particle-canvas" class="particle-canvas" aria-hidden="true"></canvas>
+              <div class="outfit-preview-label">
+                <p id="outfit-preview-status" role="status" aria-live="polite">造型示例</p>
+                <button id="retry-outfit-preview" type="button" hidden>重新加载</button>
+              </div>
+            </div>
           </div>
         </section>
         <section id="room-scene" class="gallery-room" aria-label="03 场景">
           <h2 class="room-title sr-only" id="room-scene-title" tabindex="-1">03 场景</h2>
+          <div id="scene-reference" class="scene-reference" hidden></div>
           <div class="hero-frame">
             <div id="scene-hero-a" class="hero-layer"></div>
             <div id="scene-hero-b" class="hero-layer is-front"></div>
@@ -140,12 +148,16 @@
 
     <div id="floating-dock" class="floating-dock"></div>
 
-    <div id="aperture-overlay" class="aperture-overlay" hidden>
+    <div id="aperture-overlay" class="aperture-overlay" role="dialog" aria-modal="true" aria-labelledby="generation-title" hidden>
       <div class="aperture-inner">
-        <div class="aperture-rule" aria-hidden="true"></div>
         <span class="aperture-wordmark">VowMirror</span>
-        <div class="aperture-rule" aria-hidden="true"></div>
+        <div class="generation-halo" aria-hidden="true"></div>
+        <h2 id="generation-title">为你们定格婚礼模样</h2>
+        <ol id="generation-steps" class="generation-steps" aria-label="生成阶段">
+          <li aria-current="step">准备照片</li><li>生成合影</li><li>整理成片</li>
+        </ol>
         <p id="generation-status" class="aperture-status" role="status" aria-live="polite" aria-atomic="true"></p>
+        <p id="generation-elapsed" class="generation-elapsed" aria-live="off">已等待 0 秒</p>
         <button id="cancel-generation" class="ivory-pill" type="button" hidden>取消生成</button>
       </div>
     </div>

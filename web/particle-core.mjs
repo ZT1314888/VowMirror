@@ -1,12 +1,14 @@
 // 粒子溶解过渡：旧大图按网格采样为带色粒子，轻扫、上飘、透明衰减，
-// 新层同时做 CSS 交叉淡入与微缩放落定，形成类似 iPhone 双屏内外屏
+// 新层同时做 CSS 交叉淡入，形成类似 iPhone 双屏内外屏
 // 切换的连续溶解感。仅处理同源图片（blob:/同站路径）；
 // 画布被污染、图片未解码或用户偏好减少动态时回退为纯交叉淡入。
 
 const MAX_DPR = 2;
 const running = new WeakMap();
+const pending = new WeakMap();
 
 export function cancelDissolve(canvas) {
+  pending.delete(canvas);
   const state = running.get(canvas);
   if (state) {
     cancelAnimationFrame(state.raf);
@@ -16,7 +18,41 @@ export function cancelDissolve(canvas) {
   }
 }
 
-export function dissolveTransition({ canvas, source, onReady, duration = 720 }) {
+// 布局更新（参考行、dock 高度）与图片提交在同一帧发生；等两帧再按最终
+// 画框尺寸取样，避免刚启动就被画框变化作废。新选择到来时统一取消未启动的取样。
+export function scheduleDissolve({ canvas, source, duration = 720 }) {
+  cancelDissolve(canvas);
+  if (!canvas || !source?.complete || !source.naturalWidth) return false;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+  const state = {};
+  pending.set(canvas, state);
+  let remaining = 2;
+  const tick = () => {
+    if (pending.get(canvas) !== state) return; // 已被取消或替换
+    if (remaining-- > 0) {
+      requestAnimationFrame(tick);
+      return;
+    }
+    pending.delete(canvas);
+    dissolveTransition({ canvas, source, duration });
+  };
+  requestAnimationFrame(tick);
+  return true;
+}
+
+// 只有播放开始后画框尺寸真的变了才不会错位；尺寸未变的通知（同一布局更新
+// 的迟到回调）不能取消正在播放的动效。
+export function cancelDissolveIfResized(canvas) {
+  const state = running.get(canvas);
+  const frame = canvas?.parentElement;
+  if (!state || !frame) return false;
+  const rect = frame.getBoundingClientRect();
+  if (Math.abs(rect.width - state.width) < 1 && Math.abs(rect.height - state.height) < 1) return false;
+  cancelDissolve(canvas);
+  return true;
+}
+
+export function dissolveTransition({ canvas, source, duration = 720 }) {
   const frame = canvas?.parentElement;
   if (!frame || !source?.complete || !source.naturalWidth) return false;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
@@ -32,12 +68,15 @@ export function dissolveTransition({ canvas, source, onReady, duration = 720 }) 
 
   const sw = source.naturalWidth;
   const sh = source.naturalHeight;
-  const scale = Math.max(canvas.width / sw, canvas.height / sh);
+  const style = getComputedStyle(source);
+  const fit = style.objectFit === 'cover' ? Math.max : Math.min;
+  const scale = fit(canvas.width / sw, canvas.height / sh);
   const dw = sw * scale;
   const dh = sh * scale;
+  const [focusX, focusY] = style.objectPosition.split(' ').map(value => parseFloat(value) / 100);
   try {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(source, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+    ctx.drawImage(source, (canvas.width - dw) * focusX, (canvas.height - dh) * focusY, dw, dh);
   } catch {
     return false; // 跨域污染
   }
@@ -72,7 +111,7 @@ export function dissolveTransition({ canvas, source, onReady, duration = 720 }) 
   }
   if (!particles.length) return false;
 
-  const state = { raf: 0 };
+  const state = { raf: 0, width: rect.width, height: rect.height };
   running.set(canvas, state);
   let started = false;
   let last = 0;
@@ -81,7 +120,6 @@ export function dissolveTransition({ canvas, source, onReady, duration = 720 }) 
     if (!started) {
       started = true;
       last = now;
-      onReady?.();
     }
     const dt = Math.min(48, now - last) / 1000;
     last = now;

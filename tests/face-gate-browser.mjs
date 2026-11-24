@@ -57,7 +57,7 @@ try {
   let previousPreview;
   for (const [index, [file, code, text]] of [
     ['one.jpg', 'COUPLE_IMAGE_NOT_COUPLE', '未检测到两张清晰的人脸，请换一张两人面部清楚的合照。'],
-    ['two.jpg', 'MODEL_CONFIGURATION_INVALID', '后端请求失败（HTTP 503）'],
+    ['two.jpg', 'MODEL_CONFIGURATION_INVALID', '服务器资源紧张，请稍后再试'],
   ].entries()) {
     await page.locator('.stepper-link').nth(0).click();
     const expectedRequests = index * 2;

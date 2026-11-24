@@ -1,33 +1,24 @@
-import { getAPIError, parseAPIResponse } from './response-core.mjs';
+import { ERROR_MESSAGES, SERVER_BUSY_MESSAGE, getAPIError, isUnreachableError, parseAPIResponse } from './response-core.mjs';
 import { imageExtensionForMime, normalizeImageMime, readImageFile, resolveResultImageInfo } from './image-core.mjs';
 import { consumeSSE } from './sse-core.mjs';
-import { cancelDissolve, dissolveTransition } from './particle-core.mjs';
+import { cancelDissolve, cancelDissolveIfResized, scheduleDissolve } from './particle-core.mjs';
 import { petalBurst } from './petal-core.mjs';
 
 const GENERATION_TIMEOUT_MS = 90_000;
-const GENERATION_PHASE_LABELS = Object.freeze({
-  reading_input: '已读取请求',
-  validating_request: '请求校验完成',
-  validating_images: '正在校验图片',
-  preparing_assets: '正在准备参考素材',
-  assembling_request: '正在组装模型请求',
-  connection_acquisition: '正在连接上游',
-  waiting_upstream_response: '等待上游响应',
-  connection_acquired: '上游连接已建立',
-  dns_lookup: '正在解析上游地址',
-  tcp_connect: '正在建立上游连接',
-  tls_handshake: '正在协商加密连接',
-  request_upload: '正在上传参考素材',
-  first_response_byte: '已收到上游首字节',
-  provider_response_headers: '已收到上游响应头',
-  reading_provider_response: '正在读取上游响应',
-  validating_provider_result: '正在校验上游结果',
-  validating_result: '正在校验结果图片',
-  upstream_request_failed: '上游请求失败',
-});
+const GENERATION_STAGE_LABELS = ['准备照片', '生成合影', '整理成片'];
+// Fixed preview id set; docker/nginx.conf and scripts/verify-wedding-assets.mjs repeat it.
+const OUTFIT_ID_PATTERN = /^W0(0[1-9]|[12][0-9]|30)$/;
+const GENERATION_STAGES = Object.freeze(Object.fromEntries([
+  ['reading_input', 'validating_request', 'validating_images', 'preparing_assets', 'assembling_request'],
+  ['connection_acquisition', 'waiting_upstream_response', 'connection_acquired', 'dns_lookup', 'tcp_connect',
+    'tls_handshake', 'request_upload', 'first_response_byte', 'provider_response_headers', 'reading_provider_response', 'upstream_request_failed'],
+  ['validating_provider_result', 'validating_result'],
+].flatMap((phases, index) => phases.map(phase => [phase, index]))));
 const SAMPLE_PHOTO_URL = '/web/public/wedding-example.jpg';
 const AMBIENT_DEFAULT_URL = '/web/public/florals.jpg';
 const ROOM_TITLES = ['room-photo-title', 'room-outfit-title', 'room-scene-title', 'room-result-title'];
+// 生成码会放在 Authorization 头里，只有可见 ASCII 才能通过 fetch 的请求头校验。
+const ASCII_TOKEN = /^[\x21-\x7E]+$/;
 const TRACK_EASE = 'translate3d';
 
 const track = document.querySelector('#gallery-track');
@@ -42,10 +33,13 @@ const sceneInput = document.querySelector('#scene-image');
 const outfitLayers = [document.querySelector('#outfit-hero-a'), document.querySelector('#outfit-hero-b')];
 const sceneLayers = [document.querySelector('#scene-hero-a'), document.querySelector('#scene-hero-b')];
 const outfitCanvas = document.querySelector('#outfit-particle-canvas');
+const outfitPreview = document.querySelector('#outfit-preview');
+const experience = document.querySelector('#experience');
 const sceneCanvas = document.querySelector('#scene-particle-canvas');
 const resultSlot = document.querySelector('#result-slot');
 const apertureOverlay = document.querySelector('#aperture-overlay');
 const generationStatus = document.querySelector('#generation-status');
+const generationElapsed = document.querySelector('#generation-elapsed');
 const cancelButton = document.querySelector('#cancel-generation');
 const tokenInput = document.querySelector('#access-token');
 const accessDialog = document.querySelector('#access-dialog');
@@ -54,6 +48,7 @@ const healthStatus = document.querySelector('#health-status');
 const invitationScreen = document.querySelector('#invitation-screen');
 const openInvitationButton = document.querySelector('#open-invitation');
 const petalCanvas = document.querySelector('#petal-canvas');
+const invitationSound = document.querySelector('#invitation-sound');
 
 const state = {
   room: 0,
@@ -61,6 +56,9 @@ const state = {
   photoURL: '',
   outfits: [],
   outfitId: '',
+  outfitPreviews: new Map(),
+  outfitPreviewsError: '',
+  outfitPreviewVersion: 0,
   sceneMode: 'original',
   sceneImage: null,
   sceneURL: '',
@@ -76,6 +74,15 @@ const state = {
   operation: { kind: 'idle' },
 };
 const bufferToggle = { ambient: false, outfit: false, scene: false };
+const previewResize = new ResizeObserver(entries => {
+  // 布局更新会连带触发尺寸通知；只有播放中尺寸真的变了才取消，避免把
+  // 刚开始的动效误判为错位。
+  for (const entry of entries) {
+    const canvas = entry.target.querySelector('.particle-canvas');
+    if (canvas) cancelDissolveIfResized(canvas);
+  }
+});
+for (const canvas of [outfitCanvas, sceneCanvas]) previewResize.observe(canvas.parentElement);
 let pendingSnapshot = null;
 let accessReturnFocus = null;
 let alertTimer = 0;
@@ -105,7 +112,7 @@ function setOperation(next) {
   const dialogBusy = verifying || generating;
   apertureOverlay.hidden = !generating;
   cancelButton.hidden = !generating;
-  if (generating) generationStatus.textContent = '正在生成婚礼合影…';
+  for (const element of document.querySelectorAll('.gallery-header, #gallery-viewport, #floating-dock')) element.inert = generating;
   // 弹窗控件在核验/生成期间保持锁定，重复确认由操作守卫兜底。
   const confirmButton = document.querySelector('#confirm-access');
   confirmButton.disabled = dialogBusy;
@@ -152,10 +159,13 @@ function renderStepper() {
 function goToRoom(index) {
   if (index < 0 || index > 3 || isBusy()) return;
   state.room = index;
+  experience.classList.toggle('is-outfit-room', index === 1);
+  document.querySelectorAll('.gallery-room').forEach((room, i) => { room.inert = i !== index; });
   track.style.transform = `${TRACK_EASE}(-${index * 100}vw, 0, 0)`;
   renderStepper();
   renderDock();
   syncAmbient();
+  if (index === 1) refreshOutfitHero(false);
   // 重建导航与 dock 会移除原焦点元素；立即把焦点交给目标展厅标题。
   document.getElementById(ROOM_TITLES[index])?.focus({ preventScroll: true });
 }
@@ -185,25 +195,30 @@ function syncAmbient() {
 /* =========================================================================
    编辑风大图构建 + 双缓冲交叉淡入 / 粒子溶解
    ========================================================================= */
-function heroMarkup({ src, pip = '' }) {
-  return `
-    <img class="hero-photo" src="${escapeHTML(src)}" alt="">
-    <div class="hero-shade" aria-hidden="true"></div>
-    ${pip}
-  `;
-}
-
-function pipMarkup(src) {
-  if (!src) return '';
-  return `<div class="hero-pip" aria-hidden="true"><img src="${escapeHTML(src)}" alt=""></div>`;
+function heroMarkup({ src }) {
+  return `<img class="hero-photo" src="${escapeHTML(src)}" alt="照片完整预览">`;
 }
 
 function coupleHeroSrc() {
   return state.photoURL || SAMPLE_PHOTO_URL;
 }
 
+// 非动画切换：直接覆盖后缓冲层并清空另一层，作为下一轮溶解的底图。
+function showHeroImmediately(layers, canvas, content) {
+  cancelDissolve(canvas);
+  layers[1].replaceChildren();
+  if (content instanceof HTMLImageElement) layers[1].append(content);
+  else layers[1].innerHTML = content;
+  layers[1].style.opacity = '1';
+  layers[1].classList.add('is-front');
+  layers[0].replaceChildren();
+  layers[0].style.opacity = '0';
+  layers[0].classList.remove('is-front');
+  bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'] = true;
+}
+
 // 双缓冲切换：粒子溶解可用则旧图溶解为新图，否则退回纯交叉淡入。
-function transitionHero(layers, canvas, markup) {
+function transitionHero(layers, canvas, content) {
   const incoming = bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'] ? layers[0] : layers[1];
   const outgoing = bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'] ? layers[1] : layers[0];
   cancelDissolve(canvas);
@@ -211,39 +226,21 @@ function transitionHero(layers, canvas, markup) {
   const showIncoming = () => {
     incoming.style.transition = 'none';
     incoming.style.opacity = '0';
-    incoming.style.transform = 'scale(1.045)';
-    incoming.innerHTML = markup;
+    if (content instanceof HTMLImageElement) incoming.replaceChildren(content);
+    else incoming.innerHTML = content;
     void incoming.offsetWidth;
     incoming.style.transition = '';
     incoming.style.opacity = '1';
-    incoming.style.transform = 'scale(1)';
     outgoing.style.opacity = '0';
-    outgoing.style.transform = 'scale(.97)';
     incoming.classList.add('is-front');
     outgoing.classList.remove('is-front');
   };
 
-  if (prefersReducedMotion()) {
-    showIncoming();
-    outgoing.innerHTML = '';
-  } else {
-    const source = outgoing.querySelector('img');
-    const dissolved = dissolveTransition({
-      canvas,
-      source,
-      onReady: () => {
-        // 首帧粒子已呈现旧图，本体退场让位给溶解粒子。
-        outgoing.style.transition = 'opacity 140ms linear, transform 500ms var(--ease-apple)';
-        outgoing.style.opacity = '0';
-        showIncoming();
-        setTimeout(() => { if (outgoing.style.opacity === '0') outgoing.innerHTML = ''; }, 160);
-      },
-    });
-    if (!dissolved) {
-      showIncoming();
-      outgoing.innerHTML = '';
-    }
-  }
+  // 图片状态立即提交；粒子在本次布局更新完成后的两帧才按最终画框取样，
+  // 未启动的取样会被后续选择统一取消，不能阻塞或覆盖新图。
+  if (!prefersReducedMotion()) scheduleDissolve({ canvas, source: outgoing.querySelector('img') });
+  showIncoming();
+  setTimeout(() => { if (outgoing.style.opacity === '0') outgoing.innerHTML = ''; }, prefersReducedMotion() ? 0 : 500);
   bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'] = !bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'];
 }
 
@@ -283,7 +280,6 @@ async function selectPhoto(file) {
     state.photoURL = URL.createObjectURL(new Blob([image.bytes], { type: image.mime }));
     renderPhotoRoom();
     triggerScanBeam();
-    refreshOutfitHero(false);
     refreshSceneHero(false);
     syncAmbient();
     renderDock();
@@ -323,28 +319,63 @@ function currentOutfit() {
   return state.outfits.find(item => item.id === state.outfitId) || null;
 }
 
-function refreshOutfitHero(animate) {
-  const markup = heroMarkup({ src: coupleHeroSrc() });
-  if (animate) transitionHero(outfitLayers, outfitCanvas, markup);
-  else {
-    outfitLayers[1].innerHTML = markup;
-    outfitLayers[1].style.opacity = '1';
-    outfitLayers[1].style.transform = 'scale(1)';
-    outfitLayers[1].classList.add('is-front');
-    outfitLayers[0].innerHTML = '';
-    outfitLayers[0].style.opacity = '0';
-    outfitLayers[0].classList.remove('is-front');
-    bufferToggle.outfit = true;
+async function refreshOutfitHero(animate) {
+  const id = state.outfitId || 'W001';
+  const preview = state.outfitPreviews.get(id);
+  const status = document.querySelector('#outfit-preview-status');
+  const retry = document.querySelector('#retry-outfit-preview');
+  const current = outfitLayers.find(layer => layer.classList.contains('is-front'))?.querySelector('img');
+  const version = ++state.outfitPreviewVersion;
+  retry.hidden = true;
+  if (current?.dataset.outfitId === id) {
+    status.textContent = `造型示例 · ${state.outfits.find(outfit => outfit.id === id)?.name || id}`;
+    return;
+  }
+  status.textContent = '造型示例 · 正在载入…';
+  try {
+    if (!preview) throw new Error(state.outfitPreviewsError || '展示素材清单中缺少此造型');
+    const image = new Image();
+    image.className = 'hero-photo';
+    image.alt = `${state.outfits.find(outfit => outfit.id === id)?.name || id} · 造型示例`;
+    image.dataset.outfitId = id;
+    image.style.objectPosition = preview.focus.map(value => `${value * 100}%`).join(' ');
+    image.src = `/web/public/${preview.display.file}`;
+    await image.decode();
+    if (version !== state.outfitPreviewVersion) return;
+    if (animate) transitionHero(outfitLayers, outfitCanvas, image);
+    else showHeroImmediately(outfitLayers, outfitCanvas, image);
+    status.textContent = `造型示例 · ${state.outfits.find(outfit => outfit.id === id)?.name || id}`;
+  } catch (error) {
+    if (version !== state.outfitPreviewVersion) return;
+    cancelDissolve(outfitCanvas);
+    for (const layer of outfitLayers) layer.replaceChildren();
+    status.textContent = `造型示例加载失败：${error.message}`;
+    retry.hidden = false;
   }
 }
 
-function selectOutfit(outfit, animate = true) {
+function selectOutfit(outfit) {
   state.outfitId = outfit.id;
   clearResult();
-  refreshOutfitHero(animate);
+  refreshOutfitHero(true);
   syncAmbient();
-  renderDock();
+  // 保留卡片、焦点与浏览位置；选择本身不重建滚动容器。
+  const strip = dock.querySelector('.dock-thumb-strip');
+  if (!strip) return;
+  for (const tile of strip.querySelectorAll('[data-action="select-outfit"]')) {
+    const active = tile.dataset.arg === outfit.id;
+    tile.classList.toggle('is-active', active);
+    tile.setAttribute('aria-pressed', String(active));
+  }
 }
+
+document.querySelector('#retry-outfit-preview').addEventListener('click', async () => {
+  if (!state.outfitPreviews.size) {
+    await loadOutfitPreviews();
+    renderDock();
+  }
+  refreshOutfitHero(false);
+});
 
 /* =========================================================================
    Room 2 · 场景（保留原背景 / 上传场地照片 / 固定场馆仅当目录提供）
@@ -354,25 +385,13 @@ function currentVenue() {
 }
 
 function refreshSceneHero(animate) {
-  let markup;
-  if (state.sceneMode === 'upload' && state.sceneURL) {
-    markup = heroMarkup({ src: state.sceneURL, pip: pipMarkup(state.photoURL || '') });
-  } else if (state.sceneMode === 'venue' && currentVenue()) {
-    markup = heroMarkup({ src: coupleHeroSrc() });
-  } else {
-    markup = heroMarkup({ src: coupleHeroSrc(), pip: state.sceneMode === 'upload' ? pipMarkup(state.photoURL || '') : '' });
-  }
+  const sceneUploaded = state.sceneMode === 'upload' && state.sceneURL;
+  const markup = heroMarkup({ src: sceneUploaded ? state.sceneURL : coupleHeroSrc() });
+  const reference = document.querySelector('#scene-reference');
+  reference.hidden = !sceneUploaded || !state.photoURL;
+  reference.innerHTML = reference.hidden ? '' : `<img src="${escapeHTML(state.photoURL)}" alt="合照参考"><span>合照参考 · 下方为场地照片</span>`;
   if (animate) transitionHero(sceneLayers, sceneCanvas, markup);
-  else {
-    sceneLayers[1].innerHTML = markup;
-    sceneLayers[1].style.opacity = '1';
-    sceneLayers[1].style.transform = 'scale(1)';
-    sceneLayers[1].classList.add('is-front');
-    sceneLayers[0].innerHTML = '';
-    sceneLayers[0].style.opacity = '0';
-    sceneLayers[0].classList.remove('is-front');
-    bufferToggle.scene = true;
-  }
+  else showHeroImmediately(sceneLayers, sceneCanvas, markup);
 }
 
 function selectSceneMode(mode) {
@@ -427,7 +446,7 @@ function sceneTitle() {
   return '保留原背景';
 }
 
-function renderResultRoom() {
+function renderResultRoom(decodedImage = null) {
   const outfit = currentOutfit();
   if (!state.resultURL || !state.resultData) {
     resultSlot.innerHTML = `
@@ -445,13 +464,16 @@ function renderResultRoom() {
       <div class="compare-after" id="reveal-after-layer">
         <img id="result-image" src="${escapeHTML(state.resultURL)}" alt="生成的双人婚礼合影">
       </div>
-      <div class="hero-shade" aria-hidden="true"></div>
-      <h3 class="result-caption">${escapeHTML(outfit ? `${outfit.name} · ${sceneTitle()}` : '婚礼合影')}</h3>
       <div class="compare-divider" id="reveal-divider">
         <div class="compare-handle" aria-hidden="true"><svg class="icon"><use href="#icon-compare"/></svg></div>
       </div>
-      <details class="result-details"><summary>生成详情</summary><p id="result-meta" class="result-meta"></p></details>
-    </div>`;
+    </div>
+    <h3 class="result-caption">${escapeHTML(outfit ? `${outfit.name} · ${sceneTitle()}` : '婚礼合影')}</h3>
+    <details class="result-details"><summary>生成详情</summary><p id="result-meta" class="result-meta"></p></details>`;
+  if (decodedImage) {
+    decodedImage.alt = '生成的双人婚礼合影';
+    document.querySelector('#result-image').replaceWith(decodedImage);
+  }
   document.querySelector('#result-meta').textContent = state.resultMetaText;
   updateCompare(state.comparePct);
 }
@@ -476,9 +498,25 @@ function thumbTile({ action, arg, active, inner, label }) {
       aria-pressed="${active}" aria-label="${escapeHTML(label)}">${inner}</button>`;
 }
 
+function revealDockTile(tile) {
+  if (!tile) return;
+  const strip = tile.parentElement;
+  const bounds = strip.getBoundingClientRect();
+  const selected = tile.getBoundingClientRect();
+  const padding = parseFloat(getComputedStyle(strip).paddingLeft);
+  const left = selected.left - bounds.left - padding;
+  const right = selected.right - bounds.right + padding;
+  // 只移动目录，避免 scrollIntoView 连带滚动工具栏或页面。
+  if (left < 0 || right > 0) strip.scrollBy({ left: left < 0 ? left : right, behavior: 'instant' });
+}
+
 function renderDock() {
+  const previousStrip = dock.querySelector('.dock-thumb-strip');
+  const previousScroll = previousStrip?.scrollLeft ?? 0;
   // 重建 dock 后把焦点还给同义控件，键盘选择不会跌回 body。
-  const previousFocus = dock.contains(document.activeElement) ? document.activeElement : null;
+  // 按钮被按住时不记录 dock 焦点：重建出的新按钮会顶替按下位置，导致鼠标点击落空。
+  const pressed = dockDrag !== null || [...dock.querySelectorAll('button')].some(node => node.matches(':active'));
+  const previousFocus = dock.contains(document.activeElement) && !pressed ? document.activeElement : null;
   const busy = isBusy();
   const busyFlag = busy ? 'disabled' : '';
   if (state.room === 0) {
@@ -489,7 +527,7 @@ function renderDock() {
     const tiles = orderedOutfits().map(outfit => thumbTile({
       action: 'select-outfit', arg: outfit.id,
       active: outfit.id === state.outfitId,
-      inner: `<span class="name-tile">${escapeHTML(outfit.name)}</span>`,
+      inner: `${state.outfitPreviews.has(outfit.id) ? `<img class="outfit-thumbnail" src="/web/public/${escapeHTML(state.outfitPreviews.get(outfit.id).thumbnail.file)}" alt="" width="320" height="240" loading="lazy" decoding="async" draggable="false">` : ''}<span class="outfit-card-name">${escapeHTML(outfit.name)}</span>`,
       label: `选择造型：${outfit.name}`,
     })).join('');
     dock.innerHTML = `
@@ -523,17 +561,87 @@ function renderDock() {
       ${download}`;
   }
   if (busy) dock.querySelectorAll('button').forEach(node => { node.disabled = true; });
-  if (previousFocus?.dataset?.action) {
-    const replacement = [...dock.querySelectorAll('[data-action]')].find(node =>
-      node.dataset.action === previousFocus.dataset.action && (node.dataset.arg ?? '') === (previousFocus.dataset.arg ?? ''));
-    if (replacement && !replacement.disabled) replacement.focus({ preventScroll: true });
+  const strip = dock.querySelector('.dock-thumb-strip');
+  // 同一目录重绘保留浏览位置，避免选中后先回到开头再扫过整个列表。
+  const sameList = strip && previousStrip?.getAttribute('aria-label') === strip.getAttribute('aria-label');
+  if (sameList) {
+    strip.scrollTo({ left: Math.min(previousScroll, Math.max(0, strip.scrollWidth - strip.clientWidth)), behavior: 'instant' });
   }
-  requestAnimationFrame(() => {
-    dock.querySelector('.dock-thumb-btn.is-active')?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  });
+  if (!sameList) revealDockTile(strip?.querySelector('.dock-thumb-btn.is-active'));
+  // 造型厅沿用同一 dock，只把它叠在造型预览画框内，与其他厅共用一套 DOM 与状态。
+  const host = state.room === 1 ? outfitPreview : experience;
+  if (dock.parentElement !== host) host.append(dock);
 }
 
+const DOCK_DRAG_THRESHOLD_PX = 6;
+let dockDrag = null;
+let suppressDockClick = false;
+
+dock.addEventListener('pointerdown', event => {
+  if (event.pointerType !== 'mouse' || event.button !== 0 || isBusy()) return;
+  suppressDockClick = false;
+  const strip = event.target.closest('.dock-thumb-strip');
+  if (!strip || strip.scrollWidth <= strip.clientWidth) return;
+  // 接管鼠标聚焦，避免边缘卡片在按下时被浏览器自动滚入视野。
+  event.preventDefault();
+  event.target.closest('button')?.focus({ preventScroll: true });
+  dockDrag = { pointerId: event.pointerId, strip, startX: event.clientX, scrollLeft: strip.scrollLeft, dragging: false };
+});
+
+dock.addEventListener('pointermove', event => {
+  if (!dockDrag || event.pointerId !== dockDrag.pointerId) return;
+  const distance = event.clientX - dockDrag.startX;
+  if (!dockDrag.dragging) {
+    if (Math.abs(distance) < DOCK_DRAG_THRESHOLD_PX) return;
+    dockDrag.dragging = true;
+    dockDrag.strip.classList.add('is-dragging');
+    dock.setPointerCapture(event.pointerId);
+  }
+  event.preventDefault();
+  dockDrag.strip.scrollTo({ left: dockDrag.scrollLeft - distance, behavior: 'instant' });
+});
+
+function finishDockDrag(event) {
+  if (!dockDrag || event.pointerId !== dockDrag.pointerId) return;
+  suppressDockClick = dockDrag.dragging;
+  dockDrag.strip.classList.remove('is-dragging');
+  dockDrag = null;
+  if (dock.hasPointerCapture(event.pointerId)) dock.releasePointerCapture(event.pointerId);
+}
+
+window.addEventListener('pointerup', finishDockDrag);
+window.addEventListener('pointercancel', finishDockDrag);
+dock.addEventListener('lostpointercapture', finishDockDrag);
+// A drag released off the dock produces no synthetic click; clear the flag on the next
+// real release so one suppressed click can never swallow a later legitimate one.
+window.addEventListener('pointerup', () => { suppressDockClick = false; });
+
+dock.addEventListener('wheel', event => {
+  if (isBusy() || event.defaultPrevented || !event.cancelable || event.ctrlKey || event.shiftKey) return;
+  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+  const strip = event.target.closest('.dock-thumb-strip');
+  if (!strip || !dock.contains(strip)) return;
+  const maxScroll = strip.scrollWidth - strip.clientWidth;
+  if (maxScroll <= 0) return;
+
+  // 行模式按一个 em、页模式按可视列表宽度换算，横向手势保持浏览器原生行为。
+  const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+    ? parseFloat(getComputedStyle(strip).fontSize)
+    : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? strip.clientWidth : 1;
+  const left = Math.max(0, Math.min(maxScroll, strip.scrollLeft + event.deltaY * unit));
+  if (Math.abs(left - strip.scrollLeft) < 1) return;
+
+  event.preventDefault();
+  strip.scrollTo({ left, behavior: 'instant' });
+}, { passive: false });
+
 dock.addEventListener('click', event => {
+  if (suppressDockClick && event.detail > 0) {
+    suppressDockClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   const control = event.target.closest('[data-action]');
   if (!control || control.disabled) return;
   const action = control.dataset.action;
@@ -542,7 +650,7 @@ dock.addEventListener('click', event => {
   else if (action === 'go-room') goToRoom(Number(arg));
   else if (action === 'select-outfit') {
     const outfit = state.outfits.find(item => item.id === arg);
-    if (outfit) selectOutfit(outfit, true);
+    if (outfit) selectOutfit(outfit);
   } else if (action === 'set-scene-mode') {
     selectSceneMode(arg);
     if (arg === 'upload') sceneInput.click();
@@ -666,14 +774,17 @@ async function authorizeAndGenerate(event) {
   if (state.operation.kind !== 'awaiting-code') return;
   const token = tokenInput.value.trim();
   const errorBox = document.querySelector('#access-error');
-  if (!token) {
-    errorBox.textContent = '请输入生成码后再继续。';
+  // 生成码会放进 Authorization 头：非 ASCII 字符（中文、全角符号等）让 fetch 在发出请求前
+  // 抛 TypeError，这里按无效生成码处理，不把浏览器原生异常暴露给用户。
+  if (!token || !ASCII_TOKEN.test(token)) {
+    errorBox.textContent = ERROR_MESSAGES.AUTH_INVALID;
     errorBox.hidden = false;
     tokenInput.setAttribute('aria-invalid', 'true');
     tokenInput.focus();
     return;
   }
   const snapshot = pendingSnapshot;
+  if (!snapshot) { closeAccessDialog(); return; }
   const request = { kind: 'authorization', controller: new AbortController() };
   setOperation(request);
   document.querySelector('#cancel-access').focus();
@@ -684,9 +795,10 @@ async function authorizeAndGenerate(event) {
       cache: 'no-store', redirect: 'error', signal: request.controller.signal,
     });
     const body = await parseAPIResponse(response);
-    if (state.operation !== request) return;
     if (!response.ok || body.code !== 0) throw new Error(getAPIError(response, body).text);
     if (!Number.isInteger(body.data?.remaining) || body.data.remaining < 1 || body.data.remaining > 5) throw new Error('生成额度响应无效，请重试。');
+    if (state.operation !== request) return;
+    if (!snapshot) { closeAccessDialog(); return; }
     tokenInput.value = '';
     pendingSnapshot = null;
     setOperation({ kind: 'idle' });
@@ -695,7 +807,10 @@ async function authorizeAndGenerate(event) {
   } catch (error) {
     if (state.operation !== request) return;
     setOperation({ kind: 'awaiting-code' });
-    errorBox.textContent = request.controller.signal.aborted ? '生成码核验超时，请重试。' : error.message;
+    // 请求没到达后端（连接失败、请求无法编码、响应不可解析）统一提示服务繁忙；
+    // 后端明确返回的错误按已知文案显示，不暴露原生异常。
+    errorBox.textContent = request.controller.signal.aborted ? '生成码核验超时，请重试。'
+      : isUnreachableError(error) ? SERVER_BUSY_MESSAGE : error.message;
     errorBox.hidden = false;
     tokenInput.setAttribute('aria-invalid', 'true');
     tokenInput.focus();
@@ -725,19 +840,29 @@ function generationErrorMessage(error, request) {
   if (request.timedOut) return '生成超过 90 秒，已停止请求。你可以手动重试。';
   if (request.controller.signal.aborted) return getAPIError({ status: 408 }, { data: { error_code: 'GENERATION_CANCELLED' } }).text;
   if (error?.code === 'STREAM_INTERRUPTED') return '生成连接中断，未收到最终结果。你可以手动重试。';
+  if (isUnreachableError(error)) return SERVER_BUSY_MESSAGE;
   return error.message;
 }
 
 function updateGenerationStatus(status, request) {
   checkGeneration(request);
-  const label = status.phase === 'connection_acquired'
-    ? status.connection_reused ? '复用上游连接' : '已建立新的上游连接'
-    : GENERATION_PHASE_LABELS[status.phase];
-  if (!label) throw new Error(`生成事件包含未知阶段：${status.phase}`);
-  if (request.lastPhase !== status.phase) {
-    generationStatus.textContent = label;
-    request.lastPhase = status.phase;
-  }
+  if (!Object.hasOwn(GENERATION_STAGES, status.phase)) throw new Error(`生成事件包含未知阶段：${status.phase}`);
+  advanceGenerationStage(GENERATION_STAGES[status.phase], request);
+}
+
+function advanceGenerationStage(stage, request) {
+  if (stage <= request.stage) return;
+  request.stage = stage;
+  generationStatus.textContent = GENERATION_STAGE_LABELS[stage];
+  document.querySelectorAll('#generation-steps li').forEach((element, index) => {
+    if (index === stage) element.setAttribute('aria-current', 'step');
+    else element.removeAttribute('aria-current');
+  });
+}
+
+function updateGenerationClock(request) {
+  const seconds = Math.floor((performance.now() - request.startedAt) / 1000);
+  generationElapsed.textContent = `已等待 ${seconds} 秒`;
 }
 
 async function displayResult(data, snapshot, request) {
@@ -745,13 +870,13 @@ async function displayResult(data, snapshot, request) {
   if (info.mime !== normalizeImageMime(data?.mime_type)) throw new Error('生成结果的图片格式与声明不一致。');
   const binary = atob(info.b64);
   const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
-  releaseResultURL();
-  state.resultURL = URL.createObjectURL(new Blob([bytes], { type: info.mime }));
-  generationStatus.textContent = '正在解码生成图片…';
+  request.pendingURL = URL.createObjectURL(new Blob([bytes], { type: info.mime }));
+  advanceGenerationStage(2, request);
   const probe = new Image();
+  request.probe = probe;
   // 解码探针沿用结果图 id，保持浏览器测试的 decode 钩子可以精确拦截。
   probe.id = 'result-image';
-  probe.src = state.resultURL;
+  probe.src = request.pendingURL;
   try {
     await waitForGeneration(probe.decode(), request);
   } catch (error) {
@@ -760,23 +885,37 @@ async function displayResult(data, snapshot, request) {
   }
   checkGeneration(request);
   if (probe.naturalWidth !== data.width || probe.naturalHeight !== data.height) throw new Error('生成结果图片尺寸与声明不一致。');
-  // Let the decoded image reach a rendered frame before stopping the clock.
-  await waitForGeneration(new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))), request);
-  checkGeneration(request);
-  const durationMs = Math.ceil(performance.now() - request.startedAt);
+  state.resultURL = request.pendingURL;
+  request.pendingURL = '';
   state.resultData = data;
   state.resultMime = info.mime;
   state.comparePct = 50;
+  probe.style.visibility = 'hidden';
+  renderResultRoom(probe);
+  // Keep cancellation and the deadline active until the decoded result becomes visible.
+  await waitForGeneration(new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))), request);
+  checkGeneration(request);
+  const durationMs = Math.ceil(performance.now() - request.startedAt);
   const providerModel = data.provider_model ? `${data.provider_model}${data.provider_model === data.model ? '（未提供日期快照）' : ''}` : '未提供版本信息（未提供日期快照）';
   state.resultMetaText = `${snapshot.outfit_name} · ${info.mime} · 可查看耗时 ${durationMs} ms · 请求型号 ${data.model} · 供应商型号 ${providerModel} · 请求 ${data.request_id}${data.provider_request_id ? ` · 供应商请求 ${data.provider_request_id}` : ''}`;
+  document.querySelector('#result-meta').textContent = state.resultMetaText;
+  probe.style.removeProperty('visibility');
 }
 
 async function generate(snapshot, token) {
   if (state.operation.kind !== 'idle') return;
   const startedAt = performance.now();
   hideAlert();
-  const request = { kind: 'generation', controller: new AbortController(), timedOut: false, timer: 0, startedAt, lastPhase: '' };
+  const request = { kind: 'generation', controller: new AbortController(), timedOut: false, timer: 0, clock: 0, startedAt, stage: -1, pendingURL: '', probe: null };
+  const returnFocus = accessReturnFocus;
+  accessReturnFocus = null;
   setOperation(request);
+  advanceGenerationStage(0, request);
+  updateGenerationClock(request);
+  request.clock = window.setInterval(() => updateGenerationClock(request), 1000);
+  cancelButton.focus({ preventScroll: true });
+  // Native dialog close fixup may run after this synchronous transition.
+  requestAnimationFrame(() => { if (state.operation === request) cancelButton.focus({ preventScroll: true }); });
   clearResult();
   request.timer = window.setTimeout(() => {
     request.timedOut = true;
@@ -810,7 +949,6 @@ async function generate(snapshot, token) {
     // 先解除生成态（隐藏遮罩、解锁导航），再进入成片展厅。
     setOperation({ kind: 'idle' });
     goToRoom(3);
-    renderResultRoom();
     renderDock();
     syncAmbient();
   } catch (error) {
@@ -823,7 +961,13 @@ async function generate(snapshot, token) {
     if (resultStatus) resultStatus.textContent = message;
   } finally {
     window.clearTimeout(request.timer);
-    if (state.operation === request) setOperation({ kind: 'idle' });
+    window.clearInterval(request.clock);
+    if (request.pendingURL) URL.revokeObjectURL(request.pendingURL);
+    if (request.probe && !request.probe.isConnected) request.probe.removeAttribute('src');
+    if (state.operation === request) {
+      setOperation({ kind: 'idle' });
+      restoreFocusTo(returnFocus);
+    }
   }
 }
 
@@ -836,10 +980,12 @@ function restartSession() {
   clearScene();
   state.sceneMode = 'original';
   state.outfitId = '';
+  state.outfitPreviewVersion++;
+  cancelDissolve(outfitCanvas);
+  for (const layer of outfitLayers) layer.replaceChildren();
   state.sceneVenueId = '';
   clearResult();
   renderPhotoRoom();
-  refreshOutfitHero(false);
   refreshSceneHero(false);
   syncAmbient();
   goToRoom(0);
@@ -898,17 +1044,20 @@ window.addEventListener('keydown', event => {
   if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
   if (isBusy() || accessDialog.open || document.querySelector('dialog[open]')) return;
   if (state.room !== 1 && state.room !== 2) return;
+  // Only dock controls and room headings own the arrow keys here; text fields keep native caret moves.
+  const target = event.target;
+  if (target instanceof Element && (target.closest('input, textarea, select') || target.closest('[contenteditable]'))) return;
   const items = state.room === 1
     ? orderedOutfits()
     : state.venues.length ? [{ id: 'original' }, { id: 'upload' }, ...state.venues.map(v => ({ id: v.id }))] : [{ id: 'original' }, { id: 'upload' }];
   const activeId = state.room === 1 ? state.outfitId : (state.sceneMode === 'venue' ? state.sceneVenueId : state.sceneMode);
   const index = items.findIndex(item => item.id === activeId);
-  if (index < 0) return;
-  const next = items[index + (event.key === 'ArrowRight' ? 1 : -1)];
+  const next = items[index < 0 ? (event.key === 'ArrowRight' ? 0 : items.length - 1) : index + (event.key === 'ArrowRight' ? 1 : -1)];
   if (!next) return;
+  event.preventDefault();
   if (state.room === 1) {
     const outfit = state.outfits.find(item => item.id === next.id);
-    if (outfit) selectOutfit(outfit, true);
+    if (outfit) selectOutfit(outfit);
   } else if (next.id === 'original' || next.id === 'upload') {
     selectSceneMode(next.id);
   } else {
@@ -919,6 +1068,9 @@ window.addEventListener('keydown', event => {
     syncAmbient();
     renderDock();
   }
+  // 键盘切换后重建 dock，并把焦点交给新的选中卡片。
+  if (state.room === 1) renderDock();
+  dock.querySelector('.dock-thumb-btn.is-active')?.focus({ preventScroll: true });
 });
 
 /* =========================================================================
@@ -956,6 +1108,12 @@ document.querySelector('#gallery-wordmark').addEventListener('click', () => goTo
 cancelButton.addEventListener('click', () => {
   if (state.operation.kind === 'generation') state.operation.controller.abort();
 });
+apertureOverlay.addEventListener('keydown', event => {
+  if (event.key === 'Tab') { event.preventDefault(); cancelButton.focus(); }
+});
+document.addEventListener('focusin', () => {
+  if (state.operation.kind === 'generation' && document.activeElement !== cancelButton) cancelButton.focus({ preventScroll: true });
+});
 
 accessForm.addEventListener('submit', authorizeAndGenerate);
 tokenInput.addEventListener('input', () => {
@@ -977,6 +1135,15 @@ accessDialog.addEventListener('keydown', event => {
 // 请柬开启编排：火漆裂纹 → 掀盖露衬里 → 信纸升起放大 → 交叉过渡进画廊。
 let invitationOpenTimers = [];
 let invitationOpening = false;
+
+function stopInvitationSound() {
+  invitationSound.pause();
+  invitationSound.currentTime = 0;
+}
+
+invitationSound.addEventListener('error', () => {
+  console.error('请柬音效加载失败', invitationSound.error?.code);
+});
 
 function clearInvitationOpenTimers() {
   for (const timerId of invitationOpenTimers) window.clearTimeout(timerId);
@@ -1005,6 +1172,11 @@ function finishInvitationOpening() {
 
 openInvitationButton.addEventListener('click', () => {
   openInvitationButton.disabled = true;
+  // 在用户手势内播放；正常开启保留完整尾音，主动跳过时停止。
+  invitationSound.play().catch(error => {
+    if (error.name === 'AbortError' && invitationSound.paused) return;
+    console.error('请柬音效播放失败', error);
+  });
   invitationOpening = true;
   invitationScreen.classList.add('is-cracked');
   // 花瓣从火漆位置迸出飘落，余韵延续到画廊首屏；减少动态时模块内部直接跳过。
@@ -1019,22 +1191,32 @@ openInvitationButton.addEventListener('click', () => {
 });
 
 // 动画期间在请柬页任意点击或按 Esc 可直接进入（BKE Studio 式跳过）。
+function skipInvitationOpening() {
+  if (!invitationOpening) return;
+  stopInvitationSound();
+  finishInvitationOpening();
+}
+
 invitationScreen.addEventListener('pointerdown', () => {
-  if (invitationOpening) finishInvitationOpening();
+  skipInvitationOpening();
 });
 document.addEventListener('keydown', event => {
-  if (invitationOpening && event.key === 'Escape') finishInvitationOpening();
+  if (event.key === 'Escape') skipInvitationOpening();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') stopInvitationSound();
 });
 
 // 同源图片加载失败时移除元素，露出渐变兜底；委托捕获避免 CSP 内联事件处理器。
 document.addEventListener('error', event => {
   const img = event.target;
-  if (img instanceof HTMLImageElement && img.matches('.hero-photo, .hero-empty img, .result-empty img, .hero-pip img')) {
+  if (img instanceof HTMLImageElement && img.matches('.hero-photo, .hero-empty img, .result-empty img')) {
     img.remove();
   }
 }, true);
 
 window.addEventListener('pagehide', () => {
+  stopInvitationSound();
   releasePhotoURL();
   clearScene();
   releaseResultURL();
@@ -1074,12 +1256,52 @@ async function loadOutfits() {
   }
 }
 
+let outfitPreviewsRequest = null;
+
+function loadOutfitPreviews() {
+  // Single in-flight request: a stale failure must never discard a newer success.
+  outfitPreviewsRequest ??= fetchOutfitPreviews().finally(() => { outfitPreviewsRequest = null; });
+  return outfitPreviewsRequest;
+}
+
+async function fetchOutfitPreviews() {
+  const status = document.querySelector('#outfit-preview-status');
+  try {
+    const response = await fetch('/web/public/manifest.json', {
+      cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const manifest = await response.json();
+    const previews = manifest.outfitPreviews;
+    if (manifest.version !== 1 || !Array.isArray(previews) || previews.length !== 30
+      || new Set(previews.map(item => item.id)).size !== 30
+      || !previews.every(item => OUTFIT_ID_PATTERN.test(item.id)
+        && item.display?.file === `outfits/${item.id}.webp`
+        && item.thumbnail?.file === `outfits/${item.id}-thumb.webp`
+        && Array.isArray(item.focus) && item.focus.length === 2
+        && item.focus.every(value => Number.isFinite(value) && value >= 0 && value <= 1))) {
+      throw new Error('展示素材清单格式无效');
+    }
+    state.outfitPreviews = new Map(previews.map(item => [item.id, item]));
+    state.outfitPreviewsError = '';
+    if (state.room === 1) refreshOutfitHero(false);
+  } catch (error) {
+    state.outfitPreviews = new Map();
+    // Keep the manifest failure visible; the hero reports the same cause instead of
+    // replacing it with "missing this outfit".
+    state.outfitPreviewsError = `造型示例清单读取失败：${error.message}`;
+    status.textContent = state.outfitPreviewsError;
+    showAlert(state.outfitPreviewsError);
+  }
+}
+
 setOperation(state.operation);
 renderPhotoRoom();
-refreshOutfitHero(false);
 refreshSceneHero(false);
 renderResultRoom();
 await checkHealth();
+// Decorative outfit previews must not delay the interactive dock; redraw it when they arrive.
 await loadOutfits();
 renderDock();
+loadOutfitPreviews().then(() => { if (state.room === 1) renderDock(); });
 syncAmbient();

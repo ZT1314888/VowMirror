@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { armControlledCouple, blockUncontrolledGeneration, controlledCaptures, installControlledCouple, observeConsole, releaseControlledCouple, waitControlledCoupleHit } from './browser-observations.mjs';
 import { verifyResultLifecycle } from './result-lifecycle.mjs';
 import { verifyInvitationFlow, waitForInvitationReady } from './invitation-flow.mjs';
+import { verifyDockDrag, verifyDockSelectionPosition, verifyDockTouch, verifyDockWheel } from './dock-scroll.mjs';
 
 const require = createRequire('/opt/browser/package.json');
 const { chromium } = require('playwright');
@@ -56,6 +57,7 @@ try {
   const page = await browser.newPage({ acceptDownloads: true, serviceWorkers: 'block' });
   page.setDefaultTimeout(10_000);
   page.setDefaultNavigationTimeout(15_000);
+  await page.clock.install();
   const pageErrors = [];
   const consoleObservation = observeConsole(page);
   boundary = await blockUncontrolledGeneration(page);
@@ -88,6 +90,12 @@ try {
       await page.locator('#open-invitation').click();
     }
     await waitForCatalog(page);
+    // dock 按文档顺序排在视口之后：首屏与任意展厅都必须落在视口下方，而不是页头下面。
+    assert.equal(await page.evaluate(() => {
+      const dock = document.querySelector('#floating-dock').getBoundingClientRect();
+      const viewport = document.querySelector('#gallery-viewport').getBoundingClientRect();
+      return dock.top >= viewport.bottom - 1 && dock.bottom <= innerHeight + 1 && dock.bottom > innerHeight / 2;
+    }), true, `dock sits below the gallery viewport at ${width}`);
     if (process.env.SMOKE_EVIDENCE_DIR) {
       mkdirSync(process.env.SMOKE_EVIDENCE_DIR, { recursive: true });
       await page.screenshot({ path: `${process.env.SMOKE_EVIDENCE_DIR}/workspace-${width}.png`, fullPage: true });
@@ -98,6 +106,25 @@ try {
     await page.emulateMedia({ reducedMotion: 'reduce' });
   }
   assert.deepEqual(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length })), { local: 0, session: 0 });
+
+  await verifyDockWheel(page);
+  await verifyDockSelectionPosition(page);
+  await verifyDockDrag(page);
+  const touchPage = await browser.newPage({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true, reducedMotion: 'reduce' });
+  const touchBoundary = await blockUncontrolledGeneration(touchPage);
+  try {
+    await touchPage.goto(base);
+    await touchPage.locator('#open-invitation').tap();
+    await waitForCatalog(touchPage);
+    await verifyDockTouch(touchPage);
+    touchBoundary.assertSafe();
+  } finally {
+    await touchPage.close();
+  }
+  // Reset the in-memory selection before validating required inputs.
+  await page.reload();
+  await page.locator('#open-invitation').click();
+  await waitForCatalog(page);
 
   // 逐步校验：缺合照 → 上传 → 缺造型 → 键盘选造型。
   await page.locator('.stepper-link').nth(2).click();
@@ -207,13 +234,17 @@ try {
   const firstCapture = (await controlledCaptures(page))[0];
   assert.deepEqual(Object.keys(firstCapture.body).sort(), ['couple_image', 'outfit_id', 'scene']);
   assert.deepEqual(firstCapture.body.scene, { mode: 'original' });
-  assert.ok(firstCapture.body.couple_image);
+  assert.equal(firstCapture.body.couple_image, fixture.toString('base64'), 'uploaded photo bytes remain unchanged');
   assert.equal(firstCapture.authorization, `Bearer ${accessToken}`);
   assert.equal(await page.locator('#download-result').getAttribute('download'), 'vowmirror-wedding.png');
   const firstResultURL = await page.locator('#result-image').getAttribute('src');
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('link', { name: '下载成片' }).click();
-  assert.equal((await downloadPromise).suggestedFilename(), 'vowmirror-wedding.png');
+  const download = await downloadPromise;
+  assert.equal(download.suggestedFilename(), 'vowmirror-wedding.png');
+  const downloadedChunks = [];
+  for await (const chunk of await download.createReadStream()) downloadedChunks.push(chunk);
+  assert.equal(Buffer.concat(downloadedChunks).toString('base64'), resultBase64, 'download preserves the result bytes');
 
   // 对比滑块：键盘微调更新裁切比例。
   await page.locator('#reveal-compare-stage').focus();
@@ -234,7 +265,7 @@ try {
   await submitGeneration(page);
   await waitControlledCoupleHit(page);
   await releaseControlledCouple(page);
-  await page.locator('#form-alert').getByText('后端请求失败（HTTP 503）', { exact: true }).waitFor();
+  await page.locator('#form-alert').getByText('服务器资源紧张，请稍后再试', { exact: true }).waitFor();
   await assertControls(page);
   assert.equal((await controlledCaptures(page)).length, 2, 'failed request must not retry automatically');
   await armControlledCouple(page, successResponse);
@@ -262,7 +293,6 @@ try {
   assert.equal(await page.locator('#download-result').count(), 0);
   assert.equal((await controlledCaptures(page)).length, 4, 'cancel must not automatically retry');
 
-  await page.clock.install();
   await armControlledCouple(page, successResponse);
   await submitGeneration(page);
   await waitControlledCoupleHit(page);
@@ -396,7 +426,7 @@ try {
     await page.setViewportSize({ width, height: 900 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `scene overflow at ${width}`);
   }
-  for (const path of ['/assets/wedding/private/intake.json', '/assets/wedding/venues/', '/.env']) assert.equal((await page.request.get(base + path)).status(), 404);
+  for (const path of ['/assets/wedding/private/intake.json', '/assets/wedding/poses/P007.png', '/assets/wedding/manifest.json', '/assets/wedding/venues/', '/.env']) assert.equal((await page.request.get(base + path)).status(), 404);
   console.log('Phase 6 inherited scene flow: real three-format decode, invalid files/dimensions, replacement, clear, mode switch, late decode, five-image payload, edit lock and URL release passed');
 
   assert.deepEqual(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length })), { local: 0, session: 0 });

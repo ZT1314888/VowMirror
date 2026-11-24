@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"io"
@@ -28,7 +29,8 @@ func generationService(loadManifest func() (*catalog.Manifest, error), securityS
 	if err != nil {
 		return nil, err
 	}
-	return tryon.NewCoupleService(modelFromEnvironment, &catalog.Reader{Directory: "/assets/wedding", LoadManifest: loadManifest}, securityService.ConcurrencyManager, securityService.Usage, detector.Count)
+	selector := &catalog.PoseSelector{LoadManifest: loadManifest, Random: rand.Reader}
+	return tryon.NewCoupleService(modelFromEnvironment, &catalog.Reader{Directory: "/assets/wedding", LoadManifest: loadManifest}, securityService.ConcurrencyManager, securityService.Usage, detector.Count, selector.Select)
 }
 
 type countedReader struct {

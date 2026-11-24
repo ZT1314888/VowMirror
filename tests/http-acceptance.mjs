@@ -8,21 +8,22 @@ const accessToken = process.env.TRYON_API_KEYS?.split(',').map(token => token.tr
 assert.ok(accessToken, 'HTTP acceptance requires a synthetic access token');
 
 async function post({ headers = {}, data }) {
-  let response = await fetch(base + '/api/tryon/couple', {
-    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15_000),
-    headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(data),
-  });
-  if (response.status === 429 && response.headers.has('retry-after')) {
+  // Entry (Nginx, per connection IP) and principal (backend, per access code) limits are
+  // independent budgets, so one rejection can be followed by the other limiter. Honor
+  // every bounded Retry-After; a fixed single retry fails whenever both apply.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const response = await fetch(base + '/api/tryon/couple', {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15_000),
+      headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(data),
+    });
+    if (response.status !== 429) return response;
+    assert.ok(response.headers.has('retry-after'), 'entry and backend 429 responses publish Retry-After');
     const delay = Number(response.headers.get('retry-after'));
     assert.ok(Number.isInteger(delay) && delay > 0 && delay <= 60, 'bounded explicit rate-limit delay');
     assert.equal((await response.json()).data.error_code, 'RATE_LIMITED');
     await new Promise(resolve => setTimeout(resolve, delay * 1000));
-    response = await fetch(base + '/api/tryon/couple', {
-      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15_000),
-      headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(data),
-    });
   }
-  return response;
+  throw new Error('rate limits did not recover within four advertised Retry-After waits');
 }
 
 
@@ -93,10 +94,23 @@ for (const headers of [{}, { Authorization: 'Bearer synthetic-invalid-catalog-to
   assert.ok(directory.data.venues.every(entry => Object.keys(entry).sort().join(',') === 'id,name'));
   assert.deepEqual(directory.data.venues, []);
 }
+// Entry and backend limits are independent budgets; honor every advertised Retry-After.
+async function authorize(token) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const response = await fetch(base + '/api/tryon/authorize', {
+      method: 'POST', redirect: 'error', headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (response.status !== 429) return response;
+    assert.ok(response.headers.has('retry-after'), 'authorize 429 responses publish Retry-After');
+    const delay = Number(response.headers.get('retry-after'));
+    assert.ok(Number.isInteger(delay) && delay > 0 && delay <= 60);
+    assert.equal((await response.json()).data.error_code, 'RATE_LIMITED');
+    await new Promise(resolve => setTimeout(resolve, delay * 1000));
+  }
+  throw new Error('authorize rate limits did not recover within four advertised waits');
+}
 for (const [token, status] of [['', 401], ['synthetic-invalid-code', 401], [accessToken, 200]]) {
-  const response = await fetch(base + '/api/tryon/authorize', {
-    method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, redirect: 'error',
-  });
+  const response = await authorize(token);
   assert.equal(response.status, status);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   const body = await response.json();
@@ -156,13 +170,6 @@ for (const [scene, code, streamed] of [
 }
 console.log('Isolated HTTP acceptance: auth, empty model configuration and invalid inputs passed');
 
-let remaining = await fetch(base + '/api/tryon/authorize', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` } });
-if (remaining.status === 429) {
-  const delay = Number(remaining.headers.get('retry-after'));
-  assert.ok(Number.isInteger(delay) && delay > 0 && delay <= 60);
-  assert.equal((await remaining.json()).data.error_code, 'RATE_LIMITED');
-  await new Promise(resolve => setTimeout(resolve, delay * 1000));
-  remaining = await fetch(base + '/api/tryon/authorize', { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` } });
-}
+const remaining = await authorize(accessToken);
 assert.equal(remaining.status, 200);
 assert.equal((await remaining.json()).data.remaining, 5, 'preflight and pre-send failures preserve all successes');

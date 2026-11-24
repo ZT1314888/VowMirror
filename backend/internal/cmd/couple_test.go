@@ -51,7 +51,7 @@ func TestCoupleStrictJSON(t *testing.T) {
 			t.Errorf("invalid contract accepted: %s", bad)
 		}
 	}
-	for _, field := range []string{"model", "base_url", "api_key", "dress_path", "garment_image", "dress_side", "left_portrait", "scene_id"} {
+	for _, field := range []string{"model", "base_url", "api_key", "dress_path", "garment_image", "dress_side", "left_portrait", "scene_id", "pose_id", "prompt", "mode", "path"} {
 		bad := strings.TrimSuffix(good, "}") + `,"` + field + `":"private-marker"}`
 		if _, err := decodeCouple(strings.NewReader(bad)); err == nil {
 			t.Errorf("forbidden field accepted: %s", field)
@@ -199,7 +199,7 @@ func TestCoupleHTTPBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	var calls atomic.Int32
-	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return apiGenerator{calls: &calls, output: result}, nil }, apiOutfits{image: img}, security.NewConcurrencyManager(1, 1), usageFor(t), twoFaces)
+	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return apiGenerator{calls: &calls, output: result}, nil }, apiOutfits{image: img}, security.NewConcurrencyManager(1, 1), usageFor(t), twoFaces, fixedPosePicker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +309,7 @@ func TestSSEHeartbeatsKeepStreamWithoutClaimingProgressAndDisconnectCancelsUpstr
 	generator := blockingAPIGenerator{started: make(chan struct{}), stopped: make(chan struct{})}
 	handlerStopped := make(chan struct{})
 	admission := security.NewConcurrencyManager(1, 1)
-	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return generator, nil }, apiOutfits{image: img}, admission, usageFor(t), twoFaces)
+	service, err := tryon.NewCoupleService(func() (tryon.ImageGenerator, error) { return generator, nil }, apiOutfits{image: img}, admission, usageFor(t), twoFaces, fixedPosePicker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -494,7 +494,7 @@ func TestHTTPCancellationReachesTLSUpstreamAndReleasesSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	admission := security.NewConcurrencyManager(1, 1)
-	service, err := tryon.NewCoupleService(factory, apiOutfits{image: img}, admission, usageFor(t), twoFaces)
+	service, err := tryon.NewCoupleService(factory, apiOutfits{image: img}, admission, usageFor(t), twoFaces, fixedPosePicker)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -576,4 +576,11 @@ func TestHTTPCancellationReachesTLSUpstreamAndReleasesSlot(t *testing.T) {
 			t.Fatal("sensitive request data entered application logs")
 		}
 	}
+}
+
+func fixedPosePicker(context.Context) (catalog.Pose, error) {
+	return catalog.Pose{ID: "P001", Mode: catalog.PoseText, Action: "Synthetic two-person action."}, nil
+}
+func (r apiOutfits) ReadPose(context.Context, string) (*imagevalidate.ValidatedImage, error) {
+	return nil, catalog.ErrPoseUnavailable
 }

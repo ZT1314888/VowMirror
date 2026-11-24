@@ -136,18 +136,21 @@ a { color: inherit; }
 /* =========================================================================
    画廊骨架：顶栏 + 400vw 横向轨道 + 每厅 100vw × 100dvh
    ========================================================================= */
-.experience-gallery { position: relative; z-index: 10; height: 100%; }
+.experience-gallery {
+  position: relative; z-index: 10; height: 100%; display: flex; flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom); gap: 12px;
+}
 .experience-gallery.is-revealing { animation: galleryReveal 280ms var(--ease-apple) both; }
 @keyframes galleryReveal { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
 .gallery-header {
-  position: fixed; z-index: 40; top: 0; left: 0; right: 0; height: 76px;
+  position: relative; z-index: 40; flex: 0 0 auto; min-height: 64px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 0 24px 10px;
+  padding: max(8px, env(safe-area-inset-top)) 24px 8px;
   background: linear-gradient(to bottom, rgba(250, 248, 245, .82) 0%, rgba(250, 248, 245, .42) 58%, rgba(250, 248, 245, 0) 100%);
 }
-.wordmark { padding: 0; border: 0; background: transparent; color: var(--ink); font: 400 24px/1 var(--font-display); letter-spacing: .08em; text-decoration: none; }
+.wordmark { min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--ink); font: 400 24px/1 var(--font-display); letter-spacing: .08em; text-decoration: none; }
 .header-stepper { display: flex; align-items: center; gap: 20px; }
-.stepper-link { display: flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: rgba(110, 103, 95, .85); font-size: 13px; font-weight: 300; letter-spacing: .12em; transition: color .3s ease; }
+.stepper-link { min-height: 44px; display: flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: rgba(110, 103, 95, .85); font-size: 13px; font-weight: 300; letter-spacing: .12em; transition: color .3s ease; }
 .stepper-link .step-no { font-family: var(--font-display); font-size: 15px; letter-spacing: 0; color: rgba(197, 168, 128, .65); transition: color .3s ease; }
 .stepper-link.is-current { color: var(--ink); }
 .stepper-link.is-current .step-no { color: var(--champagne); }
@@ -158,43 +161,37 @@ a { color: inherit; }
 .service-state[data-state="ok"] .state-dot { background: #567d63; }
 .service-state[data-state="error"] .state-dot { background: var(--error); }
 
-.gallery-viewport { position: absolute; inset: 0; overflow: hidden; }
+.gallery-viewport { position: relative; flex: 1 1 0; min-height: 0; overflow: hidden; }
 .gallery-track {
   position: relative; z-index: 10; display: flex; width: 400vw; height: 100%;
   counter-reset: room;
   transform: translate3d(0, 0, 0); transition: transform .75s var(--ease-apple);
   will-change: transform;
 }
-.gallery-room { position: relative; width: 100vw; height: 100%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 0; counter-increment: room; }
+.gallery-room { position: relative; width: 100vw; height: 100%; flex-shrink: 0; display: flex; flex-direction: column; align-items: stretch; gap: 8px; overflow: hidden; padding: 16px 24px; counter-increment: room; }
 /* 画廊装裱：双线金内框 + 房间编号水印，如画册版面 */
 .gallery-room::after { content: ""; position: absolute; inset: 12px; z-index: 3; border: 1px solid rgba(197, 168, 128, .42); outline: 1px solid rgba(197, 168, 128, .2); outline-offset: -5px; pointer-events: none; }
 .gallery-room::before { content: "0" counter(room); position: absolute; z-index: 3; right: 30px; bottom: 18px; pointer-events: none; color: rgba(197, 168, 128, .2); font: italic 400 clamp(58px, 7vw, 96px)/1 var(--font-display), Georgia, serif; letter-spacing: .05em; }
-.room-fill { width: 100%; height: 100%; }
+.room-fill { position: relative; width: 100%; height: 100%; min-height: 0; }
+#result-slot { display: flex; flex-direction: column; gap: 8px; }
+.scene-reference { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--taupe); font-size: 12px; }
+.scene-reference img { width: 48px; height: 40px; object-fit: contain; }
 
 /* =========================================================================
-   主视觉画框：全出血 + 500ms 交叉淡入微缩放 + 粒子画布
+   主视觉画框：完整适配 + 500ms 交叉淡入 + 粒子画布
    ========================================================================= */
 .hero-frame {
-  position: relative; width: 100%; height: 100%; overflow: hidden;
-  background: linear-gradient(145deg, #f4efe8 0%, #e8e0d4 100%);
+  position: relative; width: 100%; flex: 1 1 0; min-height: 0; overflow: hidden;
   isolation: isolate;
 }
-.hero-layer { position: absolute; inset: 0; transition: opacity 500ms var(--ease-apple), transform 500ms var(--ease-apple); will-change: opacity, transform; }
+.hero-layer { position: absolute; inset: 0; transition: opacity 500ms var(--ease-apple); will-change: opacity; }
 .particle-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 6; pointer-events: none; }
-.hero-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.hero-shade { position: absolute; inset: auto 0 0 0; height: 288px; pointer-events: none; background: linear-gradient(to top, rgba(28, 25, 23, .56) 0%, rgba(28, 25, 23, .18) 55%, transparent 100%); }
-.hero-title { position: absolute; bottom: 176px; left: 24px; z-index: 3; margin: 0; pointer-events: none; color: var(--ivory); font: 400 clamp(28px, 3.4vw, 40px)/1.25 var(--font-display); letter-spacing: .16em; }
-.hero-pip { position: absolute; bottom: 176px; right: 24px; z-index: 3; height: 112px; aspect-ratio: 3 / 4; overflow: hidden; border: 1px solid rgba(197, 168, 128, .6); border-radius: 14px; background: rgba(250, 248, 245, .4); backdrop-filter: blur(10px); pointer-events: none; }
-.hero-pip img { width: 100%; height: 100%; object-fit: cover; }
-.photo-shimmer { background: linear-gradient(110deg, #f2ede4 25%, #faf7f2 48%, #efe9df 75%); background-size: 220% 100%; animation: editorialShimmer 1.8s ease-in-out infinite; }
-@keyframes editorialShimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+.hero-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .hero-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; cursor: pointer; }
-.hero-empty > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .3; }
+.hero-empty > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: .3; }
 .hero-empty .plus-ring { position: relative; z-index: 2; width: 56px; height: 56px; display: grid; place-items: center; border: 1px solid rgba(197, 168, 128, .45); border-radius: 50%; background: rgba(250, 248, 245, .75); backdrop-filter: blur(10px); color: var(--ink); transition: transform .5s var(--ease-apple); }
 .hero-empty:hover .plus-ring { transform: scale(1.08); }
 .hero-empty .plus-label { position: relative; z-index: 2; color: var(--ink); font: 400 24px var(--font-display); letter-spacing: .18em; }
-.hero-note { position: absolute; z-index: 2; top: 96px; left: 24px; max-width: min(560px, calc(100vw - 48px)); color: var(--taupe); font-size: 13px; letter-spacing: .06em; }
-.room-status { position: absolute; z-index: 4; top: 96px; right: 24px; padding: 6px 12px; border-radius: 999px; color: var(--ivory); background: rgba(28, 25, 23, .55); font-size: 12px; letter-spacing: .08em; }
 
 /* 上传扫描线 */
 .scan-beam { position: absolute; left: 24px; right: 24px; top: 4%; height: 1px; z-index: 20; opacity: 0; pointer-events: none; background: linear-gradient(90deg, transparent, var(--champagne), transparent); }
@@ -202,22 +199,23 @@ a { color: inherit; }
 @keyframes champagneScan { 0% { top: 4%; opacity: 0; } 20% { opacity: .9; } 80% { opacity: .9; } 100% { top: 96%; opacity: 0; } }
 
 /* =========================================================================
-   底部悬浮玻璃 dock（bottom 28px + safe-area）
+   底部玻璃 dock（实际占据布局空间）
    ========================================================================= */
 .floating-dock {
-  position: fixed; z-index: 35; bottom: calc(28px + env(safe-area-inset-bottom)); left: 50%;
-  transform: translateX(-50%);
-  display: flex; align-items: center; gap: 14px; max-width: calc(100vw - 24px);
+  position: relative; z-index: 35; flex: 0 0 auto; align-self: center;
+  max-height: 35vh; max-height: 35dvh; overflow: auto; margin: 0 12px 16px;
+  display: flex; align-items: center; gap: 14px; max-width: calc(100vw - 24px); min-height: 0;
   padding: 10px 14px; border: 1px solid rgba(197, 168, 128, .28); border-radius: 24px;
   background: rgba(255, 255, 255, .72); backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   box-shadow: 0 18px 46px -14px rgba(28, 25, 23, .12);
-  transition: opacity .45s var(--ease-apple), transform .45s var(--ease-apple);
+  transition: opacity .45s var(--ease-apple);
 }
-.dock-thumb-strip { display: flex; align-items: center; gap: 12px; max-width: min(72vw, 620px); overflow-x: auto; padding: 6px 8px; scroll-behavior: smooth; scroll-snap-type: x proximity; scrollbar-width: none; -ms-overflow-style: none; }
+.dock-thumb-strip { min-width: 0; display: flex; align-items: center; gap: 12px; max-width: min(72vw, 620px); overflow-x: auto; padding: 8px; user-select: none; cursor: grab; scrollbar-width: none; -ms-overflow-style: none; }
 .dock-thumb-strip::-webkit-scrollbar { display: none; }
+.dock-thumb-strip.is-dragging { cursor: grabbing; }
 .dock-thumb-btn {
-  position: relative; width: 72px; height: 96px; flex-shrink: 0; scroll-snap-align: center;
+  position: relative; width: 72px; height: 96px; flex-shrink: 0; cursor: inherit;
   padding: 0; border: 1.5px solid transparent; border-radius: 14px; overflow: hidden;
   background: #efe9df; opacity: .72; transform: scale(.95);
   transition: transform .45s var(--ease-apple), opacity .45s var(--ease-apple), border-color .45s var(--ease-apple), box-shadow .45s var(--ease-apple);
@@ -243,34 +241,82 @@ a { color: inherit; }
 .charcoal-pill:active, .ivory-pill:active { transform: translateY(1px); }
 .dock-hint { flex-shrink: 0; max-width: 180px; color: var(--taupe); font-size: 12px; line-height: 1.5; }
 
+/* 造型厅用与其余展厅相同的房间列；dock 作为浮动叠加层挂在同一预览画框内。 */
+#room-outfit { padding: 0; gap: 0; background: var(--ivory); }
+#room-outfit::before, #room-outfit::after { content: none; }
+#room-outfit .hero-photo { object-fit: cover; }
+.outfit-preview { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.is-outfit-room .floating-dock { display: none; }
+.is-outfit-room #outfit-preview .floating-dock {
+  display: flex; position: absolute; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom));
+  max-width: calc(100% - 24px); transform: translateX(-50%); margin: 0; overflow: hidden; max-height: none;
+  background: rgba(250, 248, 245, .92);
+}
+.is-outfit-room .stepper-link, .is-outfit-room .stepper-link .step-no { color: var(--taupe); }
+.is-outfit-room .stepper-link.is-current { color: var(--ink); }
+.is-outfit-room .stepper-link.is-current .step-no { color: var(--berry); }
+.is-outfit-room .dock-thumb-btn { width: 112px; height: 104px; transform: none; opacity: 1; }
+.is-outfit-room .dock-thumb-btn.is-active { border-color: var(--berry); box-shadow: 0 0 0 2px rgba(161, 38, 61, .15); }
+.is-outfit-room .dock-thumb-btn > img { display: block; height: 72px; object-fit: cover; object-position: center 40%; }
+.outfit-card-name { display: flex; align-items: center; justify-content: center; height: 29px; padding: 0 4px; color: var(--ink); font-size: 12px; white-space: nowrap; }
+.outfit-preview-label {
+  position: absolute; z-index: 8; top: max(16px, env(safe-area-inset-top)); left: 16px;
+  max-width: calc(100% - 32px); padding: 8px 12px; border-radius: 12px;
+  color: var(--ink); background: rgba(250, 248, 245, .92); font-size: 12px;
+}
+.outfit-preview-label p { margin: 0; }
+.outfit-preview-label button { min-height: 44px; margin-top: 4px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--ivory); color: var(--ink); }
+@media (max-width: 800px) {
+  .is-outfit-room .dock-thumb-btn { width: 88px; height: 86px; }
+  .is-outfit-room .dock-thumb-btn > img { height: 54px; }
+  .is-outfit-room .floating-dock { bottom: calc(12px + env(safe-area-inset-bottom)); }
+}
+
 /* =========================================================================
    对比滑块（04 成片）
    ========================================================================= */
-.compare-stage { position: relative; width: 100%; height: 100%; overflow: hidden; touch-action: none; user-select: none; cursor: ew-resize; background: linear-gradient(145deg, #f4efe8 0%, #e8e0d4 100%); }
-.compare-stage > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.compare-stage { position: relative; width: 100%; flex: 1 1 0; min-height: 0; overflow: hidden; touch-action: none; user-select: none; cursor: ew-resize; }
+.compare-stage > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 .compare-after { position: absolute; inset: 0; pointer-events: none; }
-.compare-after > img { width: 100%; height: 100%; object-fit: cover; }
+.compare-after > img { width: 100%; height: 100%; object-fit: contain; }
 .compare-divider { position: absolute; top: 0; bottom: 0; width: 1.5px; z-index: 20; background: rgba(250, 248, 245, .9); pointer-events: none; }
 .compare-handle { position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; transform: translate(-50%, -50%); display: grid; place-items: center; border: 1px solid rgba(197, 168, 128, .6); border-radius: 50%; background: rgba(250, 248, 245, .85); backdrop-filter: blur(8px); color: var(--ink); box-shadow: 0 4px 14px rgba(28, 25, 23, .2); }
 .compare-handle .icon { width: 16px; height: 16px; }
-.result-caption { position: absolute; bottom: 176px; left: 24px; z-index: 10; margin: 0; color: var(--ivory); font: 400 clamp(26px, 3vw, 36px)/1.3 var(--font-display); letter-spacing: .16em; pointer-events: none; }
+.result-caption { flex: 0 0 auto; margin: 0; color: var(--ink); font: 400 clamp(16px, 2vw, 22px)/1.3 var(--font-display); letter-spacing: .1em; text-align: center; }
 .result-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; }
-.result-empty > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .3; }
+.result-empty > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: .3; }
 .result-empty .empty-title { position: relative; z-index: 2; color: var(--ink); font: 400 clamp(24px, 3vw, 34px) var(--font-display); letter-spacing: .18em; }
 .result-empty .empty-note { position: relative; z-index: 2; max-width: 420px; color: var(--taupe); font-size: 13px; line-height: 1.8; }
-.result-details { position: absolute; z-index: 10; left: 24px; right: 24px; bottom: 20px; margin: 0; padding: 6px 12px; border-radius: 12px; color: var(--ivory); background: rgba(28, 25, 23, .5); font-size: 12px; backdrop-filter: blur(6px); }
-.result-details summary { width: fit-content; min-height: 28px; cursor: pointer; letter-spacing: .08em; }
-.result-meta { max-height: 130px; margin: 6px 0; overflow-y: auto; overflow-wrap: anywhere; color: rgba(250, 248, 245, .85); }
+/* 详情按实际高度参与布局：摘要与正文不再被百分比裁切；只有较长的元数据
+   在 .result-meta 内滚动，避免双层滚动。画面区域让出空间。 */
+.result-details { flex: 0 0 auto; margin: 0; padding: 6px 12px; border-radius: 12px; color: var(--ink); background: rgba(250, 248, 245, .8); font-size: 12px; }
+.result-details summary { width: fit-content; min-height: 44px; display: flex; align-items: center; cursor: pointer; letter-spacing: .08em; }
+.result-meta { max-height: 130px; margin: 6px 0; overflow-y: auto; overflow-wrap: anywhere; color: var(--taupe); }
+/* 低高度视口（如 812×375 横屏）：压缩成片区间距，保证摘要、正文与对比区同时可见。 */
+@media (max-height: 460px) {
+  #result-slot { gap: 4px; }
+  .result-caption { font-size: 15px; }
+  .result-details { padding-block: 2px 6px; }
+  .result-meta { max-height: 64px; margin: 2px 0 0; line-height: 1.45; }
+}
 
 /* =========================================================================
    生成遮罩（光圈快门 → 真实生成进度）
    ========================================================================= */
 .aperture-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(250, 248, 245, .85); backdrop-filter: blur(24px); pointer-events: auto; }
-.aperture-inner { display: flex; flex-direction: column; align-items: center; gap: 16px; animation: atelierShutterFade .95s var(--ease-apple) forwards; }
-.aperture-rule { width: 64px; height: 1px; background: var(--champagne); }
+.aperture-inner { display: flex; flex-direction: column; align-items: center; gap: 16px; max-height: 100%; overflow: auto; padding: 24px; }
 .aperture-wordmark { color: var(--ink); font: 400 20px var(--font-display); letter-spacing: .24em; }
 .aperture-status { margin: 6px 0 0; min-height: 24px; color: var(--taupe); font-size: 13px; letter-spacing: .1em; text-align: center; }
-@keyframes atelierShutterFade { 0% { opacity: 0; } 40% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 1; } }
+.aperture-inner h2 { margin: 0; font: 400 clamp(20px, 4vw, 28px) var(--font-display); text-align: center; }
+.generation-halo { flex: 0 0 auto; width: clamp(64px, 16vh, 144px); aspect-ratio: 1; border: 1px solid var(--hairline); border-radius: 50%; position: relative; }
+.generation-halo::after { content: ""; position: absolute; inset: -1px; border: 2px solid transparent; border-top-color: var(--champagne); border-right-color: var(--champagne); border-radius: 50%; animation: champagneOrbit 2.4s linear infinite; }
+.generation-steps { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; list-style: none; margin: 0; padding: 0; color: var(--taupe); font-size: 13px; }
+.generation-steps [aria-current] { color: var(--ink); text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 6px; }
+.generation-elapsed { margin: 0; font-size: 13px; color: var(--taupe); font-variant-numeric: tabular-nums; }
+@keyframes champagneOrbit { to { transform: rotate(1turn); } }
+.aperture-overlay[hidden] .generation-halo::after { animation: none; }
+@media (prefers-reduced-motion: reduce) { .generation-halo::after { animation: none; } }
+@media (max-height: 440px) { .aperture-inner { gap: 8px; } .generation-halo { width: 48px; } }
 
 /* 顶部错误提示条 */
 .form-alert { position: fixed; z-index: 45; top: 86px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 48px); padding: 10px 18px; border: 1px solid rgba(161, 38, 61, .3); border-radius: 999px; color: var(--error); background: rgba(250, 248, 245, .92); font-size: 13px; text-align: center; box-shadow: 0 10px 30px rgba(28, 25, 23, .12); }
@@ -298,25 +344,21 @@ input[type="password"]:focus-visible { outline-offset: 2px; }
 @media (max-width: 800px) {
   .gallery-room::after { inset: 10px; }
   .gallery-room::before { right: 20px; bottom: 12px; }
-  .gallery-header { padding: 0 16px 8px; }
+  .gallery-header { padding-inline: 16px; }
+  .gallery-room { padding: 12px 16px; }
   .header-stepper { gap: 12px; }
   .stepper-link { font-size: 12px; gap: 4px; }
   .stepper-link .step-label { display: none; }
-  .hero-title, .result-caption { bottom: 168px; left: 16px; }
-  .hero-pip { right: 16px; height: 88px; }
-  .floating-dock { gap: 10px; padding: 8px 10px; bottom: calc(16px + env(safe-area-inset-bottom)); border-radius: 20px; }
+  .floating-dock { gap: 10px; padding: 8px 10px; margin-bottom: 12px; border-radius: 20px; }
   .dock-thumb-btn { width: 60px; height: 80px; }
   .dock-thumb-strip { max-width: 58vw; gap: 8px; }
   .charcoal-pill, .ivory-pill { padding: 10px 16px; font-size: 12px; }
-  .room-status { top: 84px; right: 16px; }
-  .hero-note { top: 84px; left: 16px; }
 }
 @media (max-width: 480px) {
   .wordmark { font-size: 21px; }
   .stepper-link .step-no { font-size: 14px; }
   .form-alert { top: 72px; font-size: 12px; }
   .dock-hint { display: none; }
-  .result-details { left: 12px; right: 12px; }
   .dialog-actions { justify-content: stretch; }
   .dialog-actions > button { flex: 1; padding-inline: 10px; }
   .access-form { padding: 24px; }
