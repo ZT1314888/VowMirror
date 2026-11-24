@@ -52,4 +52,4 @@ Phase 7 验收通过：唯一校验器 `scripts/phase7-evaluation.mjs` 返回 5 
 
 生成接口已统一为 POST SSE：真实阶段状态、10 秒心跳和唯一结果／错误终态；浏览器从准备到解码可查看限时 90 秒，后端处理／模型请求 85 秒，服务端写入及 Nginx 代理读取 95 秒。心跳不延长预算，取消会清理读流、结果 URL 与并发资源；供应商图片 SSE 能力仍未验证，本轮不发送预览流参数。
 
-[LICENSE](LICENSE) 的原有 MIT 声明保持不变；继承代码和移除素材的边界见 [代码来源](docs/CODE_PROVENANCE.md)。旧图片许可不能作为新婚礼素材授权依据。
+[LICENSE](LICENSE) 的原有 MIT 声明保持不变；婚礼素材与测试夹具授权边界见 [素材与许可说明](docs/CODE_PROVENANCE.md)。
