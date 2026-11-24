@@ -20,9 +20,7 @@ export function cancelDissolve(canvas) {
 
 // 布局更新（参考行、dock 高度）与图片提交在同一帧发生；等两帧再按最终
 // 画框尺寸取样，避免刚启动就被画框变化作废。新选择到来时统一取消未启动的取样。
-// fit 覆盖旧图自身的 object-fit：场景厅进出预设模式时画框尺寸翻转，
-// contain 旧图会只在新画框中央取样出一条窄带，显式 cover 才能铺满过渡。
-export function scheduleDissolve({ canvas, source, duration = 720, fit = null }) {
+export function scheduleDissolve({ canvas, source, duration = 720 }) {
   cancelDissolve(canvas);
   if (!canvas || !source?.complete || !source.naturalWidth) return false;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
@@ -36,7 +34,7 @@ export function scheduleDissolve({ canvas, source, duration = 720, fit = null })
       return;
     }
     pending.delete(canvas);
-    dissolveTransition({ canvas, source, duration, fit });
+    dissolveTransition({ canvas, source, duration });
   };
   requestAnimationFrame(tick);
   return true;
@@ -54,7 +52,7 @@ export function cancelDissolveIfResized(canvas) {
   return true;
 }
 
-export function dissolveTransition({ canvas, source, duration = 720, fit = null }) {
+export function dissolveTransition({ canvas, source, duration = 720 }) {
   const frame = canvas?.parentElement;
   if (!frame || !source?.complete || !source.naturalWidth) return false;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
@@ -71,8 +69,7 @@ export function dissolveTransition({ canvas, source, duration = 720, fit = null 
   const sw = source.naturalWidth;
   const sh = source.naturalHeight;
   const style = getComputedStyle(source);
-  const effectiveFit = fit ?? (style.objectFit === 'cover' ? 'cover' : 'contain');
-  const fitFn = effectiveFit === 'cover' ? Math.max : Math.min;
+  const fitFn = style.objectFit === 'cover' ? Math.max : Math.min;
   const scale = fitFn(canvas.width / sw, canvas.height / sh);
   const dw = sw * scale;
   const dh = sh * scale;

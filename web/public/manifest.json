@@ -789,16 +789,16 @@
       "id": "V001",
       "role": "venue-example-only",
       "source": "User-provided venue photo; not a generated user result or model output.",
-      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "transformation": "Pillow RGB WebP quality 90; re-encoded from the original venue photo with EXIF orientation applied, no crop and no upscale, full original aspect ratio preserved, metadata removed.",
       "focus": [
         0.5,
         0.5
       ],
       "display": {
         "file": "venues/V001.webp",
-        "width": 2400,
-        "height": 1600,
-        "sha256": "642c56603cb67cb6b5f09145f9c9cade36e1c7d7b7b432a2c464dcc6c55f9ebe"
+        "width": 1024,
+        "height": 683,
+        "sha256": "b191d620ce5cbd363979e12a94762b5e04ded103367e77a2203e9e852143e336"
       },
       "thumbnail": {
         "file": "venues/V001-thumb.webp",
@@ -811,16 +811,16 @@
       "id": "V002",
       "role": "venue-example-only",
       "source": "User-provided venue photo; not a generated user result or model output.",
-      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "transformation": "Pillow RGB WebP quality 90; re-encoded from the original venue photo with EXIF orientation applied, no crop and no upscale, full original aspect ratio preserved, metadata removed.",
       "focus": [
         0.5,
         0.5
       ],
       "display": {
         "file": "venues/V002.webp",
-        "width": 2400,
-        "height": 1600,
-        "sha256": "706a1103c62a926a17eae24a980cefb69760359f9b0c13685ffcf182e4ebdedb"
+        "width": 498,
+        "height": 332,
+        "sha256": "c7f9ab0ec715e52dce929161c084498762ff53bdff9fc916682c52048e4080a5"
       },
       "thumbnail": {
         "file": "venues/V002-thumb.webp",
@@ -833,16 +833,16 @@
       "id": "V003",
       "role": "venue-example-only",
       "source": "User-provided venue photo; not a generated user result or model output.",
-      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "transformation": "Pillow RGB WebP quality 90; re-encoded from the original venue photo with EXIF orientation applied, no crop and no upscale, full original aspect ratio preserved, metadata removed.",
       "focus": [
         0.499,
         0.5
       ],
       "display": {
         "file": "venues/V003.webp",
-        "width": 2400,
-        "height": 1600,
-        "sha256": "be69100fb699bf06f57d6bc025e9211880fcabc369df6811ac7086d6e83b8cc3"
+        "width": 498,
+        "height": 330,
+        "sha256": "67e175d5de99e04b06a5ecd4574fe0868cf1b55edb35cc68c212e572892a6ff7"
       },
       "thumbnail": {
         "file": "venues/V003-thumb.webp",
@@ -855,16 +855,16 @@
       "id": "V004",
       "role": "venue-example-only",
       "source": "User-provided venue photo; not a generated user result or model output.",
-      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "transformation": "Pillow RGB WebP quality 90; re-encoded from the original venue photo with EXIF orientation applied, no crop and no upscale, full original aspect ratio preserved, metadata removed.",
       "focus": [
         0.5,
         0.5
       ],
       "display": {
         "file": "venues/V004.webp",
-        "width": 2400,
-        "height": 1600,
-        "sha256": "0429f9c70ebf175e5cf4673acf431ce79635102db979264958a38d105bcf28e5"
+        "width": 498,
+        "height": 284,
+        "sha256": "5df55880ecac7e96bbd57d00c8b6956ef31a68ed80110ac06e7be4926d016927"
       },
       "thumbnail": {
         "file": "venues/V004-thumb.webp",
@@ -877,16 +877,16 @@
       "id": "V005",
       "role": "venue-example-only",
       "source": "User-provided venue photo; not a generated user result or model output.",
-      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "transformation": "Pillow RGB WebP quality 90; re-encoded from the original venue photo with EXIF orientation applied, no crop and no upscale, full original aspect ratio preserved, metadata removed.",
       "focus": [
         0.5,
         0.499
       ],
       "display": {
         "file": "venues/V005.webp",
-        "width": 2400,
-        "height": 1600,
-        "sha256": "38a123fc06a4736c64c52f9d915e3481977f514dcbc7ef1b307657e74e9d5d17"
+        "width": 800,
+        "height": 534,
+        "sha256": "8d96cb9b96ba7575fecf62a596d4d0162bc483fe8c87ac7f70eb870be7f1dbc0"
       },
       "thumbnail": {
         "file": "venues/V005-thumb.webp",
@@ -899,16 +899,16 @@
       "id": "V006",
       "role": "venue-example-only",
       "source": "User-provided venue photo; not a generated user result or model output.",
-      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "transformation": "Pillow RGB WebP quality 90; re-encoded from the original venue photo with EXIF orientation applied, no crop and no upscale, full original aspect ratio preserved, metadata removed.",
       "focus": [
         0.5,
         0.5
       ],
       "display": {
         "file": "venues/V006.webp",
-        "width": 2400,
-        "height": 1600,
-        "sha256": "956a8c6705734e7c6021b6b64b8904a869edbb90b57010b253b87ad7b5aee28e"
+        "width": 1333,
+        "height": 2000,
+        "sha256": "2e198dd10979936a5953f47098337e9043deef2cbae7344efdedfbaf2bfaed89"
       },
       "thumbnail": {
         "file": "venues/V006-thumb.webp",
@@ -921,16 +921,16 @@
       "id": "V007",
       "role": "venue-example-only",
       "source": "User-provided venue photo; not a generated user result or model output.",
-      "transformation": "Pillow RGB; reference keeps the original pixels (re-encoded, EXIF/IPTC removed, longest side at most 2400). Display centers a 3:2 region and resizes to 2400x1600; thumbnail Lanczos 320x240. WebP quality 90, metadata removed.",
+      "transformation": "Pillow RGB WebP quality 90; re-encoded from the original venue photo with EXIF orientation applied, no crop and no upscale, full original aspect ratio preserved, metadata removed.",
       "focus": [
         0.5,
         0.5
       ],
       "display": {
         "file": "venues/V007.webp",
-        "width": 2400,
-        "height": 1600,
-        "sha256": "3f36b9befa13127216c7422d0efd2321d3e4b67e6b214036b7c5edb963f153a4"
+        "width": 2000,
+        "height": 1336,
+        "sha256": "b849ee43317f4c78addf95c92c43f935b4e13cc3c1412698733b791cd931fe5e"
       },
       "thumbnail": {
         "file": "venues/V007-thumb.webp",

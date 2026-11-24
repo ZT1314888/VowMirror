@@ -241,15 +241,17 @@ a { color: inherit; }
 .charcoal-pill:active, .ivory-pill:active { transform: translateY(1px); }
 .dock-hint { flex-shrink: 0; max-width: 180px; color: var(--taupe); font-size: 12px; line-height: 1.5; }
 
-/* 预设画框：造型厅与场馆模式共用全幅画框、cover 裁切、步进器与底部浮层；
+/* 预设画框：造型厅保留纯色底与 cover 全幅裁切；场馆模式保留全幅无边框布局，
+   但改用完整 contain 并透出同图模糊氛围背景铺满四周；
    原背景与用户上传照片保留普通展厅装裱与完整显示。 */
-.is-preset-room #room-outfit,
-.is-preset-room #room-scene { padding: 0; gap: 0; background: var(--ivory); }
+.is-preset-room #room-outfit { padding: 0; gap: 0; background: var(--ivory); }
+.is-preset-room #room-scene { padding: 0; gap: 0; background: transparent; }
 .is-preset-room #room-outfit::before,
 .is-preset-room #room-outfit::after,
 .is-preset-room #room-scene::before,
 .is-preset-room #room-scene::after { content: none; }
 .preset-hero-photo { object-fit: cover; }
+.venue-hero-photo { object-fit: contain; object-position: center; }
 .outfit-preview, .scene-preview { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
 .is-preset-room .floating-dock { display: none; }
 .is-preset-room .outfit-preview .floating-dock,

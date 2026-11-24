@@ -168,13 +168,6 @@ function isPresetRoom() {
   return state.room === 1 || (state.room === 2 && state.sceneMode === 'venue');
 }
 
-// 跨入场馆预设画框（全幅布局）时画框尺寸翻转：溶解按 cover 铺满最终画框取样，
-// contain 旧图否则只在新画框中央留下一条窄带。离开场馆时旧图自身恒为 cover
-// （.preset-hero-photo），同框切换（原背景↔上传）维持各自 object-fit，均无需覆盖。
-function sceneHeroDissolveFit() {
-  return state.sceneMode === 'venue' ? 'cover' : null;
-}
-
 function syncPresetRoom() {
   experience.classList.toggle('is-preset-room', isPresetRoom());
 }
@@ -209,7 +202,9 @@ function updateAmbientBackdrop(url) {
 }
 
 function syncAmbient() {
-  if (state.room === 2 && state.sceneMode === 'upload' && state.sceneURL) updateAmbientBackdrop(state.sceneURL);
+  const venuePreview = currentVenuePreview();
+  if (state.room === 2 && venuePreview) updateAmbientBackdrop(`/web/public/${venuePreview.display.file}`);
+  else if (state.room === 2 && state.sceneMode === 'upload' && state.sceneURL) updateAmbientBackdrop(state.sceneURL);
   else if (state.room === 3 && state.resultURL) updateAmbientBackdrop(state.resultURL);
   else if (state.photoURL) updateAmbientBackdrop(state.photoURL);
   else updateAmbientBackdrop(AMBIENT_DEFAULT_URL);
@@ -243,10 +238,9 @@ function showHeroImmediately(layers, canvas, content) {
 }
 
 // 双缓冲切换：粒子溶解可用则旧图溶解为新图，否则退回纯交叉淡入。
-// fit 覆盖旧图自身的 object-fit：跨越预设画框边界（场景厅进出全幅预设布局，
-// 画框尺寸翻转）时传 'cover'，旧图按 cover 铺满最终画框取样，
-// contain 旧图才不会只在新画框中央留下一条窄带。
-function transitionHero(layers, canvas, content, fit = null) {
+// 三种场景模式（原背景 / 上传 / 固定场馆）的旧图均为 contain，溶解直接按旧图
+// 自身的 object-fit 取样；造型厅旧图恒为 cover（.preset-hero-photo），同理。
+function transitionHero(layers, canvas, content) {
   const incoming = bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'] ? layers[0] : layers[1];
   const outgoing = bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'] ? layers[1] : layers[0];
   cancelDissolve(canvas);
@@ -266,7 +260,7 @@ function transitionHero(layers, canvas, content, fit = null) {
 
   // 图片状态立即提交；粒子在本次布局更新完成后的两帧才按最终画框取样，
   // 未启动的取样会被后续选择统一取消，不能阻塞或覆盖新图。
-  if (!prefersReducedMotion()) scheduleDissolve({ canvas, source: outgoing.querySelector('img'), fit });
+  if (!prefersReducedMotion()) scheduleDissolve({ canvas, source: outgoing.querySelector('img') });
   showIncoming();
   setTimeout(() => { if (outgoing.style.opacity === '0') outgoing.innerHTML = ''; }, prefersReducedMotion() ? 0 : 500);
   bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'] = !bufferToggle[canvas === outfitCanvas ? 'outfit' : 'scene'];
@@ -288,7 +282,7 @@ function renderPresetFrame(target) {
 
 // 造型与固定场馆的唯一加载路径：解码后再切换，迟到的结果由各次请求的版本号丢弃，
 // 失败时清空旧图并保留明确提示与手动重试。
-async function showPresetHero({ target, animate, key, id = key, preview, idleLabel, noun, fit = null }) {
+async function showPresetHero({ target, animate, key, id = key, preview, idleLabel, noun }) {
   const frame = PRESET_FRAMES[target];
   const hero = state[frame.hero];
   const version = ++state[frame.version];
@@ -303,17 +297,22 @@ async function showPresetHero({ target, animate, key, id = key, preview, idleLab
   try {
     if (!preview) throw new Error(state.outfitPreviewsError || `展示素材清单中缺少此${noun === '场馆图片' ? '场馆图片' : '造型'}`);
     const image = new Image();
-    image.className = 'hero-photo preset-hero-photo';
+    // 造型厅主图 cover 裁切带偏心焦点；场馆主图完整 contain 居中展示，四周由同图模糊氛围铺底。
+    if (target === 'outfit') {
+      image.className = 'hero-photo preset-hero-photo';
+      image.style.objectPosition = preview.focus.map(value => `${value * 100}%`).join(' ');
+    } else {
+      image.className = 'hero-photo venue-hero-photo';
+    }
     // 单张加载失败时由状态与重试按钮报告；不挂 alt 文本，避免浏览器在画框里画出破图图标。
     image.alt = '';
     if (target === 'outfit') image.dataset.outfitId = id;
     else image.dataset.venueId = id;
-    image.style.objectPosition = preview.focus.map(value => `${value * 100}%`).join(' ');
     image.src = `/web/public/${preview.display.file}`;
     await image.decode();
     if (version !== state[frame.version]) return;
     hero.status = idleLabel;
-    if (animate) transitionHero(frame.layers, frame.canvas, image, fit);
+    if (animate) transitionHero(frame.layers, frame.canvas, image);
     else showHeroImmediately(frame.layers, frame.canvas, image);
     renderPresetFrame(target);
   } catch (error) {
@@ -469,8 +468,6 @@ async function refreshSceneHero(animate) {
   const reference = document.querySelector('#scene-reference');
   reference.hidden = !sceneUploaded || !state.photoURL;
   reference.innerHTML = reference.hidden ? '' : `<img src="${escapeHTML(state.photoURL)}" alt="合照参考"><span>合照参考 · 下方为场地照片</span>`;
-  // 场景模式已定，fit 只依赖它；到达 venue 前后的预设状态取值一致，与画面内容无关。
-  const fit = sceneHeroDissolveFit();
   if (state.sceneMode !== 'venue') {
     const markup = heroMarkup({ src: sceneUploaded ? state.sceneURL : coupleHeroSrc() });
     state.sceneHero.key = sceneHeroKey();
@@ -479,7 +476,7 @@ async function refreshSceneHero(animate) {
     renderPresetFrame('scene');
     // 立即作废尚未完成的预设解码；各次请求提交前还会再次核对版本号。
     state.scenePreviewVersion++;
-    if (animate) transitionHero(sceneLayers, sceneCanvas, markup, fit);
+    if (animate) transitionHero(sceneLayers, sceneCanvas, markup);
     else showHeroImmediately(sceneLayers, sceneCanvas, markup);
     return;
   }
@@ -490,7 +487,6 @@ async function refreshSceneHero(animate) {
     preview: venuePreview,
     idleLabel: `场馆示例 · ${venue?.name || state.sceneVenueId}`,
     noun: '场馆图片',
-    fit,
   });
 }
 
@@ -1406,7 +1402,7 @@ async function fetchOutfitPreviews() {
     state.outfitHero.key = '';
     state.sceneHero.key = '';
     if (state.room === 1) refreshOutfitHero(false);
-    if (state.room === 2) { refreshSceneHero(false); renderDock(); }
+    if (state.room === 2) { refreshSceneHero(false); renderDock(); syncAmbient(); }
   } catch (error) {
     state.outfitPreviews = new Map();
     state.venuePreviews = new Map();
