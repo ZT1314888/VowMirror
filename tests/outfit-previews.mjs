@@ -192,22 +192,33 @@ try {
   await page.locator('.stepper-link').nth(2).click();
   await page.locator('#scene-image').setInputFiles({ name: 'checker.png', mimeType: 'image/png', buffer: fixture });
   await page.waitForFunction(() => document.querySelector('#room-scene .is-front img')?.src.startsWith('blob:') && !document.querySelector('#scene-reference').hidden);
+  await page.waitForFunction(() => window.__previewDraws.length >= 2);
   // Fixed venue previews use the same cover + focus frame and particle dissolve as outfit previews.
   await Promise.all([
     page.waitForRequest(request => request.url().endsWith('/web/public/venues/V001.webp')),
     page.locator('[data-action="select-venue"][data-arg="V001"]').evaluate(element => element.click()),
   ]);
   await page.waitForFunction(() => document.querySelector('#room-scene .is-front img')?.dataset.venueId === 'V001');
-  await page.waitForFunction(() => window.__previewDraws.some(draw => draw.fit === 'contain'));
+  // Entering the venue preset flips the frame size, so the outgoing upload photo dissolves
+  // into the settled frame by the forced cover fit instead of a centered contain strip.
+  await page.waitForFunction(() => window.__previewDraws.length >= 3);
   // Switching back to original dissolves from the cover+focus venue image while restoring full contain framing.
   await page.locator('[data-action="set-scene-mode"][data-arg="original"]').click();
   await page.waitForFunction(photoURL => document.querySelector('#room-scene .is-front img')?.src === photoURL, photoURL);
-  await page.waitForFunction(() => window.__previewDraws.some(draw => draw.fit === 'cover' && draw.size[0] === 2400 && draw.size[1] === 1600));
+  await page.waitForFunction(() => window.__previewDraws.length >= 4);
   assert.equal(await page.locator('#room-scene .is-front img').evaluate(img => getComputedStyle(img).objectFit), 'contain');
-  for (const { canvas: [w, h], size: [sw, sh], fit, focus: [fx, fy], args } of await page.evaluate(() => window.__previewDraws)) {
+  // One sampled dissolve per transition, in order. The source's own CSS fit no longer predicts
+  // the destination: crossing into the preset frame forces cover sampling of the old photo.
+  const draws = await page.evaluate(() => window.__previewDraws);
+  assert.equal(draws.length, 4, `expected exactly four sampled dissolves: ${JSON.stringify(draws)}`);
+  const expectDraw = ({ canvas: [w, h], size: [sw, sh], focus: [fx, fy], args }, fit) => {
     const scale = (fit === 'cover' ? Math.max : Math.min)(w / sw, h / sh);
     assert.deepEqual(args, [(w - sw * scale) * fx, (h - sh * scale) * fy, sw * scale, sh * scale]);
-  }
+  };
+  expectDraw(draws[0], 'cover'); // outfit W001 → W006: preset photo dissolves per its own cover
+  expectDraw(draws[1], 'contain'); // scene original → upload: couple photo dissolves per its own contain
+  expectDraw(draws[2], 'cover'); // upload → venue: frame flip forces cover sampling of the upload photo
+  expectDraw(draws[3], 'cover'); // venue → original: venue photo dissolves per its own cover
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.locator('.stepper-link').nth(1).click();
   await page.evaluate(() => { window.__previewDraws = []; });
@@ -215,7 +226,7 @@ try {
   await displayed('W010');
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   assert.deepEqual(await page.evaluate(() => window.__previewDraws), []);
-  console.log('Shared particle sampling matches cover/focus and contain; reduced motion draws no particles');
+  console.log('Shared particle sampling matches cover/focus, contain and forced cover across the preset frame flip; reduced motion draws no particles');
 
   // Verify fixed venue frames match outfit frames across viewports, including landscape mobile.
   const venueViewports = [[375, 812], [768, 900], [1440, 900], [1920, 1080], [812, 375]];
