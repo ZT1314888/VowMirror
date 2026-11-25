@@ -353,7 +353,10 @@ try {
   for (const [format, mimeType] of [['png', 'image/png'], ['jpg', 'image/jpeg'], ['webp', 'image/webp']]) {
     const buffer = readFileSync(new URL(`../backend/internal/imagevalidate/testdata/checker.${format}`, import.meta.url));
     await page.locator('#scene-image').setInputFiles({ name: `scene.${format}`, mimeType, buffer });
-    await page.waitForFunction(() => document.querySelector('#room-scene .is-front img')?.src.startsWith('blob:'));
+    await page.waitForFunction(previous => {
+      const src = document.querySelector('#room-scene .is-front img')?.src || '';
+      return src.startsWith('blob:') && src !== previous;
+    }, priorSceneURL);
     const current = await page.evaluate(() => document.querySelector('#room-scene .is-front img').src);
     if (priorSceneURL) assert.equal(await page.evaluate(url => window.__revokedObjectURLs.includes(url), priorSceneURL), true);
     assert.notEqual(current, priorSceneURL);
