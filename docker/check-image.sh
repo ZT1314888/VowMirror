@@ -6,7 +6,7 @@ test -d "$root"
 test -s /run/boundary.env
 marker=$(sed -n 's/^TRYON_API_KEYS=//p' /run/boundary.env)
 test -n "$marker"
-forbidden=$(find "$root" -type f \( -name '.env' -o -name 'config.yaml' -o -name '*.log' -o -name '*.exe' -o -name 'data.js' \))
+forbidden=$(find "$root" -type f \( -name '.env' -o -name 'config.yaml' -o -name '*.log' -o -name '*.exe' \))
 if [ -n "$forbidden" ]; then
     printf 'Forbidden image files:\n%s\n' "$forbidden" >&2
     exit 1

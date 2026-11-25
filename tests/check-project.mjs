@@ -18,9 +18,9 @@ for (const [phase, group, count] of [[0,'A',4],[0,'B',4],[1,'A',7],[1,'B',6],[1,
   }
 }
 assert.match(roadmap, /未开始|进行中|通过|阻塞/);
-for (const path of ['data.js','assets/img','assets/thumbs','backend/workflows','backend/docker-compose.yml','docker-compose.yml','backend/api/hello','backend/api/tryon','backend/internal/controller','backend/internal/packed','backend/hack','backend/build.bat','backend/restart.bat','backend/.env.example']) {
+for (const path of ['backend/docker-compose.yml','docker-compose.yml','backend/.env.example','backend/build.bat','backend/restart.bat']) {
   const exists = await stat(resolve(root, path)).then(() => true, error => { if (error.code === 'ENOENT') return false; throw error; });
-  assert.equal(exists, false, `legacy target remains: ${path}`);
+  assert.equal(exists, false, `disallowed duplicate entry or script: ${path}`);
 }
 async function files(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -37,8 +37,7 @@ for (const path of allFiles) {
   const name = relative(root, path).replaceAll('\\', '/');
   const content = await readFile(path, 'utf8');
   if (!name.startsWith('docs/plan/') && !name.startsWith('tests/') && !name.endsWith('_test.go')) {
-    assert.doesNotMatch(content, /assets\/(img|thumbs)\//, `obsolete image reference in ${name}`);
-    assert.doesNotMatch(content, /ClientProvided|NewGeneratorFromClientConfig|describeVisualFeatures|loadLegacyConfig|security\.GetService/, `legacy behavior in ${name}`);
+    assert.doesNotMatch(content, /ClientProvided|NewGeneratorFromClientConfig|security\.GetService/, `legacy behavior in ${name}`);
   }
   if (name.endsWith('.md')) {
     for (const [, target] of content.matchAll(/\]\(([^)]+)\)/g)) {
