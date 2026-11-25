@@ -98,7 +98,7 @@ Phase 6 完整验收运行 `pwsh -NoProfile -File scripts/verify-phase6.ps1 -Col
 | `MODEL_PROVIDER/NAME/BASE_URL/API_KEY` | 服务端生成配置；实现 `chuanapi`／`gpt-image-2.5-flare` 四至六图编辑映射；Base URL 必须为以 `/v1` 结尾的 HTTPS API 根地址，例如 `https://model.example/v1`。真实模型调用须单独指令，验证时保持空 |
 | 配置模板 | 只复制 `backend/manifest/config/config.example.yaml`，显式读取；不加载本地真实配置 |
 
-构建上下文使用允许清单，排除 `.git`、`.local`、文档、环境文件、真实配置、密钥、日志和产物。静态镜像只含入口和运行模块，不含源仓库、草稿、测试或旧图库。后端运行镜像包含二进制、系统证书、配置模板和唯一素材清单，不包含服装、
+构建上下文使用允许清单，排除 `.git`、`.local`、文档、环境文件、真实配置、密钥、日志和产物。静态镜像只含入口和运行模块，不含源仓库、草稿或测试。后端运行镜像包含二进制、系统证书、配置模板和唯一素材清单，不包含服装、
 姿势或私有图片；Go 仅存在构建／工具镜像。
 
 根 Compose 将 `W001`–`W030` 套装、`venues/` 固定场馆与 `poses/` 线稿目录只读挂载到后端；`private/` 不挂入应用。

@@ -30,11 +30,10 @@ flowchart LR
 宿主机只映射 `127.0.0.1:3000`。8000 位于容器网络，未映射宿主机。静态镜像只复制入口与 web 模块，Nginx 只允许入口、指定模块与 API 代理，其余路径 404；不把仓库根作为静态文件目录。
 
 [main.go](../backend/main.go) 调用 [cmd.NewServer](../backend/internal/cmd/cmd.go)：显式加载唯一配置模板、验证 Token、固定 `:8000`、注册健康路由
-。缺失／非法 Token 或模板返回明确错误，进程退出；不自动关闭鉴权或搜索旧配置。
+。缺失／非法 Token 或模板返回明确错误，进程退出；不自动关闭鉴权。
 
 `GET /api/health` 返回 `{code:0,message:"",data:{status:"ok"}}`，带请求标识和 no-store。健康无需 Token、没有模型调用。公开
-`GET /api/catalog/outfits` 仅返回版本、套装 ID／名称和场馆 ID／名称，不包含素材路径、姿势清单或服装角色映射；生成 `POST /api/tryon/couple` 仍要求有效 Token。旧单人、
-ComfyUI 和 Hello 路由均 404。请求标识始终由服务器生成，不回显任意客户端标记。
+`GET /api/catalog/outfits` 仅返回版本、套装 ID／名称和场馆 ID／名称，不包含素材路径、姿势清单或服装角色映射；生成 `POST /api/tryon/couple` 仍要求有效 Token。未注册路由均返回 404，请求标识始终由服务器生成，不回显任意客户端标记。
 
 ## 模块与状态
 
@@ -46,13 +45,13 @@ ComfyUI 和 Hello 路由均 404。请求标识始终由服务器生成，不回�
 | [web/app.mjs](../web/app.mjs) | 同源目录读取与双人生成；冻结单次请求快照、90 秒取消／期限、错误恢复、真实 MIME 结果下载及 Object URL 生命周期 |
 | [imagevalidate](../backend/internal/imagevalidate/validate.go) | 上传、素材与结果共用字节／真实 MIME／完整解码校验；256–8192 边长、2000 万像素、单图 8 MiB |
 | [security](../backend/internal/security/service.go) | 完整 SHA-256 摘要恒定时间比对、已接线的按码限流／并发、唯一 SQLite 成功与 UTC 每日尝试账本；存储故障明确失败；无隐式全局服务 |
-| [middleware](../backend/internal/middleware/auth.go) | 保留独立鉴权、CORS、请求体、限流、请求标识组件；由路由组接线，不再内部识别旧单人路径 |
-| [云端协议](../backend/internal/logic/tryon/generator.go) | 显式模型配置与 HTTP transport；仅 `chuanapi`／`gpt-image-2.5-flare` 四／五图编辑；GPT Image 传输为唯一实现，旧 Gemini 实现已移除 |
+| [middleware](../backend/internal/middleware/auth.go) | 保留独立鉴权、CORS、请求体、限流、请求标识组件；由路由组接线 |
+| [云端协议](../backend/internal/logic/tryon/generator.go) | 显式模型配置与 HTTP transport；仅 `chuanapi`／`gpt-image-2.5-flare` 四／五图编辑；GPT Image 传输为唯一实现 |
 | [婚礼编排](../backend/internal/logic/tryon/couple.go) | 唯一编排；生成器工厂、素材读取器、并发准入和用量接口构造注入；一次提交一次模型请求，无视觉附加调用、自动重试或切模型 |
 | [固定素材读取](../backend/internal/catalog/reader.go) | 只按 ID 从唯一清单解析套装三张图或固定场馆一张图；共用读取／完整解码，OpenRoot 限定目录、拒绝逃逸与非普通文件；缺图／损坏明确失败 |
 | [compose.yaml](../compose.yaml) | 唯一运行与检查入口；工具不会随应用启动；源码只读、Go 缓存命名卷 |
 
-页面通过用户操作将照片和结果仅保存在当前页面内存；刷新不恢复照片／结果。表单有效后才打开生成码弹窗；每次请求都重新输入，使用或关闭后清空。移除链接传码与本地记码，启动时清除旧版本保存的生成码；不写 IndexedDB。页面只请求同源
+页面通过用户操作将照片和结果仅保存在当前页面内存；刷新不恢复照片／结果。表单有效后才打开生成码弹窗；每次请求都重新输入，使用或关闭后清空。不支持链接传码与本地记码，不写 IndexedDB。页面只请求同源
 API，不直接调用模型供应商。后端健康请求只在内存处理；日志送 stdout。只有后端专用卷中的 SQLite 用量数据库，不存照片、结果或原始码；没有队列、账号或后台。
 
 ## 双人生成契约与安全出口
@@ -96,15 +95,15 @@ SQLite 路径为 `/var/lib/vowmirror/usage.sqlite`，挂在后端专用 `usage` 
 
 ## 验证与文档归属
 
-Go 核心、健康／旧路由、Token 配置测试；Node 直接导入 ES 模块；三格式自有夹具缺失必须失败。浏览器工具实际访问 Nginx 页面和后端健康；生成交互由受控响应拦截，未受控生成被阻断并使测试失败；新增结果解码失败、取消／超
+Go 核心、健康／未注册路由、Token 配置测试；Node 直接导入 ES 模块；三格式自有夹具缺失必须失败。浏览器工具实际访问 Nginx 页面和后端健康；生成交互由受控响应拦截，未受控生成被阻断并使测试失败；新增结果解码失败、取消／超
 时后的迟到解码、Object URL 释放与完整 90 秒实际等待。
 
-本地与 CI 调用同一 Docker 脚本，远端检查以 GitHub Actions 对应提交的实际结果为准。旧蓝图中的 Windows、ComfyUI 和探针记录不视为本轮 Docker 验收。Phase 7 唯一报告校验为 5 组可
+本地与 CI 调用同一 Docker 脚本，远端检查以 GitHub Actions 对应提交的实际结果为准。Phase 7 唯一报告校验为 5 组可
 判定／4 组合格、`phase8Ready=true`，真实取消专项通过。G1 第二次及 G3、G4、G5 六项评分全部通过；G2 三次正式尝试未合格，独立诊断最快图六项评分通过，仅补充可判定证据，不计入正式尝试或合格组数。完整耗时、失
 败与供应商元数据缺失记录见 Phase 7 执行说明。
 
 [Docker 开发说明](DOCKER_DEVELOPMENT.md) 是命令与环境说明；[长期计划](plan/2026-11-05-wedding-project-roadmap.md) 是决策、阶段与本轮证据；
-[代码来源](CODE_PROVENANCE.md) 记录继承代码和图片授权边界。
+[素材与许可说明](CODE_PROVENANCE.md) 记录本项目素材与测试夹具授权边界。
 
 评测元数据及阶段就绪判定仅由 [phase7-evaluation.mjs](../scripts/phase7-evaluation.mjs) 实现；固定矩阵、逐次指令、人工六项评分、供应商版本缺失、取消专项和受控证据约束见
 [Phase 7 执行说明](plan/2026-11-18-phase7-gpt-image.md)。Phase 7 实测和 Phase 8 正式界面验收已完成；独立服务器公开上线仍是后续单独交付。
