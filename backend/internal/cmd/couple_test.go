@@ -409,7 +409,7 @@ func TestProductionCoupleRouteRejectsUnconfiguredModel(t *testing.T) {
 	for _, name := range []string{"MODEL_PROVIDER", "MODEL_NAME", "MODEL_API_KEY", "MODEL_BASE_URL"} {
 		t.Setenv(name, "")
 	}
-	s, err := NewServer(context.Background(), "couple-unconfigured")
+	s, err := newApplication(context.Background(), "couple-unconfigured", testManifest)
 	if err != nil {
 		t.Fatal(err)
 	}

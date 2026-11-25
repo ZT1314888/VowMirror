@@ -42,7 +42,7 @@ func TestPoseCatalogDescriptionsReachPromptWithoutCrossPoseRules(t *testing.T) {
 	for _, pose := range m.Poses {
 		refs := references(t, false)
 		if pose.Mode == catalog.PoseLineartText {
-			refs = append(refs, Reference{Role: RolePose, Data: fixture(t, "png"), MIME: "image/png"})
+			refs = append(refs, Reference{Role: RolePose, Image: validatedFixture(t, "png")})
 		}
 		prompt := couplePrompt(refs, pose)
 		if !strings.Contains(prompt, pose.Action) {
@@ -93,7 +93,7 @@ func TestRandomPoseServiceSendsExactFourFiveAndSixImageMultipart(t *testing.T) {
 							t.Errorf("wrong role %s", file.Filename)
 						}
 						if roles[i] == "pose" {
-							assertMultipartPose(t, file, poseImage.Data)
+							assertMultipartPose(t, file, poseImage.Bytes())
 						}
 					}
 					prompt := r.FormValue("prompt")
@@ -178,7 +178,7 @@ func TestPosePreparationFailureNeverCallsModelOrConsumesAttempt(t *testing.T) {
 			case "missing":
 				assets.poseError = catalog.ErrPoseUnavailable
 			case "corrupt":
-				assets.poseImage = &imagevalidate.ValidatedImage{Data: []byte("broken"), MIME: "image/png"}
+				assets.poseImage = &imagevalidate.ValidatedImage{}
 			case "invalid_mode":
 				pose.Mode = "invalid"
 			}
@@ -214,7 +214,7 @@ func TestPosePreparationFailureNeverCallsModelOrConsumesAttempt(t *testing.T) {
 }
 
 func TestPoseReferenceOrderRejectsDuplicatesAndReversal(t *testing.T) {
-	pose := Reference{Role: RolePose, Data: fixture(t, "png"), MIME: "image/png"}
+	pose := Reference{Role: RolePose, Image: validatedFixture(t, "png")}
 	base := references(t, false)
 	scene := references(t, true)[4]
 	for _, tail := range [][]Reference{{pose, pose}, {scene, scene}, {pose, scene}, {pose, scene, pose}} {

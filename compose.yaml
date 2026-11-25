@@ -2,6 +2,7 @@ name: vowmirror
 
 services:
   web:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: docker/web.Dockerfile
@@ -19,6 +20,8 @@ services:
       - app
 
   backend:
+    restart: unless-stopped
+    stop_grace_period: 110s
     build:
       context: .
       dockerfile: backend/manifest/docker/Dockerfile
@@ -29,6 +32,13 @@ services:
       MODEL_NAME: ${MODEL_NAME:-}
       MODEL_BASE_URL: ${MODEL_BASE_URL:-}
       MODEL_API_KEY: ${MODEL_API_KEY:-}
+      GOMEMLIMIT: ${GOMEMLIMIT:-512MiB}
+    healthcheck:
+      test: ["CMD", "/app/vowmirror", "health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     # Fresh checkouts get empty directories; missing images explicitly fail generation.
     # Only controlled outfits, venues and pose line drawings are mounted; private intake stays invisible.
     volumes:

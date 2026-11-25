@@ -13,51 +13,45 @@ import (
 var ErrPoseUnavailable = errors.New("姿势清单、随机源或线稿不可用")
 
 type PoseSelector struct {
-	LoadManifest func() (*Manifest, error)
-	Random       io.Reader
+	Snapshot *Snapshot
+	Random   io.Reader
 }
 
 func (s *PoseSelector) Select(ctx context.Context) (Pose, error) {
 	if ctx.Err() != nil {
 		return Pose{}, ctx.Err()
 	}
-	if s.LoadManifest == nil || s.Random == nil {
+	if s.Snapshot == nil || s.Random == nil || s.Snapshot.PoseCount() == 0 {
 		return Pose{}, ErrPoseUnavailable
 	}
-	manifest, err := s.LoadManifest()
-	if err != nil || manifest == nil {
-		return Pose{}, ErrPoseUnavailable
-	}
-	if err := manifest.Validate(); err != nil {
-		return Pose{}, ErrPoseUnavailable
-	}
-	index, err := rand.Int(s.Random, big.NewInt(int64(len(manifest.Poses))))
+	index, err := rand.Int(s.Random, big.NewInt(int64(s.Snapshot.PoseCount())))
 	if err != nil {
 		return Pose{}, ErrPoseUnavailable
 	}
 	if ctx.Err() != nil {
 		return Pose{}, ctx.Err()
 	}
-	return manifest.Poses[index.Int64()], nil
+	pose, ok := s.Snapshot.PoseAt(int(index.Int64()))
+	if !ok {
+		return Pose{}, ErrPoseUnavailable
+	}
+	return pose, nil
 }
 
 func (r *Reader) ReadPose(ctx context.Context, id string) (*imagevalidate.ValidatedImage, error) {
-	manifest, err := r.LoadManifest()
-	if err != nil || manifest == nil {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	pose, ok := r.snapshot.Pose(id)
+	if !ok {
 		return nil, ErrPoseUnavailable
 	}
-	for _, pose := range manifest.Poses {
-		if pose.ID != id {
-			continue
-		}
-		img, err := r.read(ctx, pose.Path)
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		if err != nil || img == nil || img.MIME != "image/png" {
-			return nil, ErrPoseUnavailable
-		}
-		return img, nil
+	img, err := r.read(ctx, pose.Path, "image/png")
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
-	return nil, ErrPoseUnavailable
+	if err != nil {
+		return nil, ErrPoseUnavailable
+	}
+	return img, nil
 }

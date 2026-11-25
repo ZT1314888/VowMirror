@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -47,8 +46,11 @@ func TestCatalogRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "manifest.json")
+	if err := os.WriteFile(path, fixture, 0600); err != nil {
+		t.Fatal(err)
+	}
 	var loads atomic.Int32
-	s, err := newServer(context.Background(), "catalog-routes", func() (*catalog.Manifest, error) {
+	s, err := newApplication(context.Background(), "catalog-routes", func() (*catalog.Manifest, error) {
 		loads.Add(1)
 		return catalog.LoadManifest(path)
 	})
@@ -89,44 +91,10 @@ func TestCatalogRoutes(t *testing.T) {
 		return response.StatusCode, response.Header, body
 	}
 	status, _, _ := request(t, "/health", "")
-	if status != http.StatusOK || loads.Load() != 0 {
-		t.Fatal("health and rejected authentication must not read the manifest")
+	if status != http.StatusOK || loads.Load() != 1 {
+		t.Fatal("manifest must load once at startup")
 	}
-	for _, scenario := range []struct {
-		name string
-		data []byte
-	}{
-		{"missing", nil},
-		{"malformed", []byte(`{"private-marker":`)},
-		{"invalid", []byte(`{"version":1,"outfits":[],"poses":[]}`)},
-	} {
-		t.Run(scenario.name, func(t *testing.T) {
-			if scenario.data != nil {
-				if err := os.WriteFile(path, scenario.data, 0600); err != nil {
-					t.Fatal(err)
-				}
-			}
-			status, header, body := request(t, "/catalog/outfits", token)
-			if status != http.StatusInternalServerError || header.Get("Cache-Control") != "no-store" {
-				t.Fatalf("unexpected unavailable response: %d, %s", status, body)
-			}
-			var unavailable struct {
-				Code    int               `json:"code"`
-				Message string            `json:"message"`
-				Data    map[string]string `json:"data"`
-			}
-			if err := json.Unmarshal(body, &unavailable); err != nil {
-				t.Fatal(err)
-			}
-			if unavailable.Code != 50001 || unavailable.Message != "婚礼素材清单不可用" || len(unavailable.Data) != 1 || unavailable.Data["request_id"] != header.Get("X-Request-ID") {
-				t.Fatalf("unexpected error body: %s", body)
-			}
-			if bytes.Contains(body, []byte(path)) || bytes.Contains(body, []byte("private-marker")) {
-				t.Fatal("unavailable response leaked manifest contents or filesystem path")
-			}
-		})
-	}
-	if err := os.WriteFile(path, fixture, 0600); err != nil {
+	if err := os.WriteFile(path, []byte("changed after startup"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	wantManifest, err := catalog.ParseManifest(fixture)
@@ -159,7 +127,7 @@ func TestCatalogRoutes(t *testing.T) {
 			t.Fatal("public catalog exposed a credential")
 		}
 	}
-	if loads.Load() != 5 {
+	if loads.Load() != 1 {
 		t.Fatalf("unexpected manifest load count: %d", loads.Load())
 	}
 }
@@ -168,7 +136,7 @@ func TestServerRequiresValidToken(t *testing.T) {
 	inBackendRoot(t)
 	for _, token := range []string{"", "short"} {
 		t.Setenv("TRYON_API_KEYS", token)
-		if _, err := NewServer(context.Background(), "invalid-token"); err == nil {
+		if _, err := newApplication(context.Background(), "invalid-token", testManifest); err == nil {
 			t.Fatal("missing or malformed access token must fail startup")
 		}
 	}
@@ -180,7 +148,7 @@ func TestFoundationRoutes(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "")
 	t.Setenv("ARK_API_KEY", "")
 	t.Setenv("GEMINI_API_KEY", "")
-	s, err := NewServer(context.Background(), "foundation-routes")
+	s, err := newApplication(context.Background(), "foundation-routes", testManifest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,6 +205,22 @@ func TestFoundationRoutes(t *testing.T) {
 		}
 		if res.StatusCode != 404 {
 			t.Fatalf("%s %s should be 404, got %d", route.method, route.path, res.StatusCode)
+		}
+	}
+}
+
+func testManifest() (*catalog.Manifest, error) {
+	return catalog.LoadManifest("../tests/fixtures/wedding-assets-manifest.json")
+}
+
+func TestInvalidManifestFailsStartup(t *testing.T) {
+	inBackendRoot(t)
+	t.Setenv("TRYON_API_KEYS", "synthetic-manifest-token-000000000000")
+	for _, data := range []string{"", `{"private-marker":`, `{"version":1,"outfits":[],"poses":[]}`} {
+		if _, err := newApplication(context.Background(), "invalid-manifest", func() (*catalog.Manifest, error) {
+			return catalog.ParseManifest([]byte(data))
+		}); err == nil {
+			t.Fatal("invalid startup manifest accepted")
 		}
 	}
 }

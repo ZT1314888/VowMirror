@@ -15,6 +15,13 @@ type Service struct {
 	ConcurrencyManager *ConcurrencyManager
 }
 
+func (s *Service) Close() error {
+	if s == nil || s.Usage == nil {
+		return nil
+	}
+	return s.Usage.Close()
+}
+
 func InitService(ctx context.Context) (*Service, error) {
 	cfg, err := LoadSecurityConfig(ctx)
 	if err != nil {

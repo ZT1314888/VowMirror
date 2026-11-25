@@ -39,9 +39,13 @@ func TestPoseSelectionCoversAll28Entries(t *testing.T) {
 				m.Poses[i], m.Poses[j] = m.Poses[j], m.Poses[i]
 			}
 		}
+		snapshot, err := NewSnapshot(m)
+		if err != nil {
+			t.Fatal(err)
+		}
 		seen := map[string]bool{}
 		for index := 0; index < 28; index++ {
-			s := &PoseSelector{LoadManifest: func() (*Manifest, error) { return m, nil }, Random: bytes.NewReader([]byte{byte(index)})}
+			s := &PoseSelector{Snapshot: snapshot, Random: bytes.NewReader([]byte{byte(index)})}
 			p, err := s.Select(context.Background())
 			if err != nil {
 				t.Fatal(err)
@@ -58,15 +62,12 @@ func TestPoseSelectionCoversAll28Entries(t *testing.T) {
 }
 
 func TestPoseSelectionFailsExplicitlyWithoutFallback(t *testing.T) {
-	for _, scenario := range []string{"load", "nil", "invalid", "empty_pool", "random"} {
+	for _, scenario := range []string{"nil", "invalid", "empty_pool", "random"} {
 		t.Run(scenario, func(t *testing.T) {
 			m := projectPoses(t)
-			load := func() (*Manifest, error) { return m, nil }
 			switch scenario {
-			case "load":
-				load = func() (*Manifest, error) { return nil, errors.New("synthetic load failure") }
 			case "nil":
-				load = func() (*Manifest, error) { return nil, nil }
+				m = nil
 			case "invalid":
 				m.Poses[0].Action = ""
 			case "empty_pool":
@@ -76,7 +77,11 @@ func TestPoseSelectionFailsExplicitlyWithoutFallback(t *testing.T) {
 			if scenario == "random" {
 				randomBytes = nil
 			}
-			s := &PoseSelector{LoadManifest: load, Random: bytes.NewReader(randomBytes)}
+			snapshot, err := NewSnapshot(m)
+			if scenario != "random" && err == nil {
+				t.Fatal("invalid startup snapshot accepted")
+			}
+			s := &PoseSelector{Snapshot: snapshot, Random: bytes.NewReader(randomBytes)}
 			if _, err := s.Select(context.Background()); !errors.Is(err, ErrPoseUnavailable) {
 				t.Fatalf("missing explicit error: %v", err)
 			}
@@ -92,7 +97,7 @@ func TestPoseSelectionFailsExplicitlyWithoutFallback(t *testing.T) {
 func TestReadPoseUsesControlledDecodedPNGAndRejectsMissingOrEscapingFiles(t *testing.T) {
 	m := projectPoses(t)
 	root := t.TempDir()
-	r := &Reader{Directory: root, LoadManifest: func() (*Manifest, error) { return m, nil }}
+	r := readerFromManifest(t, root, m)
 	if _, err := r.ReadPose(context.Background(), "../P007"); !errors.Is(err, ErrPoseUnavailable) {
 		t.Fatal(err)
 	}
@@ -104,6 +109,7 @@ func TestReadPoseUsesControlledDecodedPNGAndRejectsMissingOrEscapingFiles(t *tes
 		t.Fatal(err)
 	}
 	for _, format := range []string{"png", "jpg"} {
+		r = readerFromManifest(t, root, m)
 		data, err := os.ReadFile("../imagevalidate/testdata/checker." + format)
 		if err != nil {
 			t.Fatal(err)
@@ -112,7 +118,7 @@ func TestReadPoseUsesControlledDecodedPNGAndRejectsMissingOrEscapingFiles(t *tes
 			t.Fatal(err)
 		}
 		img, err := r.ReadPose(context.Background(), "P007")
-		if format == "png" && (err != nil || img == nil || !bytes.Equal(img.Data, data)) {
+		if format == "png" && (err != nil || img == nil || !bytes.Equal(img.Bytes(), data)) {
 			t.Fatal("valid line drawing rejected", err)
 		}
 		if format == "jpg" && !errors.Is(err, ErrPoseUnavailable) {
@@ -122,6 +128,7 @@ func TestReadPoseUsesControlledDecodedPNGAndRejectsMissingOrEscapingFiles(t *tes
 	if err := os.WriteFile(target, []byte("broken"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	r = readerFromManifest(t, root, m)
 	if _, err := r.ReadPose(context.Background(), "P007"); !errors.Is(err, ErrPoseUnavailable) {
 		t.Fatal(err)
 	}
@@ -135,6 +142,7 @@ func TestReadPoseUsesControlledDecodedPNGAndRejectsMissingOrEscapingFiles(t *tes
 	if err := os.Symlink(outside, target); err != nil {
 		t.Fatal(err)
 	}
+	r = readerFromManifest(t, root, m)
 	if _, err := r.ReadPose(context.Background(), "P007"); !errors.Is(err, ErrPoseUnavailable) {
 		t.Fatal("symlink escape accepted")
 	}

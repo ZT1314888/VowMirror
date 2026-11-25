@@ -133,9 +133,18 @@ func TestAcceptanceHTTPErrorsDoNotLeakSensitiveData(t *testing.T) {
 			}
 			var reader tryon.AssetReader = apiOutfits{image: img}
 			if scenario.name == "missing asset" {
-				reader = &catalog.Reader{Directory: t.TempDir(), LoadManifest: func() (*catalog.Manifest, error) {
-					return catalog.LoadManifest("../../../tests/fixtures/wedding-assets-manifest.json")
-				}}
+				manifest, err := catalog.LoadManifest("../../../tests/fixtures/wedding-assets-manifest.json")
+				if err != nil {
+					t.Fatal(err)
+				}
+				snapshot, err := catalog.NewSnapshot(manifest)
+				if err != nil {
+					t.Fatal(err)
+				}
+				reader, err = catalog.NewReader(t.TempDir(), snapshot)
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 			admission := security.NewConcurrencyManager(1, 1)
 			service, err := tryon.NewCoupleService(factory, reader, admission, usageFor(t), count, fixedPosePicker)

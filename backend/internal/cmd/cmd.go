@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -31,26 +31,47 @@ func LoadConfig(ctx context.Context) error {
 	return nil
 }
 
-func NewServer(ctx context.Context, name string) (*ghttp.Server, error) {
-	return newServer(ctx, name, func() (*catalog.Manifest, error) {
+func NewApplication(ctx context.Context, name string) (*Application, error) {
+	return newApplication(ctx, name, func() (*catalog.Manifest, error) {
 		return catalog.LoadManifest(WeddingManifestPath)
 	})
 }
 
-func newServer(ctx context.Context, name string, loadManifest func() (*catalog.Manifest, error)) (*ghttp.Server, error) {
+func newApplication(ctx context.Context, name string, loadManifest func() (*catalog.Manifest, error)) (_ *Application, err error) {
 	if err := LoadConfig(ctx); err != nil {
 		return nil, err
+	}
+	manifest, err := loadManifest()
+	if err != nil {
+		return nil, fmt.Errorf("加载婚礼素材快照失败: %w", err)
+	}
+	snapshot, err := catalog.NewSnapshot(manifest)
+	if err != nil {
+		return nil, fmt.Errorf("校验婚礼素材快照失败: %w", err)
 	}
 	// Missing access tokens fail startup; health itself remains public.
 	securityService, err := security.InitService(ctx)
 	if err != nil {
 		return nil, err
 	}
-	coupleService, err := generationService(loadManifest, securityService)
+	transport, err := newModelTransport()
+	if err != nil {
+		return nil, errors.Join(err, securityService.Close())
+	}
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, securityService.Close())
+			transport.CloseIdleConnections()
+		}
+	}()
+	coupleService, err := generationService(snapshot, securityService, transport)
 	if err != nil {
 		return nil, err
 	}
 	s := g.Server(name)
+	if err := s.SetConfigWithMap(g.Map{"GracefulShutdownTimeout": gracefulShutdownSeconds}); err != nil {
+		return nil, err
+	}
 	s.SetAddr(ServerAddress)
 	// The route enforces 24 MiB; GoFrame's default 8 MiB wrapper rejects valid requests.
 	s.SetClientMaxBodySize(0)
@@ -68,13 +89,7 @@ func newServer(ctx context.Context, name string, loadManifest func() (*catalog.M
 		group.Group("/catalog", func(catalogGroup *ghttp.RouterGroup) {
 			catalogGroup.GET("/outfits", func(r *ghttp.Request) {
 				r.Response.Header().Set("Cache-Control", "no-store")
-				manifest, loadErr := loadManifest()
-				if loadErr != nil {
-					r.Response.WriteHeader(http.StatusInternalServerError)
-					r.Response.WriteJson(g.Map{"code": 50001, "message": "婚礼素材清单不可用", "data": g.Map{"request_id": middleware.GetRequestID(r)}})
-					return
-				}
-				r.Response.WriteJson(g.Map{"code": 0, "message": "", "data": catalog.ExposePublicDirectory(manifest)})
+				r.Response.WriteJson(g.Map{"code": 0, "message": "", "data": snapshot.PublicDirectory()})
 			})
 		})
 		group.Group("/tryon", func(generationGroup *ghttp.RouterGroup) {
@@ -85,5 +100,5 @@ func newServer(ctx context.Context, name string, loadManifest func() (*catalog.M
 			generationGroup.POST("/couple", coupleHandler(coupleService))
 		})
 	})
-	return s, nil
+	return trackServer(s, securityService, transport), nil
 }

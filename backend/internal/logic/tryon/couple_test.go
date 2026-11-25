@@ -36,11 +36,18 @@ func TestFixedVenueUsesSameFiveImageContract(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	reader := &catalog.Reader{Directory: root, LoadManifest: func() (*catalog.Manifest, error) { return manifest, nil }}
+	snapshot, err := catalog.NewSnapshot(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := catalog.NewReader(root, snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
 	calls := 0
 	gen := testGenerator{run: func(_ context.Context, input GenerationRequest) (*imagevalidate.ValidatedImage, error) {
 		calls++
-		if len(input.References) != 5 || input.References[4].Role != RoleScene || input.References[4].MIME != "image/webp" || !bytes.Equal(input.References[4].Data, fixture(t, "webp")) {
+		if len(input.References) != 5 || input.References[4].Role != RoleScene || input.References[4].Image.MIME() != "image/webp" || !bytes.Equal(input.References[4].Image.Bytes(), fixture(t, "webp")) {
 			t.Fatal("fixed scene reference changed")
 		}
 		if !strings.Contains(input.Prompt, "reference 5 only for the venue") {
@@ -74,10 +81,10 @@ func TestFixedVenueUsesSameFiveImageContract(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, manifest.Venues[0].Path), []byte("broken"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Generate(context.Background(), "p", RequestTrace{RequestID: "id"}, input); err == nil || err.ErrorCode != "VENUE_UNAVAILABLE" {
-		t.Fatalf("corrupt venue: %v", err)
+	if _, err := service.Generate(context.Background(), "p", RequestTrace{RequestID: "id"}, input); err != nil {
+		t.Fatalf("cached venue changed before restart: %v", err)
 	}
-	if calls != 1 {
+	if calls != 2 {
 		t.Fatal("invalid scenes reached generator")
 	}
 }
@@ -109,15 +116,7 @@ func (r testOutfits) ReadVenue(context.Context, string) (*imagevalidate.Validate
 }
 func outfitImages(t *testing.T) catalog.OutfitImages {
 	refs := references(t, false)
-	imgs := make([]*imagevalidate.ValidatedImage, 3)
-	for i, ref := range refs[1:] {
-		img, err := imagevalidate.ValidateBytes(ref.Data, ref.MIME, imagevalidate.DefaultImageLimits())
-		if err != nil {
-			t.Fatal(err)
-		}
-		imgs[i] = img
-	}
-	return catalog.OutfitImages{Dress: imgs[0], Menswear: imgs[1], Shoes: imgs[2]}
+	return catalog.OutfitImages{Dress: refs[1].Image, Menswear: refs[2].Image, Shoes: refs[3].Image}
 }
 func coupleInput(t *testing.T) CoupleRequest {
 	return CoupleRequest{CoupleImage: base64.StdEncoding.EncodeToString(fixture(t, "jpg")), OutfitID: "W001", Scene: Scene{Mode: "original"}}
@@ -179,7 +178,7 @@ func TestCoupleServiceContract(t *testing.T) {
 			if scene {
 				want = 5
 			}
-			if len(r.References) != want || r.References[0].MIME != "image/jpeg" || r.References[2].MIME != "image/webp" {
+			if len(r.References) != want || r.References[0].Image.MIME() != "image/jpeg" || r.References[2].Image.MIME() != "image/webp" {
 				t.Error("invalid generation contract")
 			}
 			for _, phrase := range []string{"Decide from reference 1 which person should wear the wedding dress", "identities", "faces", "natural proportions", "head to toe", "without cropping", "mix garments", "shoes_detail"} {
@@ -281,7 +280,7 @@ func TestCoupleFailureAlwaysReleasesAdmission(t *testing.T) {
 				case "upstream":
 					return nil, errors.New("private-marker")
 				case "result":
-					return &imagevalidate.ValidatedImage{MIME: "image/png", Data: []byte("private-marker")}, nil
+					return &imagevalidate.ValidatedImage{}, nil
 				case "timeout":
 					// testGenerator invokes BeforeSend before entering this callback.
 					close(deadline.done)
@@ -378,7 +377,12 @@ func TestReferenceTotalLimit(t *testing.T) {
 	refs := references(t, true)
 	// Each remains a complete valid image below 8 MiB; all five exceed 14 MiB.
 	for i := range refs {
-		refs[i].Data = append(append([]byte{}, refs[i].Data...), make([]byte, 5<<20)...)
+		data := append(refs[i].Image.Bytes(), make([]byte, 5<<20)...)
+		img, err := imagevalidate.ValidateBytes(data, refs[i].Image.MIME(), imagevalidate.DefaultImageLimits())
+		if err != nil {
+			t.Fatal(err)
+		}
+		refs[i].Image = img
 	}
 	if err := validateReferences(refs); !errors.Is(err, ErrReferences) {
 		t.Fatal("combined references accepted")
@@ -392,7 +396,7 @@ func TestBusyRequestsDoNotAllocateImagePixels(t *testing.T) {
 		t.Fatal(err)
 	}
 	encoded := base64.StdEncoding.EncodeToString(buffer.Bytes())
-	if image, err := imagevalidate.ValidateImage(encoded, imagevalidate.DefaultImageLimits()); err != nil || image.Width != 4000 || image.Height != 5000 {
+	if image, err := imagevalidate.ValidateImage(encoded, imagevalidate.DefaultImageLimits()); err != nil || image.Width() != 4000 || image.Height() != 5000 {
 		t.Fatalf("pixel-allocation fixture must be a valid 20 MP image: %v", err)
 	}
 	input := CoupleRequest{CoupleImage: encoded, OutfitID: "W001", Scene: Scene{Mode: "upload", Image: encoded}}

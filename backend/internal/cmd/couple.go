@@ -20,17 +20,22 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
-func modelFromEnvironment() (tryon.ImageGenerator, error) {
-	return tryon.NewGenerator(tryon.ModelConfig{Provider: os.Getenv("MODEL_PROVIDER"), Model: os.Getenv("MODEL_NAME"), BaseURL: os.Getenv("MODEL_BASE_URL"), APIKey: os.Getenv("MODEL_API_KEY")}, http.DefaultTransport)
+func modelFactoryFromEnvironment(transport http.RoundTripper) tryon.GeneratorFactory {
+	generator, err := tryon.NewGenerator(tryon.ModelConfig{Provider: os.Getenv("MODEL_PROVIDER"), Model: os.Getenv("MODEL_NAME"), BaseURL: os.Getenv("MODEL_BASE_URL"), APIKey: os.Getenv("MODEL_API_KEY")}, transport)
+	return func() (tryon.ImageGenerator, error) { return generator, err }
 }
 
-func generationService(loadManifest func() (*catalog.Manifest, error), securityService *security.Service) (*tryon.CoupleService, error) {
+func generationService(snapshot *catalog.Snapshot, securityService *security.Service, transport http.RoundTripper) (*tryon.CoupleService, error) {
 	detector, err := facedetect.New()
 	if err != nil {
 		return nil, err
 	}
-	selector := &catalog.PoseSelector{LoadManifest: loadManifest, Random: rand.Reader}
-	return tryon.NewCoupleService(modelFromEnvironment, &catalog.Reader{Directory: "/assets/wedding", LoadManifest: loadManifest}, securityService.ConcurrencyManager, securityService.Usage, detector.Count, selector.Select)
+	reader, err := catalog.NewReader("/assets/wedding", snapshot)
+	if err != nil {
+		return nil, err
+	}
+	selector := &catalog.PoseSelector{Snapshot: snapshot, Random: rand.Reader}
+	return tryon.NewCoupleService(modelFactoryFromEnvironment(transport), reader, securityService.ConcurrencyManager, securityService.Usage, detector.Count, selector.Select)
 }
 
 type countedReader struct {

@@ -10,17 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"backend/internal/catalog"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
 func TestServerHeaderLimit(t *testing.T) {
 	inBackendRoot(t)
 	t.Setenv("TRYON_API_KEYS", "synthetic-header-limit-token-00000000")
-	s, err := newServer(context.Background(), "header-limit", func() (*catalog.Manifest, error) {
-		t.Fatal("health must not load assets")
-		return nil, nil
-	})
+	s, err := newApplication(context.Background(), "header-limit", testManifest)
 	if err != nil {
 		t.Fatal(err)
 	}

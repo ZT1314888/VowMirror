@@ -46,11 +46,11 @@ func TestValidateImageValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected valid png to pass: %v", err)
 	}
-	if vImg.Width != 300 || vImg.Height != 300 {
-		t.Fatalf("unexpected dimensions: %dx%d", vImg.Width, vImg.Height)
+	if vImg.Width() != 300 || vImg.Height() != 300 {
+		t.Fatalf("unexpected dimensions: %dx%d", vImg.Width(), vImg.Height())
 	}
-	if vImg.MIME != "image/png" {
-		t.Fatalf("unexpected MIME: %s", vImg.MIME)
+	if vImg.MIME() != "image/png" {
+		t.Fatalf("unexpected MIME: %s", vImg.MIME())
 	}
 
 	// JPEG with Data URL
@@ -59,8 +59,8 @@ func TestValidateImageValid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected valid jpeg with data uri to pass: %v", err)
 	}
-	if vImg2.MIME != "image/jpeg" {
-		t.Fatalf("unexpected MIME: %s", vImg2.MIME)
+	if vImg2.MIME() != "image/jpeg" {
+		t.Fatalf("unexpected MIME: %s", vImg2.MIME())
 	}
 
 }
@@ -80,11 +80,41 @@ func TestOriginalImageFixtures(t *testing.T) {
 			if err != nil {
 				t.Fatalf("fixture rejected: %v", err)
 			}
-			if img.MIME != fixture.mime || img.Width != 256 || img.Height != 256 {
+			if img.MIME() != fixture.mime || img.Width() != 256 || img.Height() != 256 {
 				t.Fatalf("unexpected fixture metadata: %+v", img)
 			}
 		})
 	}
+}
+
+func TestValidatedImageOwnsImmutableBytes(t *testing.T) {
+	data, err := os.ReadFile("testdata/checker.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := bytes.Clone(data)
+	validated, err := ValidateBytes(data, "image/png", DefaultImageLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	data[0] ^= 0xff
+	returned := validated.Bytes()
+	returned[0] ^= 0xff
+	if _, err := validated.WriteTo(mutatingWriter{}); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(validated.Bytes(), original) {
+		t.Fatal("validated bytes changed through an input, accessor or writer")
+	}
+}
+
+type mutatingWriter struct{}
+
+func (mutatingWriter) Write(data []byte) (int, error) {
+	for index := range data {
+		data[index] ^= 0xff
+	}
+	return len(data), nil
 }
 
 func TestValidateImageUnsupportedType(t *testing.T) {

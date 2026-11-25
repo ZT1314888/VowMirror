@@ -17,6 +17,8 @@ import (
 	"unicode/utf8"
 )
 
+const multipartFixedOverhead = 4 << 10
+
 type GPTImage struct {
 	config ModelConfig
 	client *http.Client
@@ -120,6 +122,15 @@ func (g *GPTImage) Generate(ctx context.Context, input GenerationRequest) (*Gene
 
 func (g *GPTImage) editForm(input GenerationRequest) ([]byte, string, error) {
 	var body bytes.Buffer
+	var imageBytes int64
+	for _, ref := range input.References {
+		imageBytes += int64(ref.Image.Size())
+	}
+	capacity := imageBytes + int64(len(input.Prompt)) + multipartFixedOverhead
+	if capacity > MaxProviderRequestBytes {
+		return nil, "", ErrReferences
+	}
+	body.Grow(int(capacity))
 	writer := multipart.NewWriter(&body)
 	for _, field := range [][2]string{{"model", g.Model()}, {"prompt", input.Prompt}, {"n", "1"}, {"size", OutputSize}, {"quality", OutputQuality}, {"output_format", "png"}} {
 		if err := writer.WriteField(field[0], field[1]); err != nil {
@@ -128,14 +139,15 @@ func (g *GPTImage) editForm(input GenerationRequest) ([]byte, string, error) {
 	}
 	extensions := map[string]string{"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
 	for _, ref := range input.References {
+		mimeType := ref.Image.MIME()
 		header := make(textproto.MIMEHeader)
-		header.Set("Content-Disposition", `form-data; name="image[]"; filename="`+string(ref.Role)+"."+extensions[ref.MIME]+`"`)
-		header.Set("Content-Type", ref.MIME)
+		header.Set("Content-Disposition", `form-data; name="image[]"; filename="`+string(ref.Role)+"."+extensions[mimeType]+`"`)
+		header.Set("Content-Type", mimeType)
 		part, err := writer.CreatePart(header)
 		if err != nil {
 			return nil, "", ErrReferences
 		}
-		if _, err := part.Write(ref.Data); err != nil {
+		if _, err := ref.Image.WriteTo(part); err != nil {
 			return nil, "", ErrReferences
 		}
 	}
@@ -201,7 +213,7 @@ func (g *GPTImage) parseResult(data []byte, headerRequestID string) (*Generation
 	if requestID == "" {
 		requestID = body.RequestID
 	}
-	image, err := ValidateResult("data:image/png;base64," + body.Data[0].Base64)
+	image, err := ValidateResultBase64(body.Data[0].Base64)
 	if err != nil {
 		return nil, err
 	}

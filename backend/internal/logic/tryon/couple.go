@@ -2,7 +2,6 @@ package tryon
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"image"
 	"time"
@@ -109,7 +108,7 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 		trace.Record("validating_images", imageValidationStarted)
 		return nil, apiErr
 	}
-	refs := []Reference{{Role: RoleCouple, Data: couple.Data, MIME: couple.MIME}}
+	refs := []Reference{{Role: RoleCouple, Image: couple}}
 	var scene *imagevalidate.ValidatedImage
 	var err error
 	if input.Scene.Mode == "upload" {
@@ -161,10 +160,10 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 			trace.Record("preparing_assets", assetsStarted)
 			return nil, security.NewAPIError(503, 50303, "OUTFIT_UNAVAILABLE", "套装素材缺失或无效")
 		}
-		refs = append(refs, Reference{Role: []Role{RoleDress, RoleMenswear, RoleShoes}[index], Data: img.Data, MIME: img.MIME})
+		refs = append(refs, Reference{Role: []Role{RoleDress, RoleMenswear, RoleShoes}[index], Image: img})
 	}
 	if scene != nil {
-		refs = append(refs, Reference{Role: RoleScene, Data: scene.Data, MIME: scene.MIME})
+		refs = append(refs, Reference{Role: RoleScene, Image: scene})
 	}
 	pose, err := s.pickPose(ctx)
 	if err != nil || pose.Validate() != nil {
@@ -183,7 +182,7 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 			}
 			return nil, security.NewAPIError(503, 50306, "POSE_UNAVAILABLE", catalog.ErrPoseUnavailable.Error())
 		}
-		refs = append(refs, Reference{Role: RolePose, Data: img.Data, MIME: img.MIME})
+		refs = append(refs, Reference{Role: RolePose, Image: img})
 	}
 	if err := validateReferences(refs); err != nil {
 		trace.Record("preparing_assets", assetsStarted)
@@ -220,12 +219,12 @@ func (s *CoupleService) Generate(ctx context.Context, principal string, trace Re
 	// Validate at the service boundary as well: injected generators cannot bypass the result contract.
 	resultValidationStarted := time.Now()
 	trace.Mark(StageObservation{Phase: "validating_result"})
-	image, err := ValidateResult("data:" + result.Image.MIME + ";base64," + base64.StdEncoding.EncodeToString(result.Image.Data))
+	err = ValidateResultImage(result.Image)
 	trace.Record("validating_result", resultValidationStarted)
 	if err != nil || !matchesModel(generator.Model(), result.ProviderModel) || !validProviderIdentifier(result.ProviderRequestID, "") {
 		return nil, generationError(ErrResult)
 	}
-	response := &CoupleResponse{Image: base64.StdEncoding.EncodeToString(image.Data), MIME: image.MIME, Width: image.Width, Height: image.Height, Model: generator.Model(), RequestID: trace.RequestID, ProviderModel: result.ProviderModel, ProviderRequestID: result.ProviderRequestID}
+	response := &CoupleResponse{Image: result.Image.Base64(), MIME: result.Image.MIME(), Width: result.Image.Width(), Height: result.Image.Height(), Model: generator.Model(), RequestID: trace.RequestID, ProviderModel: result.ProviderModel, ProviderRequestID: result.ProviderRequestID}
 	if ctx.Err() != nil {
 		return nil, contextError(ctx)
 	}
@@ -243,7 +242,7 @@ func (s *CoupleService) validateCouple(ctx context.Context, input string) (*imag
 	if err != nil {
 		return nil, imageError(err)
 	}
-	count, err := s.countFaces(ctx, pixels, couple.Data)
+	count, err := s.countFaces(ctx, pixels, couple.Bytes())
 	if ctx.Err() != nil {
 		return nil, contextError(ctx)
 	}

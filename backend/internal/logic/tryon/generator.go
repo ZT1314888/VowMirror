@@ -45,9 +45,8 @@ const (
 )
 
 type Reference struct {
-	Role Role
-	Data []byte
-	MIME string
+	Role  Role
+	Image *imagevalidate.ValidatedImage
 }
 type GenerationRequest struct {
 	References []Reference
@@ -107,14 +106,15 @@ func validateReferences(refs []Reference) error {
 		return ErrReferences
 	}
 	var total int64
+	limits := imagevalidate.DefaultImageLimits()
 	for index, ref := range refs {
-		if ref.Role != roles[index] || ref.MIME == "" {
+		if ref.Role != roles[index] || imagevalidate.CheckImage(ref.Image, limits) != nil {
 			return ErrReferences
 		}
-		if _, err := imagevalidate.ValidateBytes(ref.Data, ref.MIME, imagevalidate.DefaultImageLimits()); err != nil {
+		if ref.Role == RolePose && ref.Image.MIME() != "image/png" {
 			return ErrReferences
 		}
-		total += int64(len(ref.Data))
+		total += int64(ref.Image.Size())
 	}
 	if total > MaxReferenceBytes {
 		return ErrReferences

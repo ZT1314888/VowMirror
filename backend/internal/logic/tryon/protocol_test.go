@@ -19,6 +19,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"backend/internal/imagevalidate"
 )
 
 func fixture(t *testing.T, name string) []byte {
@@ -40,15 +42,24 @@ func landscape(t *testing.T) []byte {
 func references(t *testing.T, scene bool) []Reference {
 	t.Helper()
 	refs := []Reference{
-		{Role: RoleCouple, Data: fixture(t, "jpg"), MIME: "image/jpeg"},
-		{Role: RoleDress, Data: fixture(t, "png"), MIME: "image/png"},
-		{Role: RoleMenswear, Data: fixture(t, "webp"), MIME: "image/webp"},
-		{Role: RoleShoes, Data: fixture(t, "jpg"), MIME: "image/jpeg"},
+		{Role: RoleCouple, Image: validatedFixture(t, "jpg")},
+		{Role: RoleDress, Image: validatedFixture(t, "png")},
+		{Role: RoleMenswear, Image: validatedFixture(t, "webp")},
+		{Role: RoleShoes, Image: validatedFixture(t, "jpg")},
 	}
 	if scene {
-		refs = append(refs, Reference{Role: RoleScene, Data: fixture(t, "png"), MIME: "image/png"})
+		refs = append(refs, Reference{Role: RoleScene, Image: validatedFixture(t, "png")})
 	}
 	return refs
+}
+
+func validatedFixture(t *testing.T, format string) *imagevalidate.ValidatedImage {
+	t.Helper()
+	img, err := imagevalidate.ValidateBytes(fixture(t, format), "", imagevalidate.DefaultImageLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return img
 }
 func generationInput(t *testing.T, scene bool) GenerationRequest {
 	return GenerationRequest{References: references(t, scene), Prompt: "unchanged prompt"}
@@ -186,7 +197,7 @@ func TestGPTImageFourAndFiveRolesWithRealMIME(t *testing.T) {
 						return
 					}
 					ref := input.References[imageIndex]
-					if !bytes.Equal(ref.Data, data) || part.Header.Get("Content-Type") != ref.MIME || !strings.HasPrefix(part.FileName(), string(ref.Role)+".") {
+					if !bytes.Equal(ref.Image.Bytes(), data) || part.Header.Get("Content-Type") != ref.Image.MIME() || !strings.HasPrefix(part.FileName(), string(ref.Role)+".") {
 						t.Errorf("role %d mapping mismatch", imageIndex)
 					}
 					imageIndex++
@@ -204,7 +215,7 @@ func TestGPTImageFourAndFiveRolesWithRealMIME(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if result.Image.MIME != "image/png" || !bytes.Equal(result.Image.Data, output) || result.Image.Width != OutputWidth || result.ProviderRequestID != "provider-123" || result.ProviderModel != GPTImageModel+"-2026-09-08" || calls.Load() != 1 {
+			if result.Image.MIME() != "image/png" || !bytes.Equal(result.Image.Bytes(), output) || result.Image.Width() != OutputWidth || result.ProviderRequestID != "provider-123" || result.ProviderModel != GPTImageModel+"-2026-09-08" || calls.Load() != 1 {
 				t.Fatal("unexpected result, metadata or calls")
 			}
 		})
@@ -276,12 +287,11 @@ func TestGPTImageRejectsInvalidReferencesBeforeNetwork(t *testing.T) {
 	for _, modify := range []func(*GenerationRequest){
 		func(r *GenerationRequest) { r.References = r.References[:3] },
 		func(r *GenerationRequest) { r.References[0], r.References[1] = r.References[1], r.References[0] },
-		func(r *GenerationRequest) { r.References[0].MIME = "image/png" },
-		func(r *GenerationRequest) { r.References[0].MIME = "" },
+		func(r *GenerationRequest) { r.References[0].Image = &imagevalidate.ValidatedImage{} },
+		func(r *GenerationRequest) { r.References[0].Image = nil },
 		func(r *GenerationRequest) { r.References[4].Role = RoleCouple },
-		func(r *GenerationRequest) { r.References[4].MIME = "image/webp" },
-		func(r *GenerationRequest) { r.References[4].Data = nil },
-		func(r *GenerationRequest) { r.References[2].Data = []byte("corrupt") },
+		func(r *GenerationRequest) { r.References[4].Image = nil },
+		func(r *GenerationRequest) { r.References[2].Image = &imagevalidate.ValidatedImage{} },
 		func(r *GenerationRequest) { r.Prompt = "" },
 		func(r *GenerationRequest) { r.Prompt = strings.Repeat("x", MaxProviderRequestBytes) },
 		func(r *GenerationRequest) { r.References = append(r.References, r.References[0]) },

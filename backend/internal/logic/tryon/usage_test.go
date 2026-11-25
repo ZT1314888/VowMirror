@@ -91,3 +91,35 @@ func TestStorageFailureCannotReturnGenerationSuccess(t *testing.T) {
 		t.Fatalf("failed commit consumed success: %d %v", remaining, err)
 	}
 }
+
+func TestInvalidValidatedResultsNeverConsumeSuccess(t *testing.T) {
+	for _, scenario := range []string{"nil", "zero", "thumbnail", "jpeg"} {
+		t.Run(scenario, func(t *testing.T) {
+			q := usageFor(t)
+			gen := testGenerator{run: func(context.Context, GenerationRequest) (*imagevalidate.ValidatedImage, error) {
+				switch scenario {
+				case "nil":
+					return nil, nil
+				case "zero":
+					return &imagevalidate.ValidatedImage{}, nil
+				case "jpeg":
+					return validatedFixture(t, "jpg"), nil
+				default:
+					return validatedFixture(t, "png"), nil
+				}
+			}}
+			reader := testOutfits{run: func(context.Context, string) (catalog.OutfitImages, error) { return outfitImages(t), nil }}
+			service, err := NewCoupleService(func() (ImageGenerator, error) { return gen, nil }, reader, security.NewConcurrencyManager(1, 1), q, twoFaces, fixedPosePicker)
+			if err != nil {
+				t.Fatal(err)
+			}
+			response, apiError := service.Generate(context.Background(), "hash", RequestTrace{}, coupleInput(t))
+			if response != nil || apiError == nil {
+				t.Fatal("invalid result returned success")
+			}
+			if remaining, apiError := q.Check(context.Background(), "hash"); apiError != nil || remaining != security.SuccessLimit {
+				t.Fatalf("invalid result consumed success: %d %v", remaining, apiError)
+			}
+		})
+	}
+}
