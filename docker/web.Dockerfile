@@ -2,6 +2,9 @@ FROM nginx:1.28-alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker/security-headers.conf /etc/nginx/security-headers.conf
 COPY docker/api-proxy.conf /etc/nginx/api-proxy.conf
+COPY docker/cloudflare-realip.conf /etc/nginx/cloudflare-realip.conf
+COPY docker/enable-ssl.sh /docker-entrypoint.d/40-enable-ssl.sh
+RUN chmod 755 /docker-entrypoint.d/40-enable-ssl.sh
 COPY index.html /usr/share/nginx/html/index.html
 COPY web/ /usr/share/nginx/html/web/
 # .dockerignore admits web/public/venues/V00[1-7] display and thumbnail WebP only; drop the

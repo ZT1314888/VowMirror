@@ -8,6 +8,9 @@ services:
       dockerfile: docker/web.Dockerfile
     ports:
       - "127.0.0.1:${VOWMIRROR_WEB_PORT:-3000}:8080"
+      - "${VOWMIRROR_HTTPS_BIND:-127.0.0.1}:${VOWMIRROR_HTTPS_PORT:-0}:8443"
+    volumes:
+      - ${VOWMIRROR_SSL_DIR:-./docker}:/etc/nginx/ssl:ro
     depends_on:
       - backend
     healthcheck:
@@ -77,6 +80,18 @@ services:
       - ./assets/wedding/poses:/assets/wedding/poses:ro
     networks:
       - app
+
+  tools-backup:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: docker/backup.Dockerfile
+    volumes:
+      # SQLite opens the database read-only but may create WAL/SHM metadata after a clean stop.
+      - usage:/usage
+    tmpfs:
+      - /tmp:uid=65532,gid=65532,mode=0700,size=64m
+    network_mode: none
 
   tools-go:
     profiles: [tools]

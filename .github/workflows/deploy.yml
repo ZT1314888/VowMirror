@@ -1,0 +1,75 @@
+name: Production deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout the exact candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Isolated Phase 8 acceptance
+        shell: pwsh
+        run: ./scripts/verify-phase6.ps1 -Stage phase8
+      - name: API entry protection acceptance
+        shell: pwsh
+        run: ./scripts/verify-api-entry.ps1
+      - name: Production TLS and backup acceptance
+        shell: pwsh
+        run: ./scripts/verify-production.ps1
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: verify
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Deploy the verified commit over SSH
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          VERIFIED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_HOST:?}" "${DEPLOY_USER:?}" "${DEPLOY_SSH_KEY:?}" "${DEPLOY_KNOWN_HOSTS:?}"
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$DEPLOY_USER" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]]
+          [[ "$VERIFIED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          trap 'rm -f "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"' EXIT
+          ssh -i "$HOME/.ssh/id_ed25519" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o ConnectTimeout=15 \
+            "$DEPLOY_USER@$DEPLOY_HOST" bash -se -- "$VERIFIED_SHA" <<'REMOTE'
+          set -euo pipefail
+          candidate=$1
+          cd /opt/vowmirror
+          exec 8>/opt/vowmirror/.git/production-deploy.lock
+          flock -n 8 || { echo 'Another production deployment is running.' >&2; exit 1; }
+          test -z "$(git status --porcelain --untracked-files=normal)"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$candidate" origin/main
+          git merge-base --is-ancestor HEAD "$candidate"
+          git checkout --detach "$candidate"
+          bash scripts/deploy-production.sh
+          REMOTE

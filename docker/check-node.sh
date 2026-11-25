@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 for source in web/*.mjs tests/*.mjs; do node --check "$source"; done
+shellcheck docker/enable-ssl.sh docker/snapshot-usage.sh scripts/backup-usage.sh scripts/deploy-production.sh tests/production-container.sh
+node --test tests/production-deployment.test.mjs
 node --test tests/image-core.test.mjs
 node --test tests/sse-core.test.mjs
 node --test tests/headroom-core.test.mjs

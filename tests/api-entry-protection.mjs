@@ -25,6 +25,7 @@ async function request(path, { token = 'synthetic-invalid-code', body, spoof = 1
       Authorization: `Bearer ${token}`, 'Content-Type': 'application/json',
       'X-Request-ID': clientMarker,
       'X-Forwarded-For': `192.0.2.${spoof}`, 'X-Real-IP': `198.51.100.${spoof}`,
+      'CF-Connecting-IP': `203.0.113.${spoof}`,
       Forwarded: `for=203.0.113.${spoof};proto=https`,
     },
     ...(body ? { body: JSON.stringify(body) } : {}),

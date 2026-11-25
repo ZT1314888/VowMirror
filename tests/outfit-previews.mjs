@@ -162,10 +162,23 @@ try {
   await page.locator('#retry-outfit-preview').waitFor({ state: 'visible' });
   assert.match(await page.locator('#outfit-preview-status').textContent(), /造型示例清单读取失败/);
   await page.unroute('**/web/public/manifest.json');
-  await page.on('request', request => { if (request.url().endsWith('/web/public/manifest.json')) manifestRequests++; });
+  let releaseManifest;
+  const manifestGate = new Promise(resolve => { releaseManifest = resolve; });
+  await page.route('**/web/public/manifest.json', async route => {
+    manifestRequests++;
+    await manifestGate;
+    await route.continue();
+  });
   await page.evaluate(() => { document.querySelector('#outfit-preview-status').textContent = '待重试'; });
   const retry = page.locator('#retry-outfit-preview');
-  await Promise.all([retry.click(), retry.click()]);
+  const manifestRequested = page.waitForRequest(request => request.url().endsWith('/web/public/manifest.json'));
+  // Keep the request in flight until both real clicks finish; a fast response must not
+  // hide the button between two competing Playwright mouse operations.
+  await retry.click();
+  await manifestRequested;
+  await retry.click();
+  assert.equal(manifestRequests, 1, 'overlapping retries share one in-flight manifest request');
+  releaseManifest();
   await displayed('W001');
   assert.equal(manifestRequests, 1, `concurrent retries must share one manifest request (got ${manifestRequests})`);
   assert.match(await page.locator('#outfit-preview-status').textContent(), /造型示例 · /);
