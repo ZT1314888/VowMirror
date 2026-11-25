@@ -25,6 +25,7 @@ config.yaml
 
 # Local development data and tools; never enter Docker build contexts.
 .local/
+/docs/
 .playwright-mcp/
 .claude/
 .zcode/

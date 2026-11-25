@@ -5,6 +5,7 @@
 @AGENTS.md
 
 只使用根 Compose 开发与检查，不使用宿主机 Go／GoFrame CLI：
+
 ```sh
 docker compose up -d --build web backend
 docker compose build tools-go tools-node tools-browser
@@ -13,5 +14,5 @@ docker compose run --rm -T tools-node
 docker compose run --rm -T tools-browser node tests/smoke.mjs --stage phase7
 ```
 
-首次启动先按 [Docker 开发说明](docs/DOCKER_DEVELOPMENT.md) 配置根 `.env` 的后端访问 Token；模型字段保持空。
-源码现状见 [当前架构](docs/Project_Architecture_Blueprint.md)，阶段门槛和验证记录见 [长期计划](docs/plan/2026-11-05-wedding-project-roadmap.md)。
+首次启动按 [README.md](README.md) 配置根 `.env` 中的生成码；模型字段保持空。
+`docs/` 仅保存本地开发记录，不纳入版本控制或项目检查。
