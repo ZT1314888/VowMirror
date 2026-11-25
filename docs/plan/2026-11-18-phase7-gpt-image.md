@@ -1,6 +1,6 @@
 # Phase 7：GPT Image 实施与评测
 
-更新日期：2026-11-19。分支 `feat/wedding-phase-7-model-evaluation` 从 Phase 6 的 `cc7ce58` 继续；五份既有草稿已备份到 Git／Docker 忽略的 `.local/phase7-pre-gpt-image/`，并记录 SHA-256。原 `.gitignore` 改动保留，Node 检查、评测脚本与路线图草稿在原位置整合。本文件不代表真实模型调用授权。
+更新日期：2026-11-19。分支 `feat/wedding-phase-7-model-evaluation` 从 Phase 6 的 `36a92a6` 继续；五份既有草稿已备份到 Git／Docker 忽略的 `.local/phase7-pre-gpt-image/`，并记录 SHA-256。原 `.gitignore` 改动保留，Node 检查、评测脚本与路线图草稿在原位置整合。本文件不代表真实模型调用授权。
 
 当前实测：G1 第二次、G3、G4、G5 六项评分均通过；G2 并行诊断最快图六项评分均通过，单独作为 G2 可判定证据，不改变正式尝试次数和正式合格组数。G2 前两次正式调用成功但未按指定侧别穿衣，第三次 **85064ms** 超时；G2 并行诊断三条 API 调用均成功，耗时 **53300ms**、**52823ms**、**47975ms**，供应商未返回型号与请求 ID。真实取消专项通过，受控 90 秒异常验证证据有效。唯一报告校验为 **5 组可判定／4 组合格**，`phase8Ready=true`。
 
@@ -126,7 +126,7 @@ pwsh -NoProfile -File scripts/verify-phase6.ps1 -Stage phase7 -ColdBuild
 
 | 检查 | 本轮证据 |
 | --- | --- |
-| 现场保护 | 继续使用 `feat/wedding-phase-7-model-evaluation`，HEAD 为 Phase 6 的 `cc7ce58`；49 份源码、草稿及匿名 JSON 备份至忽略目录 `.local/phase7-closeout-prework-20261119-104432`，逐文件 SHA-256 一致，清单记录原路径为整合去向；未复制真实凭据或人物图片，未使用 stash |
+| 现场保护 | 继续使用 `feat/wedding-phase-7-model-evaluation`，HEAD 为 Phase 6 的 `36a92a6`；49 份源码、草稿及匿名 JSON 备份至忽略目录 `.local/phase7-closeout-prework-20261119-104432`，逐文件 SHA-256 一致，清单记录原路径为整合去向；未复制真实凭据或人物图片，未使用 stash |
 | 私有输入与固定素材 | 根 Compose `tools-node` 重新验证 2 张合照、9 张场地图的完整解码、真实格式、尺寸、字节数与接收摘要；固定素材清单文件检查通过；W001–W005 的 15 张参考图用同一工具镜像完整解码，单图及五组总量均在边界内；匿名元数据见 `.local/phase7/closeout-input-evidence.json` |
 | 实际运行版本 | 运行时模型、HTTPS 出口和访问配置合规，容器配置与 Compose 一致；只输出合规状态。实际页面脚本与源码 SHA-256 相同，运行后端二进制与按当前源码重建的二进制 SHA-256 相同；浏览器 90000ms、后端 85 秒、代理读取 95 秒生效，私有目录及真实配置未挂入应用 |
 | 完整冷构建 | 唯一入口 `pwsh -NoProfile -File scripts/verify-phase6.ps1 -Stage phase7 -ColdBuild` 退出 0，13 项检查通过；证据 `.local/phase7/phase7-e1ba115953094c3aac359179f104049f/summary.json`；五类镜像均 `--no-cache` 重建、独立项目及全新 Go 缓存、四项模型配置为空、两个运行网络均 internal、真实模型调用 0 |

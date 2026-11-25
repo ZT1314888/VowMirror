@@ -1,6 +1,6 @@
 # 未提交工作区整合记录（2026-11-24）
 
-整合目标是当前主工作区 `fix/gallery-image-fit-and-generation-wait`，起始提交为 `2b2fc1f`。
+整合目标是当前主工作区 `fix/gallery-image-fit-and-generation-wait`，起始提交为 `e1a2963`。
 `main` 仍为初始提交；本次没有切换分支、提交、推送或合并到 `main`。
 整合前备份全部 90 个已有未提交文件，文件摘要和原始差异保存在
 `.local/workspace-merge/20261124-165731/`。来源 worktree 和原有素材继续保留。
@@ -11,7 +11,7 @@
 | --- | --- |
 | api-entry-protection | 草稿内容已被审查版及主工作区后续修复覆盖，不再重复引入 |
 | api-entry-protection-review | 五个文件与主工作区逐字节相同；保留主工作区更新的 Nginx 和说明 |
-| couple-face-gate | 后端、人脸检测器和夹具已在 `2b2fc1f` 接收；保留主工作区后续前端与验收改动 |
+| couple-face-gate | 后端、人脸检测器和夹具已在 `e1a2963` 接收；保留主工作区后续前端与验收改动 |
 | random-pose-catalog | 三方增量合入清单 v2、28 姿势选择、提示词与四至六图请求、挂载及测试 |
 | pose-evaluation 两个变体 | 实验接口、profile 和脚本留在原树；五篇公共文档归档一次 |
 | outfit-couple-preview | 主工作区版本较新，无来源树独有缺失文件；保留当前 UI |

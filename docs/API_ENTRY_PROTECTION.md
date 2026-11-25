@@ -81,7 +81,7 @@ Go 仅运行相关 limiter、响应契约、人脸准入和请求头边界测试
 
 ## 历史验证记录（2026-11-23）
 
-2026-11-23，从已交付提交 `2b2fc1f` 建立独立分支 `feat/api-entry-protection`，保留原工作区改动。
+2026-11-23，从已交付提交 `e1a2963` 建立独立分支 `feat/api-entry-protection`，保留原工作区改动。
 通过实例为 `entry-426b65eeca494e8f96380bc5d250dd35`，证据位于其同名 `.local/api-entry/` 子目录。
 
 | 检查 | 结果 |
@@ -134,7 +134,7 @@ Go 仅运行相关 limiter、响应契约、人脸准入和请求头边界测试
 ## 审查修复记录（2026-11-24）
 
 原 `feat/api-entry-protection` 的七份草稿已按文件哈希备份并整合到独立 worktree，
-开发分支为 `feat/api-entry-protection-review`，起始提交仍为 `2b2fc1f`；原工作区与草稿保持原状。
+开发分支为 `feat/api-entry-protection-review`，起始提交仍为 `e1a2963`；原工作区与草稿保持原状。
 备份及整合清单位于 Git／Docker 忽略的 `.local/api-entry-backups/`，新验收证据单独记录，沿用独立 feature 归属。
 
 本次备份清单位于共享仓库根目录的 `.local/api-entry-backups/review-20261124-153303/integration.json`。
