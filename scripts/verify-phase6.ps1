@@ -81,6 +81,7 @@ try {
     $publicAssets = Get-Content -LiteralPath 'web/public/manifest.json' -Raw | ConvertFrom-Json
     $expected += @($publicAssets.assets | ForEach-Object { 'web/public/' + $_.file })
     $expected += @($publicAssets.outfitPreviews | ForEach-Object { 'web/public/' + $_.display.file; 'web/public/' + $_.thumbnail.file })
+    $expected += @($publicAssets.venuePreviews | ForEach-Object { 'web/public/' + $_.display.file; 'web/public/' + $_.thumbnail.file })
     if (Compare-Object ($images | Sort-Object) ($expected | Sort-Object)) { throw 'Unexpected tracked image' }
     if ($tracked | Where-Object { $_ -match '(^|/)(\.env|config\.yaml|private/|node_modules/|go-build/)|\.(exe|log|test)$' -and $_ -ne '.env.example' }) {
         throw 'Private input or build artifact entered tracked source'
